@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html><head><meta charset="utf-8"><title>gracefoReading.findGaps</title>
+<style>
+body { font-family: Arial, Helvetica, sans-serif; margin: 0; padding: 0 2em 3em 2em;
+       color: #212121; max-width: 62em; }
+h1 { font-size: 1.6em; font-weight: normal; color: #b33; border-bottom: 1px solid #ccc;
+     padding-bottom: 0.2em; margin-top: 1em; }
+h2 { font-size: 1.2em; color: #333; margin-top: 1.6em; border-bottom: 1px solid #eee; }
+p.purpose { font-size: 1.05em; color: #444; }
+pre.syntax, pre.example { background: #f5f5f5; border: 1px solid #e0e0e0;
+     padding: 0.7em 1em; border-radius: 4px; overflow-x: auto;
+     font-family: Consolas, Monaco, monospace; font-size: 0.92em; }
+p.excap { margin-bottom: 0.2em; font-weight: bold; font-size: 0.92em; color: #444; }
+table.args { border-collapse: collapse; width: 100%; margin: 0.6em 0; }
+table.args th { background: #f0f0f0; text-align: left; padding: 0.4em 0.6em;
+     border: 1px solid #ddd; font-size: 0.88em; }
+table.args td { padding: 0.4em 0.6em; border: 1px solid #ddd; font-size: 0.88em;
+     vertical-align: top; }
+td.mono, code { font-family: Consolas, Monaco, monospace; }
+ul.fields { margin: 0.3em 0 0 0; padding-left: 1.1em; font-size: 0.95em; }
+ul.limits li { margin-bottom: 0.35em; }
+div.footer { margin-top: 3em; padding-top: 0.6em; border-top: 1px solid #ccc;
+     color: #888; font-size: 0.8em; }
+a { color: #06c; text-decoration: none; }
+a:hover { text-decoration: underline; }
+</style></head><body>
+<h1>gracefoReading.findGaps</h1>
+<p class="purpose">Detect sampling gaps and contiguous segments in an L1B time series.</p>
+<h2>Syntax</h2>
+<pre class="syntax">[gaps, stats] = gracefoReading.findGaps(time)
+[gaps, stats] = gracefoReading.findGaps(time, Name, Value)</pre>
+<h2>Description</h2>
+<p>Analyses the epoch spacing of a time series read with gracefoReading.readL1b or readL1bMulti and reports every gap exceeding Tolerance times the nominal sampling interval, together with the contiguous segments between the gaps. Downstream processing - filtering, arc segmentation, differentiation - requires contiguous data, so this moves a routine and error-prone preprocessing step into tested code. All three readL1b time formats are accepted and produce identical results; gap epochs are always reported as MJD and seconds of day.</p>
+<h2>Input Arguments</h2>
+<table class="args"><tr><th>Name</th><th>Type</th><th>Size</th><th>Description</th><th>Options</th><th>Default</th></tr><tr><td class="mono">time</td><td>double | datetime | int64</td><td>[N x 2] | [N x 1]</td><td>Epochs as returned by readL1b: [N x 2] integer MJD and seconds of day, datetime on the GPS time scale, or int64 GPS nanoseconds past 2000-01-01 12:00:00. Must be sorted ascending.</td><td></td><td class="mono"></td></tr><tr><td class="mono">&#x27;NominalRate&#x27;</td><td>double</td><td>1x1</td><td>Nominal sampling interval in seconds (e.g. 1 for ACT1B, 5 for KBR1B, 2 for LRI1B, 3600 for MAS1B).</td><td>any positive value, or NaN to estimate the rate as the median of the epoch differences</td><td class="mono">NaN (estimate from the data)</td></tr><tr><td class="mono">&#x27;Tolerance&#x27;</td><td>double</td><td>1x1</td><td>A step dt counts as a gap when dt &gt; Tolerance * NominalRate.</td><td>any positive value; 1.5 tolerates jitter of half a sampling interval</td><td class="mono">1.5</td></tr></table>
+<h2>Output Arguments</h2>
+<table class="args"><tr><th>Name</th><th>Type</th><th>Size</th><th>Description</th><th>Options</th><th>Default</th></tr><tr><td class="mono">gaps</td><td>table</td><td>[G x 8]</td><td>One row per detected gap, variables:<ul class="fields"><li><code>indexBefore</code> &ndash; double: record index before the gap</li><li><code>indexAfter</code> &ndash; double: record index after the gap</li><li><code>mjdBefore</code> &ndash; double: integer MJD of last record</li><li><code>secBefore</code> &ndash; double: seconds of day of last record</li><li><code>mjdAfter</code> &ndash; double: integer MJD of next record</li><li><code>secAfter</code> &ndash; double: seconds of day of next record</li><li><code>durationSec</code> &ndash; double: gap length in seconds</li><li><code>missingRecords</code> &ndash; double: round(durationSec/rate) - 1</li><li><code>Empty</code> &ndash; table: (G = 0) if the series is contiguous.</li></ul></td><td></td><td class="mono"></td></tr><tr><td class="mono">stats</td><td>struct</td><td>1x1</td><td><ul class="fields"><li><code>n</code> &ndash; double: epochs analysed</li><li><code>nominalRate</code> &ndash; double: sampling interval used [s]</li><li><code>rateEstimated</code> &ndash; logical: true if estimated from data</li><li><code>numGaps</code> &ndash; double: height(gaps)</li><li><code>totalMissing</code> &ndash; double: sum of missingRecords</li><li><code>longestGapSec</code> &ndash; double: 0 if no gaps</li><li><code>segments</code> &ndash; double [G+1 x 2]: first and last record index of each contiguous segment</li></ul></td><td></td><td class="mono"></td></tr></table>
+<h2>Accuracy and Limitations</h2><ul class="limits">
+<li>Differences are formed relative to the first epoch in double precision. Over a one-day series the resolution is better than 1e-9 s, far below any physically meaningful gap, so the double reduction is harmless even for int64 input.</li>
+<li>Automatic rate estimation uses the median difference and therefore requires that most steps are nominal; for series dominated by gaps, pass &#x27;NominalRate&#x27; explicitly.</li>
+<li>missingRecords is a count derived from the assumed constant rate, rounded and floored at 1; it is an estimate, not a statement about which epochs the data centre actually intended to deliver.</li>
+<li>Duplicate epochs (dt = 0) are not gaps and are not reported here; use the monotonicity warning of readL1bMulti.</li>
+<li>The input must be sorted; unsorted input raises an error rather than being silently sorted, since sorting would break the correspondence to obs.</li>
+</ul>
+<h2>Errors</h2><table class="args"><tr><th>Error identifier</th><th>Condition</th></tr><tr><td class="mono">gracefoReading:findGaps:notSorted</td><td>time not ascending</td></tr><tr><td class="mono">gracefoReading:findGaps:badTimeFormat</td><td>unrecognized time layout</td></tr></table>
+<h2>Examples</h2>
+<p class="excap">automatic rate detection on a KBR1B day (5 s nominal)</p>
+<pre class="example">[t, kbr] = gracefoReading.readL1b(&#x27;KBR1B_2020-01-01_Y_04.txt&#x27;);
+[gaps, stats] = gracefoReading.findGaps(t);
+fprintf(&#x27;%d gap(s), %d record(s) missing\n&#x27;, stats.numGaps, stats.totalMissing);</pre>
+<p class="excap">process each contiguous segment separately</p>
+<pre class="example">[~, stats] = gracefoReading.findGaps(t, &#x27;NominalRate&#x27;, 5);
+for s = 1:size(stats.segments, 1)
+   idx = stats.segments(s,1):stats.segments(s,2);
+   processSegment(t(idx,:), kbr(idx,:));
+end</pre>
+<h2>See Also</h2><p><a href="gracefoReading.readL1b.html"><code>gracefoReading.readL1b</code></a>, <a href="gracefoReading.readL1bMulti.html"><code>gracefoReading.readL1bMulti</code></a></p>
+<div class="footer">gracefoReading v2.3.0 &middot; 2026-08-14 &middot; Developed by Matthias Weigelt with the help of Anthropic Claude Opus 5, 2026-08-14 &middot; License: MIT &middot; Generated from the MATLAB help blocks &mdash; do not edit by hand.</div>
+</body></html>

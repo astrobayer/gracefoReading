@@ -1,0 +1,309 @@
+function [time, obs, aux] = readL1b(fileName, options)
+%READL1B  Read one GRACE-FO or classic GRACE Level-1B ASCII product file.
+%
+%   SYNTAX
+%     [time, obs, aux] = gracefoReading.readL1b(fileName)
+%     [time, obs, aux] = gracefoReading.readL1b(fileName, Name, Value)
+%
+%   DESCRIPTION
+%     Reads any GRACE-FO Level-1B RL04 ASCII product (ACC1B/ACT1B,
+%     SCA1B, KBR1B, LRI1B, GNV1B, THR1B, MAS1B, ...). These products
+%     share one structure: a YAML header terminated by
+%     "# End of YAML header" whose "variables:" list declares every
+%     data column in order, followed by whitespace-delimited records.
+%     The reader is driven entirely by the file's own header, so no
+%     release-dependent column tables are hard-coded.
+%
+%     Handled automatically:
+%       - single (gps_time) and split (time_intg + time_frac) time tags
+%         with unit-aware fractional scaling (microseconds in the real
+%         THR1B/MAS1B files),
+%       - bit-string flag columns (qualflg, prod_flag) preserved as
+%         character bit patterns and decoded into logical bit matrices,
+%       - prod_flag-controlled variable-length records (e.g. MAS1B);
+%         absent values are returned as NaN,
+%       - gzip-compressed input (.gz), decompressed in memory,
+%       - strict row-integrity checking with exact line-number reports,
+%       - optional content-hashed caching of parsed results.
+%
+%     Classic GRACE (2002-2017) files, whose headers are "KEY : VALUE"
+%     lines terminated by "END OF HEADER", are detected automatically.
+%     Because classic headers do not declare their columns, built-in
+%     per-product layouts or the 'ColumnNames' option supply them; this
+%     path is EXPERIMENTAL and warns on every use (see ACCURACY AND
+%     LIMITATIONS).
+%
+%   INPUT
+%     fileName - string | char, 1x1
+%                Path to a Level-1B ASCII product file, plain or
+%                gzip-compressed (.gz).
+%                Validation: mustBeFile. Required, positional.
+%
+%     'TimeVariable' - string, 1x1
+%                Override of the automatic time-tag detection: one
+%                variable name, or two joined by '+', e.g.
+%                "time_intg+time_frac".
+%                Options: any variable name declared in the header.
+%                Default: "" (automatic detection).
+%
+%     'TimeRange' - double, 1x2 | datetime, 1x2
+%                Inclusive epoch window. Doubles are interpreted as
+%                decimal MJD, datetimes on the GPS time scale.
+%                Default: [] (no restriction).
+%
+%     'TimeFormat' - string, 1x1
+%                Representation of the TIME output.
+%                Options: "mjd" (integer MJD + seconds of day),
+%                "datetime" (GPS time scale), "gpsns" (int64 GPS
+%                nanoseconds past 2000-01-01 12:00:00).
+%                Default: "mjd".
+%
+%     'ApplyQualityFlags' - logical, 1x1
+%                If true, every record whose qualflg has ANY bit set is
+%                removed; the number removed is reported in
+%                aux.numRecordsFlagged. Mutually exclusive with
+%                'QualityBitMask'.
+%                Options: true | false. Default: false.
+%
+%     'QualityBitMask' - double, 1xQ
+%                Selective alternative to 'ApplyQualityFlags': removes
+%                records where any of the LISTED qualflg bits is set.
+%                Bit numbering is 0-based, bit 0 = rightmost character
+%                of the bit string. Bits beyond the flag width are
+%                ignored.
+%                Options: non-negative integers. Default: [] (off).
+%
+%     'CacheDir' - string, 1x1
+%                Directory for content-hashed .mat parse caches,
+%                created if it does not exist. The cache key is the
+%                SHA-256 digest of file content + toolbox version +
+%                'TimeVariable' + 'ColumnNames'; TimeRange, TimeFormat
+%                and quality filtering are applied after loading, so
+%                one entry serves every combination of them.
+%                Default: "" (caching disabled).
+%
+%     'ColumnNames' - string, 1xC
+%                Classic-format files only: explicit column names in
+%                file order, overriding the built-in layout. Ignored
+%                for YAML-header files, which declare their own.
+%                Default: [] (use the built-in layout table).
+%
+%   OUTPUT
+%     time - double, [N x 2] | datetime, [N x 1] | int64, [N x 1]
+%                Epochs according to 'TimeFormat': [N x 2] integer MJD
+%                and seconds of day (default), datetime on the GPS time
+%                scale, or int64 GPS nanoseconds. GRACE(-FO) time tags
+%                count continuous GPS seconds past 2000-01-01 12:00:00
+%                with no leap seconds; the MJD split uses floor/mod
+%                arithmetic.
+%     obs  - double, [N x M]
+%                Observation columns: numeric variables that are not
+%                time tags, not char-typed, not bit-string flags and
+%                not "_id" identifiers. Column j corresponds to
+%                aux.obsNames{j}; values absent because of prod_flag
+%                are NaN.
+%     aux  - struct, 1x1
+%                Metadata and non-observation columns. Fields:
+%                obsNames, variableNames, variableUnits,
+%                variableAttributes, timeVariable, timeSystem,
+%                epochDescription, epochMJD, numRecordsHeader,
+%                numRecordsActual, numRecordsFlagged, header, product,
+%                fileName, headerFormat ('yaml' | 'classic'), cacheHit
+%                (logical), classicHeaderFields (classic only),
+%                qualflg / qualflgBits, prod_flag / prodFlagBits, and
+%                one field per further auxiliary column. See the HTML
+%                reference page for the full table.
+%
+%   ACCURACY AND LIMITATIONS
+%     - Time in the default "mjd" format is a double pair; around
+%       MJD 58849 the seconds-of-day double resolves about 2e-11 s, so
+%       the L1B time tags (microsecond quantization) are represented
+%       without loss. The "gpsns" format is exact integer arithmetic
+%       and is the recommended handoff to nanosecond pipelines, since a
+%       single double cannot hold 2020-era GPS nanoseconds (~6.3e17 >
+%       2^53) without rounding.
+%     - Values are converted with str2double, i.e. to the nearest
+%       double; the ASCII products carry fewer significant digits than
+%       a double, so no precision is lost relative to the file.
+%     - Quality filtering removes whole records; it does not repair or
+%       interpolate. Gaps that result are reported by
+%       gracefoReading.findGaps, not by this function.
+%     - Classic GRACE support is EXPERIMENTAL: the built-in column
+%       layouts (ACC1B, SCA1B, KBR1B, GNV1B) are taken from the GRACE
+%       Level-1B handbook and have NOT been validated against real
+%       classic files; classic qualflg may be decimal rather than an
+%       8-character bit string. Every classic read warns accordingly.
+%       Verify against a real file, or pass 'ColumnNames', before
+%       scientific use.
+%     - Binary Level-1B files are not supported (ASCII products only).
+%     - Caching trusts the SHA-256 content digest; if no JVM is
+%       available the digest cannot be computed and the file is parsed
+%       normally after a cacheUnavailable warning.
+%
+%   ERRORS
+%     gracefoReading:readL1b:badHeader            no recognized header end marker
+%     gracefoReading:readL1b:binaryNotSupported   binary-format file
+%     gracefoReading:readL1b:noVariables          no variables declared
+%     gracefoReading:readL1b:noTime               no time tag identified
+%     gracefoReading:readL1b:timeVariableNotFound 'TimeVariable' not in header
+%     gracefoReading:readL1b:unknownFracUnit      unsupported time_frac unit
+%     gracefoReading:readL1b:columnMismatch       row-integrity violation
+%     gracefoReading:readL1b:noData               no data records
+%     gracefoReading:readL1b:conflictingQualityOptions
+%                                                 both quality options given
+%     gracefoReading:readL1b:unsupportedClassicProduct
+%                                                 classic file without built-in
+%                                                 layout and no 'ColumnNames'
+%
+%   WARNINGS
+%     gracefoReading:readL1b:recordCountMismatch  header/actual count differ
+%     gracefoReading:readL1b:cacheUnavailable     hashing failed; parsed fresh
+%     gracefoReading:readL1b:classicExperimental  classic layout assumed
+%
+%   EXAMPLES
+%     % 1. plain read of one daily accelerometer file
+%     [t, acc, aux] = gracefoReading.readL1b('ACT1B_2020-01-01_C_04.txt');
+%     plot(t(:,2)/3600, acc(:, strcmp(aux.obsNames,'lin_accl_x')));
+%
+%     % 2. exact int64 nanoseconds, cached, selective flag filtering
+%     [tns, m, aux] = gracefoReading.readL1b('MAS1B_2020-01-01_C_04.txt', ...
+%         'TimeFormat', 'gpsns', 'QualityBitMask', [6 7], ...
+%         'CacheDir', 'l1bcache');
+%
+%     % 3. one hour of a gzipped KBR1B file as datetime
+%     [t, kbr] = gracefoReading.readL1b('KBR1B_2020-01-01_Y_04.txt.gz', ...
+%         'TimeFormat', 'datetime', ...
+%         'TimeRange', [datetime(2020,1,1,0,0,0), datetime(2020,1,1,1,0,0)]);
+%
+%   See also gracefoReading.readL1bMulti, gracefoReading.findGaps,
+%            gracefoReading.findL1bFiles, gracefoReading.decodeQualFlags,
+%            gracefoReading.checkQuaternionNorm,
+%            gracefoReading.writeGroopsInstrument,
+%            gracefoReading.readGroopsInstrument, gracefoReading.version
+%
+%   Toolbox:  gracefoReading v2.3.0
+%   Created:  2026-08-01
+%   Updated:  2026-08-14
+%   Author:   Developed by Matthias Weigelt with the help of Anthropic
+%             Claude Opus 5, 2026-08-14
+
+arguments
+    fileName (1,1) string {mustBeFile}
+    options.TimeVariable (1,1) string = ""
+    options.TimeRange = []
+    options.TimeFormat (1,1) string {mustBeMember(options.TimeFormat, ["mjd","datetime","gpsns"])} = "mjd"
+    options.ApplyQualityFlags (1,1) logical = false
+    options.QualityBitMask (1,:) double {mustBeInteger, mustBeNonnegative} = []
+    options.CacheDir (1,1) string = ""
+    options.ColumnNames (1,:) string = string.empty
+end
+
+if options.ApplyQualityFlags && ~isempty(options.QualityBitMask)
+    error('gracefoReading:readL1b:conflictingQualityOptions', ...
+        ['Specify either ''ApplyQualityFlags'' (all bits) or ', ...
+         '''QualityBitMask'' (selected bits), not both.']);
+end
+
+% ---- read file text (gzip-aware) --------------------------------------
+rawText = gracefoReading.internal.readTextMaybeGz(fileName);
+
+% ---- cache lookup ------------------------------------------------------
+cacheFile = "";
+if options.CacheDir ~= ""
+    key = gracefoReading.internal.contentHash(rawText, ...
+        gracefoReading.version(), char(options.TimeVariable), ...
+        strjoin(options.ColumnNames, ','));
+    if key == ""
+        warning('gracefoReading:readL1b:cacheUnavailable', ...
+            'Content hashing unavailable (no JVM?); parsing without cache.');
+    else
+        if ~isfolder(options.CacheDir), mkdir(options.CacheDir); end
+        cacheFile = fullfile(options.CacheDir, "gracefoReading_" + key + ".mat");
+    end
+end
+
+if cacheFile ~= "" && isfile(cacheFile)
+    S = load(cacheFile, 'timeMjd', 'timeNs', 'obs', 'aux');
+    timeMjd = S.timeMjd; timeNs = S.timeNs; obs = S.obs; aux = S.aux;
+    aux.fileName = fileName;      % cache may have been written elsewhere
+    aux.cacheHit = true;
+else
+    [timeMjd, timeNs, obs, aux] = localParse(rawText, fileName, ...
+        options.TimeVariable, options.ColumnNames);
+    aux.cacheHit = false;
+    if cacheFile ~= ""
+        save(cacheFile, 'timeMjd', 'timeNs', 'obs', 'aux');
+    end
+end
+nRec = size(timeMjd, 1);
+
+% ---- quality filtering -------------------------------------------------
+keep = true(nRec, 1);
+if isfield(aux, 'qualflgBits')
+    if options.ApplyQualityFlags
+        keep = ~any(aux.qualflgBits, 2);
+    elseif ~isempty(options.QualityBitMask)
+        cols = options.QualityBitMask + 1;
+        cols = cols(cols <= size(aux.qualflgBits, 2));
+        keep = ~any(aux.qualflgBits(:, cols), 2);
+    end
+    aux.numRecordsFlagged = nnz(~keep);
+end
+
+% ---- time-range filtering ---------------------------------------------
+if ~isempty(options.TimeRange)
+    tr = options.TimeRange;
+    if isdatetime(tr)
+        trMjd = aux.epochMJD + (seconds(tr - datetime(2000,1,1,0,0,0)) / 86400);
+    else
+        trMjd = double(tr);
+    end
+    tDec = timeMjd(:,1) + timeMjd(:,2) / 86400;
+    keep = keep & tDec >= min(trMjd) & tDec <= max(trMjd);
+end
+
+if ~all(keep)
+    timeMjd = timeMjd(keep, :);
+    timeNs  = timeNs(keep, :);
+    obs = obs(keep, :);
+    aux = gracefoReading.internal.filterAuxRecords(aux, keep, nRec);
+end
+
+% ---- output time format ------------------------------------------------
+switch options.TimeFormat
+    case "datetime"
+        time = datetime(2000, 1, 1, 0, 0, 0) ...
+             + days(timeMjd(:,1) - aux.epochMJD) + seconds(timeMjd(:,2));
+    case "gpsns"
+        time = timeNs;
+    otherwise
+        time = timeMjd;
+end
+end
+
+% ========================================================================
+function [timeMjd, timeNs, obs, aux] = localParse(rawText, fileName, timeVarOpt, columnNames)
+lines = splitlines(string(rawText));
+
+yamlEnd = find(contains(lines, "End of YAML header"), 1);
+classicEnd = find(strtrim(lines) == "END OF HEADER", 1);
+
+if ~isempty(yamlEnd)
+    [timeMjd, timeNs, obs, aux] = gracefoReading.internal.parseYamlProduct( ...
+        lines, yamlEnd, fileName, timeVarOpt);
+    aux.headerFormat = 'yaml';
+elseif ~isempty(classicEnd)
+    warning('gracefoReading:readL1b:classicExperimental', ...
+        ['Classic GRACE header detected in %s. Column layouts for classic ', ...
+         'files are assumed from the GRACE L1B handbook and NOT yet ', ...
+         'validated against real files; verify results or supply ', ...
+         '''ColumnNames''. See HANDOVER.md.'], fileName);
+    [timeMjd, timeNs, obs, aux] = gracefoReading.internal.parseClassicProduct( ...
+        lines, classicEnd, fileName, timeVarOpt, columnNames);
+    aux.headerFormat = 'classic';
+else
+    error('gracefoReading:readL1b:badHeader', ...
+        ['No "# End of YAML header" (GRACE-FO) or "END OF HEADER" ', ...
+         '(classic GRACE) marker found in %s; not a supported L1B ASCII product.'], fileName);
+end
+end

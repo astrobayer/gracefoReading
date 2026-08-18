@@ -1,0 +1,172 @@
+header:
+  dimensions:
+    num_records: 24
+  global_attributes:
+    acknowledgement: GRACE-FO is a joint mission of the US National Aeronautics and Space Administration and the German Research Center for Geosciences.  Use the digital object identifier provided in the id attribute when citing this data.  See https://podaac.jpl.nasa.gov/CitingPODAAC
+    conventions: CF-1.6, ACDD-1.3, ISO 8601
+    creator_email: gracefo@podaac.jpl.nasa.gov
+    creator_institution: NASA/JPL
+    creator_name: GRACE Follow-On Science Data System
+    creator_type: group
+    creator_url: http://gracefo.jpl.nasa.gov
+    date_created: 2020-01-14T00:43:30Z
+    date_issued: 2020-01-17T19:27:34Z
+    history:
+      - "INPUT FILE NAME               : MAS1A<-MAS1A_2020-01-01_C_04.dat"
+      - "INPUT FILE CREATION TIME (UTC): MAS1A<-2020-01-14 00:41:52 by operator"
+      - "INPUT FILE SOFTWARE VERSION   : MAS1A<-6ff95"
+      - "INPUT FILE BUILDTIME TAG      : MAS1A<-05-15_13:29:28_PDT"
+      - "INPUT FILE NAME               : CLK1B<-CLK1B_2020-01-01_C_04.dat"
+      - "INPUT FILE CREATION TIME (UTC): CLK1B<-2020-01-10 22:35:46 by operator"
+      - "INPUT FILE SOFTWARE VERSION   : CLK1B<-f7f1"
+      - "INPUT FILE BUILDTIME TAG      : CLK1B<-09-05_09:29:21_PDT"
+      - "INPUT FILE NAME               : TIM1B<-TIM1B_2020-01-01_C_04.dat"
+      - "INPUT FILE CREATION TIME (UTC): TIM1B<-2020-01-02 05:30:37 by operator"
+      - "INPUT FILE SOFTWARE VERSION   : TIM1B<-471a-dirty"
+      - "INPUT FILE BUILDTIME TAG      : TIM1B<-07-31_09:42:00_PDT"
+    id: 10.5067/GFJPL-L1B04
+    institution: NASA/JPL
+    instrument: Satellite and tank gas mass
+    instrument_vocabulary: NASA Global Change Master Directory instrument keywords
+    keywords: GRACE-FO, Satellite and tank gas mass
+    keywords_vocabulary: NASA Global Change Master Directory (GCMD) Science Keywords
+    license: https://science.nasa.gov/earth-science/earth-science-data/data-information-policy
+    naming_authority: org.doi.dx
+    platform: GRACE C
+    platform_vocabulary: NASA Global Change Master Directory platform keywords
+    processing_level: 1B
+    product_version: 04
+    program: NASA Earth Systematic Missions Program
+    project: NASA Gravity Recovery And Climate Experiment Follow-On (GRACE-FO)
+    publisher_email: podaac@jpl.nasa.gov
+    publisher_institution: NASA/JPL
+    publisher_name: Physical Oceanography Distributed Active Archive Center
+    publisher_type: group
+    publisher_url: http://podaac.jpl.nasa.gov
+    references: https://podaac.jpl.nasa.gov/gravity/gracefo-documentation
+    source: Satellite and tank gas mass data from GRACE C
+    summary: Satellite and tank gas masses over time based on thruster usage and tank observations
+    time_coverage_start: 2020-01-01T00:59:59.99Z
+    time_coverage_stop: 2020-01-01T23:59:59.98Z
+    title: GRACE-FO Level-1B Mass Data
+  non-standard_attributes:
+    epoch_time: 2000-01-01T12:00:00.00Z
+    software_build_time: 2019-09-24T00:01:03-07:00
+    software_version: 4e96
+    start_time_epoch_secs: 631112399.9904521
+    stop_time_epoch_secs: 631195199.989534
+  variables:
+    - time_intg:
+        comment: 1st column
+        coverage_content_type: referenceInformation
+        long_name: Seconds past 12:00:00 noon of January 1, 2000
+        units: seconds
+    - time_frac:
+        comment: 2nd column
+        coverage_content_type: referenceInformation
+        long_name: Fractional portion of time tag
+        units: microseconds
+        valid_range: 0, 999999
+    - time_ref:
+        comment: 3rd column
+        coverage_content_type: referenceInformation
+        long_name: Time reference frame
+        units: char
+        value_meanings:
+          - R = Receiver, OBC, or LRI time
+          - G = GPS time
+    - GRACEFO_id:
+        comment: 4th column
+        coverage_content_type: referenceInformation
+        long_name: GRACE-FO satellite identifier
+        units: char
+        valid_range: C,D
+        value_meanings:
+          - C = GRACE-FO 1 (GRACE C)
+          - D = GRACE-FO 2 (GRACE D)
+    - qualflg:
+        comment: 5th column
+        coverage_content_type: qualityInformation
+        flag_masks: 1b, 2b, 4b, 8b, 16b, 32b, 64b, 128b
+        flag_meanings:
+          - bits 0-5 = Not defined
+          - bit 6 = No OBC-to-Receiver Time mapping
+          - bit 7 = No clock correction available
+        long_name: Quality flags, bit 0 is rightmost
+    - prod_flag:
+        comment: 6th column
+        coverage_content_type: referenceInformation
+        flag_masks: 1b, 2b, 4b, 8b, 16b, 32b, 64b
+        flag_meanings:
+          - bit 0 = mass_thr
+          - bit 1 = mass_thr_err
+          - bit 2 = mass_tnk
+          - bit 3 = mass_tnk_err
+          - bit 4 = gas_mass_thr1
+          - bit 5 = gas_mass_thr2
+          - bit 6 = gas_mass_tnk1
+          - bit 7 = gas_mass_tnk2
+        long_name: Product flag, if bit set to 1, value is present in record, bit 0 is rightmost
+    - mass_thr:
+        comment: next column, if prod_flag bit set
+        coverage_content_type: modelResult
+        long_name: Spacecraft mass based on thruster usage
+        units: kg
+    - mass_thr_err:
+        comment: next column, if prod_flag bit set
+        coverage_content_type: qualityInformation
+        long_name: Error in mass_thr (from 'error bit 0')
+    - mass_tnk:
+        comment: next column, if prod_flag bit set
+        coverage_content_type: physicalMeasurement
+        long_name: Spacecraft mass from tank observations
+        units: kg
+    - mass_tnk_err:
+        comment: next column, if prod_flag bit set
+        coverage_content_type: qualityInformation
+        long_name: Error in mass_tnk (from 'error bit 2')
+    - gas_mass_thr1:
+        comment: next column, if prod_flag bit set
+        coverage_content_type: modelResult
+        long_name: Mass of gas in tank 1 based on thruster usage
+        units: kg
+    - gas_mass_thr2:
+        comment: next column, if prod_flag bit set
+        coverage_content_type: modelResult
+        long_name: Mass of gas in tank 2 based on thruster usage
+        units: kg
+    - gas_mass_tnk1:
+        comment: next column, if prod_flag bit set
+        coverage_content_type: modelResult
+        long_name: Mass of gas in tank 1 based on tank and thruster observations
+        units: kg
+    - gas_mass_tnk2:
+        comment: next column, if prod_flag bit set
+        coverage_content_type: modelResult
+        long_name: Mass of gas in tank 2 based on tank and thruster observations
+        units: kg
+# End of YAML header
+631112399 990452 G C  00000000 11000000 15.25970067419259 15.23406422398089
+631115999 990412 G C  00000000 11000000 15.25967440016452 15.23403402789878
+631119599 990372 G C  00000000 11000000 15.25964945240229 15.23400535606063
+631123199 990332 G C  00000000 11000000 15.25964176005923 15.23399651544338
+631126799 990292 G C  00000000 11000000 15.25961894828302 15.23397029844017
+631130399 990253 G C  00000000 11000000 15.25960280971909 15.23395175079263
+631133999 990213 G C  00000000 11000000 15.25958882110217 15.23393567402526
+631137599 990173 G C  00000000 11000000 15.2595804167634 15.23392601512897
+631141199 990133 G C  00000000 11000000 15.25957413445033 15.23391879502368
+631144799 990093 G C  00000000 11000000 15.25956017375452 15.23390275034505
+631148399 990053 G C  00000000 11000000 15.25954618513719 15.23388667357684
+631151999 990013 G C  00000000 11000000 15.25952937645917 15.23386735578326
+631155599 989973 G C  00000000 11000000 15.25950560139366 15.23384003169447
+631159199 989933 G C  00000000 11000000 15.25949369291978 15.23382634558288
+631162799 989893 G C  00000000 11000000 15.25947689820212 15.23380704383326
+631166399 989854 G C  00000000 11000000 15.25946711175393 15.23379579651268
+631169999 989814 G C  00000000 11000000 15.25945523120122 15.23378214248996
+631173599 989774 G C  00000000 11000000 15.25944335064842 15.23376848846705
+631177199 989734 G C  00000000 11000000 15.25943074413934 15.23375400012062
+631180799 989694 G C  00000000 11000000 15.25942306575612 15.23374517554627
+631184399 989654 G C  00000000 11000000 15.25941676948184 15.23373793939521
+631187999 989614 G C  00000000 11000000 15.25940480516459 15.23372418910357
+631191599 989574 G C  00000000 11000000 15.25939433464183 15.23371215559265
+631195199 989534 G C  00000000 11000000 15.25937399390618 15.23368877849185

@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html><head><meta charset="utf-8"><title>gracefoReading.readL1bMulti</title>
+<style>
+body { font-family: Arial, Helvetica, sans-serif; margin: 0; padding: 0 2em 3em 2em;
+       color: #212121; max-width: 62em; }
+h1 { font-size: 1.6em; font-weight: normal; color: #b33; border-bottom: 1px solid #ccc;
+     padding-bottom: 0.2em; margin-top: 1em; }
+h2 { font-size: 1.2em; color: #333; margin-top: 1.6em; border-bottom: 1px solid #eee; }
+p.purpose { font-size: 1.05em; color: #444; }
+pre.syntax, pre.example { background: #f5f5f5; border: 1px solid #e0e0e0;
+     padding: 0.7em 1em; border-radius: 4px; overflow-x: auto;
+     font-family: Consolas, Monaco, monospace; font-size: 0.92em; }
+p.excap { margin-bottom: 0.2em; font-weight: bold; font-size: 0.92em; color: #444; }
+table.args { border-collapse: collapse; width: 100%; margin: 0.6em 0; }
+table.args th { background: #f0f0f0; text-align: left; padding: 0.4em 0.6em;
+     border: 1px solid #ddd; font-size: 0.88em; }
+table.args td { padding: 0.4em 0.6em; border: 1px solid #ddd; font-size: 0.88em;
+     vertical-align: top; }
+td.mono, code { font-family: Consolas, Monaco, monospace; }
+ul.fields { margin: 0.3em 0 0 0; padding-left: 1.1em; font-size: 0.95em; }
+ul.limits li { margin-bottom: 0.35em; }
+div.footer { margin-top: 3em; padding-top: 0.6em; border-top: 1px solid #ccc;
+     color: #888; font-size: 0.8em; }
+a { color: #06c; text-decoration: none; }
+a:hover { text-decoration: underline; }
+</style></head><body>
+<h1>gracefoReading.readL1bMulti</h1>
+<p class="purpose">Read and concatenate several GRACE-FO L1B ASCII files.</p>
+<h2>Syntax</h2>
+<pre class="syntax">[time, obs, aux] = gracefoReading.readL1bMulti(fileNames)
+[time, obs, aux] = gracefoReading.readL1bMulti(fileNames, Name, Value)</pre>
+<h2>Description</h2>
+<p>Calls gracefoReading.readL1b on each file (e.g. consecutive daily ACT1B files) and concatenates the results into one continuous record. All files must expose the same observation columns (aux.obsNames); a mismatch raises an error rather than silently joining incompatible data. Per-file provenance is preserved in aux, and the concatenated time series is checked for strict monotonicity, which catches wrong file order and duplicate days. All name-value options are forwarded unchanged to readL1b.</p>
+<h2>Input Arguments</h2>
+<table class="args"><tr><th>Name</th><th>Type</th><th>Size</th><th>Description</th><th>Options</th><th>Default</th></tr><tr><td class="mono">fileNames</td><td>string | cellstr</td><td>1xK</td><td>Files in concatenation (typically chronological) order; K = number of files.<br><em>Validation: mustBeNonempty</em></td><td></td><td class="mono"></td></tr><tr><td class="mono">&#x27;TimeVariable&#x27;</td><td>string</td><td>1x1</td><td>Forwarded to readL1b (time-tag override).</td><td></td><td class="mono">&quot;&quot; (automatic detection)</td></tr><tr><td class="mono">&#x27;TimeRange&#x27;</td><td>double | datetime</td><td>1x2</td><td>Forwarded to readL1b; applied to every file.</td><td></td><td class="mono">[] (no restriction)</td></tr><tr><td class="mono">&#x27;TimeFormat&#x27;</td><td>string</td><td>1x1</td><td>Forwarded to readL1b.</td><td>&quot;mjd&quot; | &quot;datetime&quot; | &quot;gpsns&quot;</td><td class="mono">&quot;mjd&quot;</td></tr><tr><td class="mono">&#x27;ApplyQualityFlags&#x27;</td><td>logical</td><td>1x1</td><td>Forwarded to readL1b.</td><td>true | false</td><td class="mono">false</td></tr><tr><td class="mono">&#x27;QualityBitMask&#x27;</td><td>double</td><td>1xQ</td><td>Forwarded to readL1b (0-based bit numbers).</td><td></td><td class="mono">[] (off)</td></tr><tr><td class="mono">&#x27;CacheDir&#x27;</td><td>string</td><td>1x1</td><td>Forwarded to readL1b; caching is per file, so a partially cached series only parses the new files.</td><td></td><td class="mono">&quot;&quot; (caching disabled)</td></tr><tr><td class="mono">&#x27;ColumnNames&#x27;</td><td>string</td><td>1xC</td><td>Forwarded to readL1b (classic-format files only).</td><td></td><td class="mono">[] (use the built-in layout table)</td></tr></table>
+<h2>Output Arguments</h2>
+<table class="args"><tr><th>Name</th><th>Type</th><th>Size</th><th>Description</th><th>Options</th><th>Default</th></tr><tr><td class="mono">time</td><td>double | datetime | int64</td><td>[N x 2] | [N x 1]</td><td>Concatenated epochs in the requested format; N = total records kept across all files.</td><td></td><td class="mono"></td></tr><tr><td class="mono">obs</td><td>double</td><td>[N x M]</td><td>Concatenated observation columns, ordered as aux.obsNames.</td><td></td><td class="mono"></td></tr><tr><td class="mono">aux</td><td>struct</td><td>1x1</td><td>obsNames, variableNames, variableUnits, variableAttributes, timeVariable, timeSystem, epochDescription, epochMJD taken from the first file; fileNames [K x 1], products [K x 1], headers [K x 1], recordsPerFile [K x 1] (cumsum gives the split points), numRecordsHeader/Actual/Flagged [K x 1], plus per-record auxiliary fields that are present with consistent type in every file, concatenated in file order; inconsistent fields are dropped with warning fieldDropped.</td><td></td><td class="mono"></td></tr></table>
+<h2>Fields of aux</h2>
+<table class="args"><tr><th>Field</th><th>Type</th><th>Size</th><th>Description</th></tr><tr><td class="mono">obsNames / variableNames / variableUnits / variableAttributes / timeVariable / timeSystem / epochDescription / epochMJD</td><td>as in readL1b</td><td>-</td><td>Taken from the first file.</td></tr><tr><td class="mono">fileNames</td><td>string</td><td>Kx1</td><td>The input file list.</td></tr><tr><td class="mono">products</td><td>cellstr</td><td>Kx1</td><td>Per-file product identifiers.</td></tr><tr><td class="mono">headers</td><td>cell of cellstr</td><td>Kx1</td><td>Raw header lines of each file.</td></tr><tr><td class="mono">recordsPerFile</td><td>double</td><td>Kx1</td><td>Records contributed by each file after filtering; cumsum gives the split points of time/obs.</td></tr><tr><td class="mono">numRecordsHeader</td><td>double</td><td>Kx1</td><td>Per-file declared num_records (NaN if undeclared).</td></tr><tr><td class="mono">numRecordsActual</td><td>double</td><td>Kx1</td><td>Per-file parsed record counts.</td></tr><tr><td class="mono">numRecordsFlagged</td><td>double</td><td>Kx1</td><td>Per-file removals by &#x27;ApplyQualityFlags&#x27;.</td></tr><tr><td class="mono">&lt;name&gt;</td><td>double / logical / char / cellstr</td><td>Nx1 / NxB</td><td>Per-record auxiliary fields (qualflg, qualflgBits, GRACEFO_id, ...) present with consistent type in every file, concatenated in file order; otherwise dropped with warning gracefoReading:readL1bMulti:fieldDropped.</td></tr></table>
+<h2>Accuracy and Limitations</h2><ul class="limits">
+<li>Accuracy is that of readL1b; concatenation itself is exact.</li>
+<li>Records are joined in the order given, not sorted. Overlapping or out-of-order files trigger the timeNotMonotonic warning but are still returned, so the caller can decide how to resolve the overlap.</li>
+<li>Duplicate epochs are not removed automatically.</li>
+<li>Memory grows linearly with the number of files; a full year of 1 Hz ACT1B is roughly 3e7 records. For long series, read in blocks or use &#x27;CacheDir&#x27; with per-day processing.</li>
+</ul>
+<h2>Errors</h2><table class="args"><tr><th>Error identifier</th><th>Condition</th></tr><tr><td class="mono">gracefoReading:readL1bMulti:inconsistentVariables</td><td>observation columns differ between files</td></tr></table>
+<h2>Warnings</h2><table class="args"><tr><th>Warning identifier</th><th>Condition</th></tr><tr><td class="mono">gracefoReading:readL1bMulti:fieldDropped</td><td>aux field not concatenable</td></tr><tr><td class="mono">gracefoReading:readL1bMulti:timeNotMonotonic</td><td>time not strictly increasing across files</td></tr></table>
+<h2>Examples</h2>
+<p class="excap">five consecutive days</p>
+<pre class="example">files = compose(&quot;ACT1B_2020-01-%02d_C_04.txt&quot;, 1:5);
+[t, acc, aux] = gracefoReading.readL1bMulti(files);
+disp(aux.recordsPerFile&#x27;);</pre>
+<p class="excap">a month located by findL1bFiles, cached and flag-filtered</p>
+<pre class="example">files = gracefoReading.findL1bFiles(archive, &quot;ACT1B&quot;, ...
+   &#x27;DateRange&#x27;, [datetime(2020,1,1) datetime(2020,1,31)], ...
+   &#x27;Satellite&#x27;, &quot;C&quot;);
+[t, acc] = gracefoReading.readL1bMulti(files, ...
+   &#x27;ApplyQualityFlags&#x27;, true, &#x27;CacheDir&#x27;, &#x27;l1bcache&#x27;);</pre>
+<h2>See Also</h2><p><a href="gracefoReading.readL1b.html"><code>gracefoReading.readL1b</code></a>, <a href="gracefoReading.findL1bFiles.html"><code>gracefoReading.findL1bFiles</code></a>, <a href="gracefoReading.findGaps.html"><code>gracefoReading.findGaps</code></a></p>
+<div class="footer">gracefoReading v2.3.0 &middot; 2026-08-14 &middot; Developed by Matthias Weigelt with the help of Anthropic Claude Opus 5, 2026-08-14 &middot; License: MIT &middot; Generated from the MATLAB help blocks &mdash; do not edit by hand.</div>
+</body></html>

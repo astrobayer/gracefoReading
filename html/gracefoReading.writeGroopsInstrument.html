@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html><head><meta charset="utf-8"><title>gracefoReading.writeGroopsInstrument</title>
+<style>
+body { font-family: Arial, Helvetica, sans-serif; margin: 0; padding: 0 2em 3em 2em;
+       color: #212121; max-width: 62em; }
+h1 { font-size: 1.6em; font-weight: normal; color: #b33; border-bottom: 1px solid #ccc;
+     padding-bottom: 0.2em; margin-top: 1em; }
+h2 { font-size: 1.2em; color: #333; margin-top: 1.6em; border-bottom: 1px solid #eee; }
+p.purpose { font-size: 1.05em; color: #444; }
+pre.syntax, pre.example { background: #f5f5f5; border: 1px solid #e0e0e0;
+     padding: 0.7em 1em; border-radius: 4px; overflow-x: auto;
+     font-family: Consolas, Monaco, monospace; font-size: 0.92em; }
+p.excap { margin-bottom: 0.2em; font-weight: bold; font-size: 0.92em; color: #444; }
+table.args { border-collapse: collapse; width: 100%; margin: 0.6em 0; }
+table.args th { background: #f0f0f0; text-align: left; padding: 0.4em 0.6em;
+     border: 1px solid #ddd; font-size: 0.88em; }
+table.args td { padding: 0.4em 0.6em; border: 1px solid #ddd; font-size: 0.88em;
+     vertical-align: top; }
+td.mono, code { font-family: Consolas, Monaco, monospace; }
+ul.fields { margin: 0.3em 0 0 0; padding-left: 1.1em; font-size: 0.95em; }
+ul.limits li { margin-bottom: 0.35em; }
+div.footer { margin-top: 3em; padding-top: 0.6em; border-top: 1px solid #ccc;
+     color: #888; font-size: 0.8em; }
+a { color: #06c; text-decoration: none; }
+a:hover { text-decoration: underline; }
+</style></head><body>
+<h1>gracefoReading.writeGroopsInstrument</h1>
+<p class="purpose">Export time and observations as a GROOPS ASCII instrument file.</p>
+<h2>Syntax</h2>
+<pre class="syntax">gracefoReading.writeGroopsInstrument(fileName, time, data)
+gracefoReading.writeGroopsInstrument(fileName, time, data, Name, Value)</pre>
+<h2>Description</h2>
+<p>Writes an ASCII instrument file in the GROOPS convention</p>
+<p>groops instrument version=&lt;version&gt; &lt;typeCode&gt; &lt;dataColumns&gt;          (type/dimension header) &lt;numRecords&gt;                      (record-count line) &lt;decimalMJD&gt; &lt;data1&gt; &lt;data2&gt; ...  (one line per record)</p>
+<p>closing the loop from PO.DAAC Level-1B files read with this toolbox to GROOPS-based processing without intermediate scripts. Output always uses Unix line endings (LF) on every platform, so files written on Windows and Linux are byte-identical.</p>
+<h2>Input Arguments</h2>
+<table class="args"><tr><th>Name</th><th>Type</th><th>Size</th><th>Description</th><th>Options</th><th>Default</th></tr><tr><td class="mono">fileName</td><td>string | char</td><td>1x1</td><td>Output path; an existing file is overwritten.</td><td></td><td class="mono"></td></tr><tr><td class="mono">time</td><td>double | datetime</td><td>[N x 2] | [N x 1]</td><td>Epochs as returned by gracefoReading.readL1b: integer MJD and seconds of day, or datetime on the GPS time scale. Converted to the decimal MJD that GROOPS expects.</td><td></td><td class="mono"></td></tr><tr><td class="mono">data</td><td>double</td><td>[N x M]</td><td>Observation columns to write; M may be zero, which produces a time-only file.</td><td></td><td class="mono"></td></tr><tr><td class="mono">&#x27;TypeCode&#x27;</td><td>double</td><td>1x1</td><td>GROOPS epoch-type code written as the first integer of the type/dimension header.</td><td>integer-valued; 0 denotes a generic MISCVALUES-style record, other codes denote typed records (accelerometer, star camera, ...) as defined by the GROOPS release in use</td><td class="mono">0</td></tr><tr><td class="mono">&#x27;Version&#x27;</td><td>double</td><td>1x1</td><td>Version tag written on the first line.</td><td>integer-valued, e.g. 20200123</td><td class="mono">20200123</td></tr><tr><td class="mono">&#x27;Format&#x27;</td><td>string</td><td>1x1</td><td>printf format applied to each data value.</td><td>any valid floating-point conversion, e.g. &quot;%.16e&quot; for full double precision or &quot;%.6f&quot; for compact output</td><td class="mono">&quot;%.16e&quot;</td></tr></table>
+<h2>Output Arguments</h2>
+<p><em>This function returns no outputs; it works by side effect.</em></p>
+<h2>Accuracy and Limitations</h2><ul class="limits">
+<li>Time is written as decimal MJD in a single double, as the GROOPS convention requires. Around MJD 58849 a double resolves about 1.3 microseconds, which is adequate for 1 Hz Level-1B products but not for sub-microsecond timing; such applications must not round-trip through decimal MJD. The int64 &quot;gpsns&quot; format of readL1b preserves the full time tag inside MATLAB.</li>
+<li>Data values are written with &#x27;Format&#x27;; the default keeps full double precision, a shorter format silently truncates.</li>
+<li>The header conventions (version tag, type codes) reflect the documented GROOPS ASCII layout but have NOT been verified against a file produced by a specific GROOPS installation; confirm both before relying on this export in production (see HANDOVER.md, open topics). gracefoReading.readGroopsInstrument reads the format back and makes that check a two-line test.</li>
+<li>NaN values are written as the platform&#x27;s printf representation of NaN; GROOPS may not accept them, so filter or fill gaps before export.</li>
+</ul>
+<h2>Errors</h2><table class="args"><tr><th>Error identifier</th><th>Condition</th></tr><tr><td class="mono">gracefoReading:writeGroopsInstrument:sizeMismatch</td><td>number of rows of time and data differ</td></tr><tr><td class="mono">gracefoReading:writeGroopsInstrument:openFailed</td><td>the output file could not be opened for writing</td></tr></table>
+<h2>Examples</h2>
+<p class="excap">export the three linear accelerations of one day</p>
+<pre class="example">[t, acc, aux] = gracefoReading.readL1b(&#x27;ACT1B_2020-01-01_C_04.txt&#x27;);
+gracefoReading.writeGroopsInstrument(&#x27;act.txt&#x27;, t, acc(:,1:3));</pre>
+<p class="excap">typed record with compact formatting, then verify</p>
+<pre class="example">gracefoReading.writeGroopsInstrument(&#x27;act.txt&#x27;, t, acc(:,1:3), ...
+   &#x27;TypeCode&#x27;, 3, &#x27;Format&#x27;, &quot;%.9e&quot;);
+[t2, d2, info] = gracefoReading.readGroopsInstrument(&#x27;act.txt&#x27;);</pre>
+<h2>See Also</h2><p><a href="gracefoReading.readGroopsInstrument.html"><code>gracefoReading.readGroopsInstrument</code></a>, <a href="gracefoReading.readL1b.html"><code>gracefoReading.readL1b</code></a></p>
+<div class="footer">gracefoReading v2.3.0 &middot; 2026-08-14 &middot; Developed by Matthias Weigelt with the help of Anthropic Claude Opus 5, 2026-08-14 &middot; License: MIT &middot; Generated from the MATLAB help blocks &mdash; do not edit by hand.</div>
+</body></html>

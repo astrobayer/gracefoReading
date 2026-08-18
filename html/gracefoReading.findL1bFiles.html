@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html><head><meta charset="utf-8"><title>gracefoReading.findL1bFiles</title>
+<style>
+body { font-family: Arial, Helvetica, sans-serif; margin: 0; padding: 0 2em 3em 2em;
+       color: #212121; max-width: 62em; }
+h1 { font-size: 1.6em; font-weight: normal; color: #b33; border-bottom: 1px solid #ccc;
+     padding-bottom: 0.2em; margin-top: 1em; }
+h2 { font-size: 1.2em; color: #333; margin-top: 1.6em; border-bottom: 1px solid #eee; }
+p.purpose { font-size: 1.05em; color: #444; }
+pre.syntax, pre.example { background: #f5f5f5; border: 1px solid #e0e0e0;
+     padding: 0.7em 1em; border-radius: 4px; overflow-x: auto;
+     font-family: Consolas, Monaco, monospace; font-size: 0.92em; }
+p.excap { margin-bottom: 0.2em; font-weight: bold; font-size: 0.92em; color: #444; }
+table.args { border-collapse: collapse; width: 100%; margin: 0.6em 0; }
+table.args th { background: #f0f0f0; text-align: left; padding: 0.4em 0.6em;
+     border: 1px solid #ddd; font-size: 0.88em; }
+table.args td { padding: 0.4em 0.6em; border: 1px solid #ddd; font-size: 0.88em;
+     vertical-align: top; }
+td.mono, code { font-family: Consolas, Monaco, monospace; }
+ul.fields { margin: 0.3em 0 0 0; padding-left: 1.1em; font-size: 0.95em; }
+ul.limits li { margin-bottom: 0.35em; }
+div.footer { margin-top: 3em; padding-top: 0.6em; border-top: 1px solid #ccc;
+     color: #888; font-size: 0.8em; }
+a { color: #06c; text-decoration: none; }
+a:hover { text-decoration: underline; }
+</style></head><body>
+<h1>gracefoReading.findL1bFiles</h1>
+<p class="purpose">Locate GRACE-FO L1B files in an archive by product and date.</p>
+<h2>Syntax</h2>
+<pre class="syntax">files = gracefoReading.findL1bFiles(archiveRoot, product)
+[files, report] = gracefoReading.findL1bFiles(archiveRoot, product, Name, Value)</pre>
+<h2>Description</h2>
+<p>Searches an archive folder for PO.DAAC-named product files, for example ACT1B_2020-01-03_C_04.txt or the gzipped variant ACT1B_2020-01-03_C_04.txt.gz, sorts them chronologically and reports date coverage including calendar days without a file. Together with readL1bMulti this reduces multi-month batch reading to two lines. Files whose names do not match the PO.DAAC pattern are ignored, and an empty result is returned rather than raised as an error, so the function can be used to probe an archive.</p>
+<h2>Input Arguments</h2>
+<table class="args"><tr><th>Name</th><th>Type</th><th>Size</th><th>Description</th><th>Options</th><th>Default</th></tr><tr><td class="mono">archiveRoot</td><td>string | char</td><td>1x1</td><td>Folder to search.<br><em>Validation: mustBeFolder</em></td><td></td><td class="mono"></td></tr><tr><td class="mono">product</td><td>string</td><td>1x1</td><td>Product identifier as it appears at the start of the file name.</td><td>&quot;ACT1B&quot;, &quot;ACC1B&quot;, &quot;SCA1B&quot;, &quot;KBR1B&quot;, &quot;LRI1B&quot;, &quot;GNV1B&quot;, &quot;THR1B&quot;, &quot;MAS1B&quot;, ... Required, positional</td><td class="mono"></td></tr><tr><td class="mono">&#x27;DateRange&#x27;</td><td>datetime</td><td>1x2</td><td>Inclusive date window; order of the two elements is irrelevant. Also defines the span over which missing days are reported.</td><td></td><td class="mono">[] (all dates found)</td></tr><tr><td class="mono">&#x27;Satellite&#x27;</td><td>string</td><td>1x1</td><td>Satellite letter in the file name.</td><td>&quot;C&quot; | &quot;D&quot; (GRACE-FO 1 and 2), &quot;Y&quot; (dual- satellite products such as KBR1B/LRI1B), &quot;&quot; for any</td><td class="mono">&quot;&quot; (any satellite)</td></tr><tr><td class="mono">&#x27;Release&#x27;</td><td>string</td><td>1x1</td><td>Release tag in the file name.</td><td>&quot;04&quot;, &quot;03&quot;, </td><td class="mono">&quot;04&quot;</td></tr><tr><td class="mono">&#x27;Recursive&#x27;</td><td>logical</td><td>1x1</td><td>Search subfolders as well, which suits archives organised by year or month.</td><td>true | false</td><td class="mono">true</td></tr></table>
+<h2>Output Arguments</h2>
+<table class="args"><tr><th>Name</th><th>Type</th><th>Size</th><th>Description</th><th>Options</th><th>Default</th></tr><tr><td class="mono">files</td><td>string</td><td>[K x 1]</td><td>Full paths sorted by date and then satellite; empty string array if nothing matches.</td><td></td><td class="mono"></td></tr><tr><td class="mono">report</td><td>struct</td><td>1x1</td><td><ul class="fields"><li><code>dates</code> &ndash; datetime [K x 1]: date of each file</li><li><code>satellites</code> &ndash; string [K x 1]: satellite letters</li><li><code>firstDate</code> &ndash; datetime: NaT if no files</li><li><code>lastDate</code> &ndash; datetime: NaT if no files</li><li><code>missingDates</code> &ndash; datetime [D x 1]: calendar days with no file inside [firstDate, lastDate], or inside &#x27;DateRange&#x27; when it is given</li></ul></td><td></td><td class="mono"></td></tr></table>
+<h2>Accuracy and Limitations</h2><ul class="limits">
+<li>Dates come from the file NAME, not from the file content; a misnamed file is placed wrongly. Content dates are available from readL1b via the time output.</li>
+<li>Only the PO.DAAC naming convention PROD1B_yyyy-MM-dd_S_RR.txt[.gz] is recognized. Archives using other conventions need their own listing; the resulting string array can be passed to readL1bMulti directly.</li>
+<li>Missing-day detection assumes daily files; it is not meaningful for products delivered at another cadence.</li>
+<li>Recursive search visits every subfolder of archiveRoot and can be slow on network file systems with very large archives; set &#x27;Recursive&#x27; to false when the layout is flat.</li>
+<li>Duplicates of the same date in different subfolders are all returned; the caller decides which to keep.</li>
+</ul>
+<h2>Examples</h2>
+<p class="excap">one month of ACT1B for GRACE-FO 1, then read it</p>
+<pre class="example">files = gracefoReading.findL1bFiles(archive, &quot;ACT1B&quot;, ...
+   &#x27;DateRange&#x27;, [datetime(2020,1,1) datetime(2020,1,31)], ...
+   &#x27;Satellite&#x27;, &quot;C&quot;);
+[t, acc, aux] = gracefoReading.readL1bMulti(files);</pre>
+<p class="excap">check archive completeness before a long run</p>
+<pre class="example">[~, rep] = gracefoReading.findL1bFiles(archive, &quot;KBR1B&quot;, &#x27;Satellite&#x27;, &quot;Y&quot;);
+fprintf(&#x27;%s .. %s, %d day(s) missing\n&#x27;, rep.firstDate, rep.lastDate, ...
+       numel(rep.missingDates));</pre>
+<h2>See Also</h2><p><a href="gracefoReading.readL1bMulti.html"><code>gracefoReading.readL1bMulti</code></a>, <a href="gracefoReading.readL1b.html"><code>gracefoReading.readL1b</code></a>, <a href="gracefoReading.findGaps.html"><code>gracefoReading.findGaps</code></a></p>
+<div class="footer">gracefoReading v2.3.0 &middot; 2026-08-14 &middot; Developed by Matthias Weigelt with the help of Anthropic Claude Opus 5, 2026-08-14 &middot; License: MIT &middot; Generated from the MATLAB help blocks &mdash; do not edit by hand.</div>
+</body></html>

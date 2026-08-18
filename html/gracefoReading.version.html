@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html><head><meta charset="utf-8"><title>gracefoReading.version</title>
+<style>
+body { font-family: Arial, Helvetica, sans-serif; margin: 0; padding: 0 2em 3em 2em;
+       color: #212121; max-width: 62em; }
+h1 { font-size: 1.6em; font-weight: normal; color: #b33; border-bottom: 1px solid #ccc;
+     padding-bottom: 0.2em; margin-top: 1em; }
+h2 { font-size: 1.2em; color: #333; margin-top: 1.6em; border-bottom: 1px solid #eee; }
+p.purpose { font-size: 1.05em; color: #444; }
+pre.syntax, pre.example { background: #f5f5f5; border: 1px solid #e0e0e0;
+     padding: 0.7em 1em; border-radius: 4px; overflow-x: auto;
+     font-family: Consolas, Monaco, monospace; font-size: 0.92em; }
+p.excap { margin-bottom: 0.2em; font-weight: bold; font-size: 0.92em; color: #444; }
+table.args { border-collapse: collapse; width: 100%; margin: 0.6em 0; }
+table.args th { background: #f0f0f0; text-align: left; padding: 0.4em 0.6em;
+     border: 1px solid #ddd; font-size: 0.88em; }
+table.args td { padding: 0.4em 0.6em; border: 1px solid #ddd; font-size: 0.88em;
+     vertical-align: top; }
+td.mono, code { font-family: Consolas, Monaco, monospace; }
+ul.fields { margin: 0.3em 0 0 0; padding-left: 1.1em; font-size: 0.95em; }
+ul.limits li { margin-bottom: 0.35em; }
+div.footer { margin-top: 3em; padding-top: 0.6em; border-top: 1px solid #ccc;
+     color: #888; font-size: 0.8em; }
+a { color: #06c; text-decoration: none; }
+a:hover { text-decoration: underline; }
+</style></head><body>
+<h1>gracefoReading.version</h1>
+<p class="purpose">Version and release metadata of the gracefoReading toolbox.</p>
+<h2>Syntax</h2>
+<pre class="syntax">v = gracefoReading.version()
+[v, info] = gracefoReading.version()</pre>
+<h2>Description</h2>
+<p>Returns the toolbox version as a semantic version string, allowing downstream scripts and processing chains to assert a minimum version programmatically instead of trusting folder names. The second output adds release metadata. The version string is also part of the cache key used by readL1b, so caches written by an older toolbox are never reused after an upgrade.</p>
+<h2>Input Arguments</h2>
+<p><em>This function takes no input arguments.</em></p>
+<h2>Output Arguments</h2>
+<table class="args"><tr><th>Name</th><th>Type</th><th>Size</th><th>Description</th><th>Options</th><th>Default</th></tr><tr><td class="mono">versionString</td><td>char</td><td>[1 x C]</td><td>Semantic version, e.g. &#x27;2.3.0&#x27;.</td><td></td><td class="mono"></td></tr><tr><td class="mono">info</td><td>struct</td><td>1x1</td><td><ul class="fields"><li><code>version</code> &ndash; char: same as versionString</li><li><code>date</code> &ndash; char: release date &#x27;yyyy-MM-dd&#x27;</li><li><code>developedWith</code> &ndash; char: authorship and model note</li><li><code>license</code> &ndash; char: &#x27;MIT&#x27;</li></ul></td><td></td><td class="mono"></td></tr></table>
+<h2>Accuracy and Limitations</h2><ul class="limits">
+<li>The version is a literal maintained in this file and mirrored in Contents.m and docsrc/functionSpecs.json; the consistency test testDocConsistency enforces that the three agree. Tests must never pin a version literal themselves, since that breaks on the next bump.</li>
+<li>String comparison of semantic versions is lexicographic and only reliable while all components stay single-digit; for robust checks compare the numeric parts, e.g. sscanf(gracefoReading.version(), &#x27;%d.%d.%d&#x27;).</li>
+</ul>
+<h2>Examples</h2>
+<p class="excap">simple assertion in a processing script</p>
+<pre class="example">assert(string(gracefoReading.version()) &gt;= &quot;2.3.0&quot;)</pre>
+<p class="excap">numeric comparison, robust beyond version 9</p>
+<pre class="example">v = sscanf(gracefoReading.version(), &#x27;%d.%d.%d&#x27;)&#x27;;
+assert(v(1) &gt; 2 || (v(1) == 2 &amp;&amp; v(2) &gt;= 3))</pre>
+<h2>See Also</h2><p><a href="gracefoReading.readL1b.html"><code>gracefoReading.readL1b</code></a></p>
+<div class="footer">gracefoReading v2.3.0 &middot; 2026-08-14 &middot; Developed by Matthias Weigelt with the help of Anthropic Claude Opus 5, 2026-08-14 &middot; License: MIT &middot; Generated from the MATLAB help blocks &mdash; do not edit by hand.</div>
+</body></html>

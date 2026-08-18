@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html><head><meta charset="utf-8"><title>gracefoReading.checkQuaternionNorm</title>
+<style>
+body { font-family: Arial, Helvetica, sans-serif; margin: 0; padding: 0 2em 3em 2em;
+       color: #212121; max-width: 62em; }
+h1 { font-size: 1.6em; font-weight: normal; color: #b33; border-bottom: 1px solid #ccc;
+     padding-bottom: 0.2em; margin-top: 1em; }
+h2 { font-size: 1.2em; color: #333; margin-top: 1.6em; border-bottom: 1px solid #eee; }
+p.purpose { font-size: 1.05em; color: #444; }
+pre.syntax, pre.example { background: #f5f5f5; border: 1px solid #e0e0e0;
+     padding: 0.7em 1em; border-radius: 4px; overflow-x: auto;
+     font-family: Consolas, Monaco, monospace; font-size: 0.92em; }
+p.excap { margin-bottom: 0.2em; font-weight: bold; font-size: 0.92em; color: #444; }
+table.args { border-collapse: collapse; width: 100%; margin: 0.6em 0; }
+table.args th { background: #f0f0f0; text-align: left; padding: 0.4em 0.6em;
+     border: 1px solid #ddd; font-size: 0.88em; }
+table.args td { padding: 0.4em 0.6em; border: 1px solid #ddd; font-size: 0.88em;
+     vertical-align: top; }
+td.mono, code { font-family: Consolas, Monaco, monospace; }
+ul.fields { margin: 0.3em 0 0 0; padding-left: 1.1em; font-size: 0.95em; }
+ul.limits li { margin-bottom: 0.35em; }
+div.footer { margin-top: 3em; padding-top: 0.6em; border-top: 1px solid #ccc;
+     color: #888; font-size: 0.8em; }
+a { color: #06c; text-decoration: none; }
+a:hover { text-decoration: underline; }
+</style></head><body>
+<h1>gracefoReading.checkQuaternionNorm</h1>
+<p class="purpose">Verify unit norm of SCA1B attitude quaternions.</p>
+<h2>Syntax</h2>
+<pre class="syntax">[ok, stats] = gracefoReading.checkQuaternionNorm(obs, aux)
+[ok, stats] = gracefoReading.checkQuaternionNorm(obs, aux, Name, Value)</pre>
+<h2>Description</h2>
+<p>Checks, record by record, that the star-camera attitude quaternion read from an SCA1B product has unit norm - a cheap and effective detector of parsing errors, column mix-ups and corrupt records before the attitude data enter any rotation. The four components are located by name (quatangle, quaticoeff, quatjcoeff, quatkcoeff) in aux.obsNames, so obs can be passed exactly as returned by readL1b. Rotation and coordinate transformations are deliberately out of scope for this toolbox; only the norm sanity check is provided.</p>
+<h2>Input Arguments</h2>
+<table class="args"><tr><th>Name</th><th>Type</th><th>Size</th><th>Description</th><th>Options</th><th>Default</th></tr><tr><td class="mono">obs</td><td>double</td><td>[N x M]</td><td>Observation matrix from readL1b or readL1bMulti of an SCA1B product.</td><td></td><td class="mono"></td></tr><tr><td class="mono">aux</td><td>struct</td><td>1x1</td><td>Matching aux output; aux.obsNames is used to locate the four quaternion columns.</td><td></td><td class="mono"></td></tr><tr><td class="mono">&#x27;Tolerance&#x27;</td><td>double</td><td>1x1</td><td>Maximum allowed absolute deviation |norm(q) - 1| per record.</td><td>any positive value; 1e-6 is loose enough for the ASCII rounding of the products and tight enough to expose real problems</td><td class="mono">1e-6</td></tr></table>
+<h2>Output Arguments</h2>
+<table class="args"><tr><th>Name</th><th>Type</th><th>Size</th><th>Description</th><th>Options</th><th>Default</th></tr><tr><td class="mono">ok</td><td>logical</td><td>[N x 1]</td><td>True where |norm(q) - 1| &lt;= Tolerance.</td><td></td><td class="mono"></td></tr><tr><td class="mono">stats</td><td>struct</td><td>1x1</td><td><ul class="fields"><li><code>n</code> &ndash; double: records checked</li><li><code>numViolations</code> &ndash; double: count of ok == false</li><li><code>maxDeviation</code> &ndash; double: max |norm(q) - 1|</li><li><code>rmsDeviation</code> &ndash; double: rms of (norm(q) - 1)</li><li><code>tolerance</code> &ndash; double: tolerance used</li><li><code>columns</code> &ndash; double [1 x 4]: obs column indices in the order quatangle, i, j, k</li></ul></td><td></td><td class="mono"></td></tr></table>
+<h2>Accuracy and Limitations</h2><ul class="limits">
+<li>The ASCII products store quaternion components with finite digits, so a small nonzero deviation is normal; real SCA1B files typically show |norm-1| of order 1e-9 to 1e-8.</li>
+<li>Unit norm is necessary but not sufficient for correctness: a quaternion can be normalised and still describe a wrong attitude, and a sign flip (q and -q describe the same rotation) is invisible to this test.</li>
+<li>The check requires all four components in obs; if a product stores any of them as an auxiliary column the function raises columnsNotFound rather than guessing.</li>
+<li>No renormalisation is performed. Correcting attitude data is left to the processing that uses it.</li>
+</ul>
+<h2>Errors</h2><table class="args"><tr><th>Error identifier</th><th>Condition</th></tr><tr><td class="mono">gracefoReading:checkQuaternionNorm:columnsNotFound</td><td>one of the four quaternion columns is absent from aux.obsNames, i.e. obs is not from an SCA1B-like product</td></tr></table>
+<h2>Examples</h2>
+<p class="excap">quick verdict for one day</p>
+<pre class="example">[t, q, aux] = gracefoReading.readL1b(&#x27;SCA1B_2020-01-01_C_04.txt&#x27;);
+[ok, stats] = gracefoReading.checkQuaternionNorm(q, aux);
+fprintf(&#x27;max |norm-1| = %.3g, violations: %d\n&#x27;, ...
+       stats.maxDeviation, stats.numViolations);</pre>
+<p class="excap">inspect the offending epochs</p>
+<pre class="example">bad = find(~ok);
+disp(t(bad, :));</pre>
+<h2>See Also</h2><p><a href="gracefoReading.readL1b.html"><code>gracefoReading.readL1b</code></a>, <a href="gracefoReading.decodeQualFlags.html"><code>gracefoReading.decodeQualFlags</code></a></p>
+<div class="footer">gracefoReading v2.3.0 &middot; 2026-08-14 &middot; Developed by Matthias Weigelt with the help of Anthropic Claude Opus 5, 2026-08-14 &middot; License: MIT &middot; Generated from the MATLAB help blocks &mdash; do not edit by hand.</div>
+</body></html>

@@ -1,0 +1,840 @@
+{
+  "toolbox": {
+    "name": "gracefoReading",
+    "title": "GRACE-FO Level-1B ASCII data reading toolbox",
+    "version": "2.3.0",
+    "date": "2026-08-14",
+    "developedWith": "Matthias Weigelt with the help of Anthropic Claude Opus 5",
+    "license": "MIT",
+    "matlabRelease": "R2020b or later",
+    "summary": "Reads any GRACE-FO Level-1B RL04 ASCII product (ACT1B/ACC1B, SCA1B, KBR1B, LRI1B, GNV1B, THR1B, MAS1B, ...) into a common time/obs/aux layout, driven entirely by each file's own YAML header. Supports split microsecond time tags, bit-string quality flags, prod_flag-controlled variable-length records, gzip input, and strict row-integrity checking. Validated against real PO.DAAC RL04 files of 2020-01-01. Includes batch tools (file discovery, gap analysis, content-hashed parse caching), exact int64 GPS-nanosecond time output, selective quality-bit filtering, GROOPS instrument export/import, and experimental classic GRACE (2002-2017) support."
+  },
+  "functions": [
+    {
+      "name": "readL1b",
+      "purpose": "Read one GRACE-FO Level-1B ASCII product file",
+      "syntax": [
+        "[time, obs, aux] = gracefoReading.readL1b(fileName)",
+        "[time, obs, aux] = gracefoReading.readL1b(fileName, Name, Value)"
+      ],
+      "description": "Reads any GRACE-FO Level-1B RL04 ASCII product. The file's YAML header (terminated by \"# End of YAML header\") declares every data column via its \"variables:\" list; the reader is driven entirely by that header, with no per-product hard-coded layouts. Supported product features: single (gps_time) and split (time_intg + time_frac) time tags with unit-aware fractional scaling (seconds / milliseconds / microseconds); bit-string flag columns (qualflg, prod_flag) preserved as character bit patterns and decoded to logical bit matrices; variable-length records controlled by prod_flag (e.g. MAS1B), with absent values returned as NaN; gzip-compressed input; strict row-integrity checking with exact line-number reporting. Classic GRACE (2002-2017) files with \"KEY : VALUE\" headers terminated by \"END OF HEADER\" are detected automatically; because classic headers do not declare their columns, built-in per-product layouts (ACC1B, SCA1B, KBR1B, GNV1B; assumed from the GRACE L1B handbook, EXPERIMENTAL and not yet validated against real classic files) or the 'ColumnNames' option are used, and a warning is emitted. An optional content-hashed cache ('CacheDir') stores parsed results so repeated reads load instead of parse.",
+      "inputs": [
+        {
+          "name": "fileName",
+          "size": "1x1",
+          "type": "string / char",
+          "desc": "Path to a Level-1B ASCII product file, plain or gzip-compressed (\".gz\"; decompressed in memory via Java when available, temporary-file fallback otherwise). Must exist on disk (mustBeFile). Required, positional."
+        },
+        {
+          "name": "'TimeVariable'",
+          "size": "1x1",
+          "type": "string",
+          "desc": "Override automatic time-tag detection. A single variable name (\"gps_time\") or two names joined with '+' (\"time_intg+time_frac\"); the fractional part is scaled by its declared units. Default \"\" (automatic)."
+        },
+        {
+          "name": "'TimeRange'",
+          "size": "1x2",
+          "type": "double (decimal MJD) or datetime",
+          "desc": "Inclusive time window; records outside it are discarded after parsing. Default [] (no restriction)."
+        },
+        {
+          "name": "'TimeFormat'",
+          "size": "1x1",
+          "type": "string",
+          "desc": "\"mjd\" (default): TIME is [N x 2] integer MJD + seconds of day. \"datetime\": TIME is [N x 1] datetime on the GPS time scale. \"gpsns\": TIME is [N x 1] int64 GPS nanoseconds past 2000-01-01 12:00:00, computed with exact integer arithmetic (lossless handoff to int64-nanosecond pipelines)."
+        },
+        {
+          "name": "'ApplyQualityFlags'",
+          "size": "1x1",
+          "type": "logical",
+          "desc": "If true, records whose qualflg has ANY bit set are removed; the count is reported in aux.numRecordsFlagged. Mutually exclusive with 'QualityBitMask'. Default false."
+        },
+        {
+          "name": "'QualityBitMask'",
+          "size": "1xQ",
+          "type": "double (0-based bit numbers)",
+          "desc": "Remove records where any of the LISTED qualflg bits is set (selective alternative to 'ApplyQualityFlags'; specifying both raises conflictingQualityOptions). Default []."
+        },
+        {
+          "name": "'CacheDir'",
+          "size": "1x1",
+          "type": "string",
+          "desc": "Directory for content-hashed .mat parse caches (created if needed). The key covers file content, toolbox version and 'TimeVariable'/'ColumnNames'; TimeRange/TimeFormat/quality options are applied after loading, so one entry serves all of them. Default \"\" (off)."
+        },
+        {
+          "name": "'ColumnNames'",
+          "size": "1xC",
+          "type": "string",
+          "desc": "Classic-format files only: explicit column names in file order, overriding the built-in layout. Default [] (use built-in table)."
+        }
+      ],
+      "outputs": [
+        {
+          "name": "time",
+          "size": "Nx2 or Nx1",
+          "type": "double, datetime, or int64",
+          "desc": "Per 'TimeFormat': [N x 2] double integer MJD + seconds of day (default, floor/mod arithmetic on the GPS-seconds count), datetime [N x 1], or int64 [N x 1] GPS nanoseconds (exact integer arithmetic)."
+        },
+        {
+          "name": "obs",
+          "size": "NxM",
+          "type": "double",
+          "desc": "All observation columns: numeric variables that are not time tags, not char-typed (units: char), not bit-string flags (name containing \"flag\" or \"qualflg\") and not identifiers (name ending \"_id\"). Column j corresponds to aux.obsNames{j}. For prod_flag products, values whose bit was not set in a record are NaN."
+        },
+        {
+          "name": "aux",
+          "size": "1x1",
+          "type": "struct",
+          "desc": "Auxiliary information and provenance; see the aux field table."
+        }
+      ],
+      "auxFields": [
+        {
+          "name": "fileName",
+          "size": "1x1",
+          "type": "string",
+          "desc": "Input path as given."
+        },
+        {
+          "name": "product",
+          "size": "1x1",
+          "type": "char",
+          "desc": "Product id derived from the file name (e.g. 'ACT1B'), '' if not derivable."
+        },
+        {
+          "name": "obsNames",
+          "size": "1xM",
+          "type": "cellstr",
+          "desc": "Names of the obs columns, in column order."
+        },
+        {
+          "name": "variableNames",
+          "size": "1xV",
+          "type": "cellstr",
+          "desc": "All declared variables in file column order (V >= M)."
+        },
+        {
+          "name": "variableUnits",
+          "size": "1x1",
+          "type": "struct",
+          "desc": "Sanitized variable name -> declared unit string."
+        },
+        {
+          "name": "variableAttributes",
+          "size": "1x1",
+          "type": "struct",
+          "desc": "Sanitized variable name -> struct of all parsed header attributes (units, long_name, comment as char; flag_meanings, value_meanings as cellstr)."
+        },
+        {
+          "name": "timeVariable",
+          "size": "1x1",
+          "type": "char",
+          "desc": "Time tag actually used, e.g. 'gps_time' or 'time_intg+time_frac'."
+        },
+        {
+          "name": "timeSystem",
+          "size": "1x1",
+          "type": "char",
+          "desc": "'GPS' (no leap seconds)."
+        },
+        {
+          "name": "epochDescription",
+          "size": "1x1",
+          "type": "char",
+          "desc": "Human-readable time-origin definition."
+        },
+        {
+          "name": "epochMJD",
+          "size": "1x1",
+          "type": "double",
+          "desc": "51544 (2000-01-01 00:00:00)."
+        },
+        {
+          "name": "numRecordsHeader",
+          "size": "1x1",
+          "type": "double",
+          "desc": "num_records declared in the header (NaN if absent)."
+        },
+        {
+          "name": "numRecordsActual",
+          "size": "1x1",
+          "type": "double",
+          "desc": "Records parsed from the file, before TimeRange/quality filtering."
+        },
+        {
+          "name": "numRecordsFlagged",
+          "size": "1x1",
+          "type": "double",
+          "desc": "Records removed by 'ApplyQualityFlags' (0 if disabled)."
+        },
+        {
+          "name": "header",
+          "size": "Hx1",
+          "type": "cellstr",
+          "desc": "Raw header lines including the end marker."
+        },
+        {
+          "name": "qualflg / prod_flag",
+          "size": "NxB",
+          "type": "char",
+          "desc": "Raw bit-string columns, one character per bit."
+        },
+        {
+          "name": "qualflgBits / prodFlagBits",
+          "size": "NxB",
+          "type": "logical",
+          "desc": "Decoded bits; column b corresponds to bit b-1 (bit 0 = rightmost character)."
+        },
+        {
+          "name": "<name>",
+          "size": "Nx1",
+          "type": "double / char / cellstr",
+          "desc": "One field per further auxiliary variable: char for single-character columns (GRACEFO_id, time_ref, coord_ref), double for numeric ids (sca_id), cellstr otherwise."
+        },
+        {
+          "name": "headerFormat",
+          "size": "1x1",
+          "type": "char",
+          "desc": "'yaml' (GRACE-FO) or 'classic' (GRACE 2002-2017)."
+        },
+        {
+          "name": "cacheHit",
+          "size": "1x1",
+          "type": "logical",
+          "desc": "true if the result was loaded from the 'CacheDir' cache."
+        },
+        {
+          "name": "classicHeaderFields",
+          "size": "1x1",
+          "type": "struct",
+          "desc": "Classic files only: parsed KEY : VALUE header pairs (sanitized keys)."
+        }
+      ],
+      "errors": [
+        {
+          "id": "gracefoReading:readL1b:badHeader",
+          "cond": "No \"# End of YAML header\" marker found."
+        },
+        {
+          "id": "gracefoReading:readL1b:binaryNotSupported",
+          "cond": "Header indicates a binary-format file."
+        },
+        {
+          "id": "gracefoReading:readL1b:noVariables",
+          "cond": "No variable declarations found in the header."
+        },
+        {
+          "id": "gracefoReading:readL1b:noTime",
+          "cond": "No time-tag column could be identified automatically."
+        },
+        {
+          "id": "gracefoReading:readL1b:timeVariableNotFound",
+          "cond": "'TimeVariable' name(s) not present in the header."
+        },
+        {
+          "id": "gracefoReading:readL1b:unknownFracUnit",
+          "cond": "Fractional time variable declares an unsupported unit."
+        },
+        {
+          "id": "gracefoReading:readL1b:columnMismatch",
+          "cond": "A data line's token count violates the header layout (prod_flag-aware); the offending line number is reported."
+        },
+        {
+          "id": "gracefoReading:readL1b:noData",
+          "cond": "No data records found."
+        },
+        {
+          "id": "gracefoReading:readL1b:recordCountMismatch",
+          "cond": "(Warning) Declared num_records differs from the actual record count."
+        },
+        {
+          "id": "gracefoReading:readL1b:conflictingQualityOptions",
+          "cond": "'ApplyQualityFlags' and 'QualityBitMask' specified together."
+        },
+        {
+          "id": "gracefoReading:readL1b:unsupportedClassicProduct",
+          "cond": "Classic file without a built-in column layout and no 'ColumnNames' given."
+        },
+        {
+          "id": "gracefoReading:readL1b:cacheUnavailable",
+          "cond": "(Warning) Content hashing unavailable (no JVM); parsed without cache."
+        },
+        {
+          "id": "gracefoReading:readL1b:classicExperimental",
+          "cond": "(Warning) Classic GRACE path used; the assumed column layout is not yet validated."
+        }
+      ],
+      "examples": [
+        "[t, acc, aux] = gracefoReading.readL1b('ACT1B_2020-01-01_C_04.txt');\nplot(t(:,2), acc(:,1))",
+        "% First hour only, as datetime, flagged records removed\n[t, q, aux] = gracefoReading.readL1b('SCA1B_2020-01-01_C_04.txt', ...\n    'TimeRange', [58849, 58849 + 3600/86400], ...\n    'TimeFormat', 'datetime', 'ApplyQualityFlags', true);",
+        "% int64 nanoseconds, cached, only clock-related bits filtered\n[tns, m, aux] = gracefoReading.readL1b('MAS1B_2020-01-01_C_04.txt', ...\n    'TimeFormat', 'gpsns', 'QualityBitMask', [6 7], 'CacheDir', 'l1bcache');"
+      ],
+      "seealso": [
+        "readL1bMulti",
+        "findGaps",
+        "findL1bFiles",
+        "decodeQualFlags",
+        "checkQuaternionNorm",
+        "writeGroopsInstrument",
+        "readGroopsInstrument",
+        "version"
+      ]
+    },
+    {
+      "name": "readL1bMulti",
+      "purpose": "Read and concatenate several GRACE-FO Level-1B ASCII files",
+      "syntax": [
+        "[time, obs, aux] = gracefoReading.readL1bMulti(fileNames)",
+        "[time, obs, aux] = gracefoReading.readL1bMulti(fileNames, Name, Value)"
+      ],
+      "description": "Calls gracefoReading.readL1b on each file (e.g. consecutive daily ACT1B files) and vertically concatenates the results into one continuous record. All files must expose the same observation columns (aux.obsNames); a mismatch raises an error rather than silently concatenating incompatible data. All name-value options of readL1b are accepted and forwarded unchanged to every per-file call. After concatenation, the combined time series is checked for strict monotonicity; a violation (wrong file order, duplicate days) raises warning gracefoReading:readL1bMulti:timeNotMonotonic.",
+      "inputs": [
+        {
+          "name": "fileNames",
+          "size": "1xK",
+          "type": "string array / cellstr",
+          "desc": "K file paths in concatenation (typically chronological) order. Required, positional."
+        },
+        {
+          "name": "'TimeVariable'",
+          "size": "1x1",
+          "type": "string",
+          "desc": "Forwarded to readL1b. Default \"\"."
+        },
+        {
+          "name": "'TimeRange'",
+          "size": "1x2",
+          "type": "double / datetime",
+          "desc": "Forwarded to readL1b. Default []."
+        },
+        {
+          "name": "'TimeFormat'",
+          "size": "1x1",
+          "type": "string",
+          "desc": "\"mjd\" (default), \"datetime\" or \"gpsns\"; forwarded to readL1b."
+        },
+        {
+          "name": "'ApplyQualityFlags'",
+          "size": "1x1",
+          "type": "logical",
+          "desc": "Forwarded to readL1b. Default false."
+        },
+        {
+          "name": "'QualityBitMask'",
+          "size": "1xQ",
+          "type": "double",
+          "desc": "Forwarded to readL1b. Default []."
+        },
+        {
+          "name": "'CacheDir'",
+          "size": "1x1",
+          "type": "string",
+          "desc": "Forwarded to readL1b (per-file caching). Default \"\"."
+        },
+        {
+          "name": "'ColumnNames'",
+          "size": "1xC",
+          "type": "string",
+          "desc": "Forwarded to readL1b (classic files). Default []."
+        }
+      ],
+      "outputs": [
+        {
+          "name": "time",
+          "size": "Nx2 or Nx1",
+          "type": "double or datetime",
+          "desc": "Concatenated time records; N = total records kept across all files."
+        },
+        {
+          "name": "obs",
+          "size": "NxM",
+          "type": "double",
+          "desc": "Concatenated observation matrix."
+        },
+        {
+          "name": "aux",
+          "size": "1x1",
+          "type": "struct",
+          "desc": "Merged auxiliary information and per-file provenance; see the aux field table."
+        }
+      ],
+      "auxFields": [
+        {
+          "name": "obsNames / variableNames / variableUnits / variableAttributes / timeVariable / timeSystem / epochDescription / epochMJD",
+          "size": "-",
+          "type": "as in readL1b",
+          "desc": "Taken from the first file."
+        },
+        {
+          "name": "fileNames",
+          "size": "Kx1",
+          "type": "string",
+          "desc": "The input file list."
+        },
+        {
+          "name": "products",
+          "size": "Kx1",
+          "type": "cellstr",
+          "desc": "Per-file product identifiers."
+        },
+        {
+          "name": "headers",
+          "size": "Kx1",
+          "type": "cell of cellstr",
+          "desc": "Raw header lines of each file."
+        },
+        {
+          "name": "recordsPerFile",
+          "size": "Kx1",
+          "type": "double",
+          "desc": "Records contributed by each file after filtering; cumsum gives the split points of time/obs."
+        },
+        {
+          "name": "numRecordsHeader",
+          "size": "Kx1",
+          "type": "double",
+          "desc": "Per-file declared num_records (NaN if undeclared)."
+        },
+        {
+          "name": "numRecordsActual",
+          "size": "Kx1",
+          "type": "double",
+          "desc": "Per-file parsed record counts."
+        },
+        {
+          "name": "numRecordsFlagged",
+          "size": "Kx1",
+          "type": "double",
+          "desc": "Per-file removals by 'ApplyQualityFlags'."
+        },
+        {
+          "name": "<name>",
+          "size": "Nx1 / NxB",
+          "type": "double / logical / char / cellstr",
+          "desc": "Per-record auxiliary fields (qualflg, qualflgBits, GRACEFO_id, ...) present with consistent type in every file, concatenated in file order; otherwise dropped with warning gracefoReading:readL1bMulti:fieldDropped."
+        }
+      ],
+      "errors": [
+        {
+          "id": "gracefoReading:readL1bMulti:inconsistentVariables",
+          "cond": "Two or more files expose different observation column sets."
+        },
+        {
+          "id": "gracefoReading:readL1bMulti:fieldDropped",
+          "cond": "(Warning) An auxiliary field could not be concatenated consistently across files."
+        },
+        {
+          "id": "gracefoReading:readL1bMulti:timeNotMonotonic",
+          "cond": "(Warning) Concatenated time not strictly increasing (file order or duplicate days)."
+        }
+      ],
+      "examples": [
+        "files = compose(\"ACT1B_2020-01-%02d_C_04.txt\", 1:5);\n[t, acc, aux] = gracefoReading.readL1bMulti(files);"
+      ],
+      "seealso": [
+        "readL1b",
+        "findL1bFiles",
+        "findGaps"
+      ]
+    },
+    {
+      "name": "decodeQualFlags",
+      "purpose": "Decode a bit-string flag column using header metadata",
+      "syntax": [
+        "[bits, report] = gracefoReading.decodeQualFlags(aux)",
+        "[bits, report] = gracefoReading.decodeQualFlags(aux, flagName)"
+      ],
+      "description": "Decodes a bit-string flag column ('qualflg' by default, or e.g. 'prod_flag') of a previously read product. Bit meanings are taken from the flag_meanings attribute parsed out of the product file's own header (aux.variableAttributes), so the decoding is always consistent with the file actually read - no hard-coded, release-dependent bit tables. Both \"bit N = ...\" and \"bits N-M = ...\" header conventions are understood.",
+      "inputs": [
+        {
+          "name": "aux",
+          "size": "1x1",
+          "type": "struct",
+          "desc": "Third output of readL1b / readL1bMulti; must contain the raw flag field (char [N x B]) and variableAttributes. Required, positional."
+        },
+        {
+          "name": "flagName",
+          "size": "1x1",
+          "type": "char / string",
+          "desc": "Name of the flag variable to decode. Optional, positional; default 'qualflg'."
+        }
+      ],
+      "outputs": [
+        {
+          "name": "bits",
+          "size": "NxB",
+          "type": "logical",
+          "desc": "Column b corresponds to bit b-1 (bit 0 = rightmost character of the bit string)."
+        },
+        {
+          "name": "report",
+          "size": "Bx4",
+          "type": "table",
+          "desc": "One row per bit: bit (double, 0-based), meaning (string, \"(not documented)\" if the header gives none), countSet (double, records with the bit set), fracSet (double, fraction of records with the bit set)."
+        }
+      ],
+      "auxFields": [],
+      "errors": [
+        {
+          "id": "gracefoReading:decodeQualFlags:flagNotFound",
+          "cond": "The named flag field does not exist in aux."
+        },
+        {
+          "id": "gracefoReading:decodeQualFlags:notBitString",
+          "cond": "The named aux field is not a raw char bit-string column."
+        }
+      ],
+      "examples": [
+        "[t, q, aux] = gracefoReading.readL1b('SCA1B_2020-01-01_C_04.txt');\n[bits, report] = gracefoReading.decodeQualFlags(aux);\ndisp(report)"
+      ],
+      "seealso": [
+        "readL1b"
+      ]
+    },
+    {
+      "name": "checkQuaternionNorm",
+      "purpose": "Unit-norm sanity check for SCA1B attitude quaternions",
+      "syntax": [
+        "[ok, stats] = gracefoReading.checkQuaternionNorm(obs, aux)",
+        "[ok, stats] = gracefoReading.checkQuaternionNorm(obs, aux, 'Tolerance', tol)"
+      ],
+      "description": "Checks, record by record, that the star-camera attitude quaternion read from an SCA1B product has unit norm. The four components are located by name (quatangle, quaticoeff, quatjcoeff, quatkcoeff) in aux.obsNames, so obs can be passed exactly as returned by readL1b. Rotation and coordinate transformations are deliberately out of scope for this toolbox (handled by a separate toolbox); only the norm sanity check is provided.",
+      "inputs": [
+        {
+          "name": "obs",
+          "size": "NxM",
+          "type": "double",
+          "desc": "Observation matrix from readL1b(Multi). Required, positional."
+        },
+        {
+          "name": "aux",
+          "size": "1x1",
+          "type": "struct",
+          "desc": "Matching aux output; aux.obsNames locates the quaternion columns. Required, positional."
+        },
+        {
+          "name": "'Tolerance'",
+          "size": "1x1",
+          "type": "double",
+          "desc": "Maximum allowed | norm(q) - 1 | per record. Default 1e-6."
+        }
+      ],
+      "outputs": [
+        {
+          "name": "ok",
+          "size": "Nx1",
+          "type": "logical",
+          "desc": "true where | norm(q) - 1 | <= Tolerance."
+        },
+        {
+          "name": "stats",
+          "size": "1x1",
+          "type": "struct",
+          "desc": "Fields: n (records checked), numViolations, maxDeviation, rmsDeviation, tolerance, columns (1x4 obs column indices in order quatangle, i, j, k)."
+        }
+      ],
+      "auxFields": [],
+      "errors": [
+        {
+          "id": "gracefoReading:checkQuaternionNorm:columnsNotFound",
+          "cond": "A quaternion column is absent from aux.obsNames (not an SCA1B-like product)."
+        }
+      ],
+      "examples": [
+        "[t, q, aux] = gracefoReading.readL1b('SCA1B_2020-01-01_C_04.txt');\n[ok, stats] = gracefoReading.checkQuaternionNorm(q, aux);\nfprintf('max |norm-1| = %.3g, violations: %d\\n', stats.maxDeviation, stats.numViolations);"
+      ],
+      "seealso": [
+        "readL1b"
+      ]
+    },
+    {
+      "name": "writeGroopsInstrument",
+      "purpose": "Export time/observations as a GROOPS ASCII instrument file",
+      "syntax": [
+        "gracefoReading.writeGroopsInstrument(fileName, time, data)",
+        "gracefoReading.writeGroopsInstrument(fileName, time, data, Name, Value)"
+      ],
+      "description": "Writes an ASCII instrument file in the GROOPS convention: a \"groops instrument version=<version>\" first line, a two-integer type/dimension header line, a lone record-count line, then one record per line as decimal MJD followed by the data values. Closes the loop from PO.DAAC Level-1B files read with this toolbox to GROOPS-based processing. Precision note: decimal MJD as a double resolves ~1.3 microseconds around MJD 58849, sufficient for 1 Hz Level-1B products; sub-microsecond timing should not round-trip through decimal MJD. Compatibility note: verify the version tag and type codes against the GROOPS release in use before production (see HANDOVER.md). Output always uses Unix line endings (LF) on all platforms, so exported files are byte-identical regardless of the writing platform.",
+      "inputs": [
+        {
+          "name": "fileName",
+          "size": "1x1",
+          "type": "string / char",
+          "desc": "Output path (overwritten if it exists). Required, positional."
+        },
+        {
+          "name": "time",
+          "size": "Nx2 or Nx1",
+          "type": "double or datetime",
+          "desc": "[N x 2] integer MJD + seconds of day (as returned by readL1b), or datetime [N x 1]. Required, positional."
+        },
+        {
+          "name": "data",
+          "size": "NxM",
+          "type": "double",
+          "desc": "Observation columns to write. Required, positional."
+        },
+        {
+          "name": "'TypeCode'",
+          "size": "1x1",
+          "type": "double (integer)",
+          "desc": "GROOPS epoch-type code written as the first integer of the type/dimension header. Default 0 (generic MISCVALUES-style)."
+        },
+        {
+          "name": "'Version'",
+          "size": "1x1",
+          "type": "double (integer)",
+          "desc": "Version tag on the first line. Default 20200123."
+        },
+        {
+          "name": "'Format'",
+          "size": "1x1",
+          "type": "string",
+          "desc": "printf format per data value. Default \"%.16e\"."
+        }
+      ],
+      "outputs": [
+        {
+          "name": "(none)",
+          "size": "-",
+          "type": "-",
+          "desc": "Writes fileName as a side effect."
+        }
+      ],
+      "auxFields": [],
+      "errors": [
+        {
+          "id": "gracefoReading:writeGroopsInstrument:sizeMismatch",
+          "cond": "TIME and DATA record counts differ, or TIME has an invalid shape."
+        },
+        {
+          "id": "gracefoReading:writeGroopsInstrument:openFailed",
+          "cond": "The output file could not be opened for writing."
+        }
+      ],
+      "examples": [
+        "[t, acc, aux] = gracefoReading.readL1b('ACT1B_2020-01-01_C_04.txt');\ngracefoReading.writeGroopsInstrument('act.txt', t, acc(:,1:3));"
+      ],
+      "seealso": [
+        "readGroopsInstrument",
+        "readL1b"
+      ]
+    },
+    {
+      "name": "version",
+      "purpose": "Toolbox version for programmatic checks",
+      "syntax": [
+        "v = gracefoReading.version()",
+        "[v, info] = gracefoReading.version()"
+      ],
+      "description": "Returns the toolbox version string, allowing downstream scripts to assert a minimum version programmatically instead of trusting folder names.",
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "versionString",
+          "size": "1xC",
+          "type": "char",
+          "desc": "Semantic version, e.g. '2.0.0'."
+        },
+        {
+          "name": "info",
+          "size": "1x1",
+          "type": "struct",
+          "desc": "Fields: version (char), date (char, 'yyyy-MM-dd'), developedWith (char), license (char)."
+        }
+      ],
+      "auxFields": [],
+      "errors": [],
+      "examples": [
+        "assert(string(gracefoReading.version()) >= \"2.2.0\")"
+      ],
+      "seealso": [
+        "readL1b"
+      ]
+    },
+    {
+      "name": "findGaps",
+      "purpose": "Detect sampling gaps in an L1B time series",
+      "syntax": [
+        "[gaps, stats] = gracefoReading.findGaps(time)",
+        "[gaps, stats] = gracefoReading.findGaps(time, Name, Value)"
+      ],
+      "description": "Analyses the epoch spacing of a time series read with readL1b(Multi) and reports every gap exceeding Tolerance times the nominal sampling interval, plus the resulting contiguous segments. Downstream processing (filtering, arc segmentation) requires contiguous data; this moves a routine preprocessing step into tested code. All three readL1b time formats are accepted.",
+      "inputs": [
+        {
+          "name": "time",
+          "size": "Nx2 or Nx1",
+          "type": "double / datetime / int64",
+          "desc": "[N x 2] (integer MJD, seconds of day), datetime [N x 1], or int64 GPS nanoseconds [N x 1]. Must be sorted ascending. Required, positional."
+        },
+        {
+          "name": "'NominalRate'",
+          "size": "1x1",
+          "type": "double",
+          "desc": "Nominal sampling interval in seconds. Default NaN: estimated as the median epoch difference."
+        },
+        {
+          "name": "'Tolerance'",
+          "size": "1x1",
+          "type": "double",
+          "desc": "A step dt is a gap if dt > Tolerance * NominalRate. Default 1.5."
+        }
+      ],
+      "outputs": [
+        {
+          "name": "gaps",
+          "size": "Gx8",
+          "type": "table",
+          "desc": "One row per gap: indexBefore, indexAfter (record indices), mjdBefore/secBefore, mjdAfter/secAfter (epochs framing the gap), durationSec, missingRecords."
+        },
+        {
+          "name": "stats",
+          "size": "1x1",
+          "type": "struct",
+          "desc": "n, nominalRate [s], rateEstimated (logical), numGaps, totalMissing, longestGapSec, segments ([G+1 x 2] first/last record index of each contiguous segment)."
+        }
+      ],
+      "auxFields": [],
+      "errors": [
+        {
+          "id": "gracefoReading:findGaps:notSorted",
+          "cond": "Time series not sorted ascending."
+        },
+        {
+          "id": "gracefoReading:findGaps:badTimeFormat",
+          "cond": "Unrecognized time layout."
+        }
+      ],
+      "examples": [
+        "[t, obs, aux] = gracefoReading.readL1b('KBR1B_2020-01-01_Y_04.txt');\n[gaps, stats] = gracefoReading.findGaps(t);   % 5 s nominal, auto-estimated\ndisp(gaps)"
+      ],
+      "seealso": [
+        "readL1b",
+        "readL1bMulti"
+      ]
+    },
+    {
+      "name": "findL1bFiles",
+      "purpose": "Locate GRACE-FO L1B files in an archive by product and date",
+      "syntax": [
+        "[files, report] = gracefoReading.findL1bFiles(archiveRoot, product)",
+        "[files, report] = gracefoReading.findL1bFiles(archiveRoot, product, Name, Value)"
+      ],
+      "description": "Searches an archive folder (recursively by default) for PO.DAAC-named product files (e.g. ACT1B_2020-01-03_C_04.txt, also .txt.gz), sorts them chronologically and reports date coverage including missing calendar days. Together with readL1bMulti this turns multi-month batch reading into two lines. An empty result is returned (not an error) when nothing matches.",
+      "inputs": [
+        {
+          "name": "archiveRoot",
+          "size": "1x1",
+          "type": "string / char",
+          "desc": "Folder to search (mustBeFolder). Required, positional."
+        },
+        {
+          "name": "product",
+          "size": "1x1",
+          "type": "string",
+          "desc": "Product id, e.g. \"ACT1B\", \"KBR1B\". Required, positional."
+        },
+        {
+          "name": "'DateRange'",
+          "size": "1x2",
+          "type": "datetime",
+          "desc": "Inclusive date window. Default [] (all dates)."
+        },
+        {
+          "name": "'Satellite'",
+          "size": "1x1",
+          "type": "string",
+          "desc": "\"C\", \"D\" or \"Y\". Default \"\" (any)."
+        },
+        {
+          "name": "'Release'",
+          "size": "1x1",
+          "type": "string",
+          "desc": "Release tag in the file name. Default \"04\"."
+        },
+        {
+          "name": "'Recursive'",
+          "size": "1x1",
+          "type": "logical",
+          "desc": "Search subfolders. Default true."
+        }
+      ],
+      "outputs": [
+        {
+          "name": "files",
+          "size": "Kx1",
+          "type": "string",
+          "desc": "Full paths sorted by date (then satellite); empty if nothing found."
+        },
+        {
+          "name": "report",
+          "size": "1x1",
+          "type": "struct",
+          "desc": "dates (datetime Kx1), satellites (string Kx1), firstDate, lastDate (NaT if empty), missingDates (calendar days without a file inside the covered span or 'DateRange')."
+        }
+      ],
+      "auxFields": [],
+      "errors": [],
+      "examples": [
+        "files = gracefoReading.findL1bFiles(root, \"ACT1B\", ...\n    'DateRange', [datetime(2020,1,1) datetime(2020,1,31)], 'Satellite', \"C\");\n[t, acc, aux] = gracefoReading.readL1bMulti(files);"
+      ],
+      "seealso": [
+        "readL1bMulti",
+        "readL1b"
+      ]
+    },
+    {
+      "name": "readGroopsInstrument",
+      "purpose": "Read a GROOPS ASCII instrument file",
+      "syntax": [
+        "[time, data, info] = gracefoReading.readGroopsInstrument(fileName)"
+      ],
+      "description": "Reads an ASCII instrument file in the convention written by writeGroopsInstrument (version line, two-integer type/dimension header, lone record count, decimal-MJD records). Counterpart to the writer: enables roundtrip verification and reading GROOPS-produced files into MATLAB. The header-convention caveat of the writer applies to both directions until verified against the GROOPS release in use (HANDOVER.md).",
+      "inputs": [
+        {
+          "name": "fileName",
+          "size": "1x1",
+          "type": "string / char",
+          "desc": "Path to the file (mustBeFile). Required, positional."
+        }
+      ],
+      "outputs": [
+        {
+          "name": "time",
+          "size": "Nx2",
+          "type": "double",
+          "desc": "Integer MJD and seconds of day recovered from the decimal-MJD column (~1.3 microseconds resolution around MJD 58849)."
+        },
+        {
+          "name": "data",
+          "size": "NxM",
+          "type": "double",
+          "desc": "Data columns."
+        },
+        {
+          "name": "info",
+          "size": "1x1",
+          "type": "struct",
+          "desc": "version, typeCode, dataColumns, numRecords as declared in the header."
+        }
+      ],
+      "auxFields": [],
+      "errors": [
+        {
+          "id": "gracefoReading:readGroopsInstrument:badFormat",
+          "cond": "Header lines not in the expected convention."
+        },
+        {
+          "id": "gracefoReading:readGroopsInstrument:countMismatch",
+          "cond": "Declared record/column counts do not match the data."
+        }
+      ],
+      "examples": [
+        "gracefoReading.writeGroopsInstrument('acc.txt', t, acc);\n[t2, acc2, info] = gracefoReading.readGroopsInstrument('acc.txt');"
+      ],
+      "seealso": [
+        "writeGroopsInstrument"
+      ]
+    }
+  ]
+}

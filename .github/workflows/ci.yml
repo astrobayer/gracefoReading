@@ -1,0 +1,77 @@
+# Continuous integration for the gracefoReading toolbox.
+#
+# Both operating systems are tested because the two defects found after
+# a release (Java gzip pass-by-value, Windows CRLF line endings) were
+# platform-specific and invisible on the other platform.
+#
+# Setup, licensing and self-hosted runners: see docs/CI_SETUP.md
+#
+# Developed by Matthias Weigelt with the help of Anthropic Claude Opus 5,
+# 2026-08-14.
+
+name: ci
+
+on:
+  push:
+    branches: ['**']
+  pull_request:
+  workflow_dispatch:
+  schedule:
+    # weekly run catches breakage introduced by new MATLAB releases
+    - cron: '17 5 * * 1'
+
+jobs:
+  matlab-tests:
+    name: MATLAB ${{ matrix.release }} on ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+        release: [R2024b]
+        include:
+          # oldest supported release, Linux only, to keep the matrix small
+          - os: ubuntu-latest
+            release: R2020b
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up MATLAB
+        uses: matlab-actions/setup-matlab@v2
+        with:
+          release: ${{ matrix.release }}
+          products: MATLAB
+
+      - name: Run test suites via the CI entry point
+        uses: matlab-actions/run-command@v2
+        with:
+          command: addpath('ci'); runCI('Exit', true);
+
+      - name: Publish test report and coverage
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: testresults-${{ matrix.os }}-${{ matrix.release }}
+          path: artifacts/
+
+  documentation:
+    name: Help audit and docs in sync
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install documentation dependencies
+        run: pip install reportlab --quiet
+
+      - name: Audit every help block against the documentation standard
+        run: python3 docsrc/auditHelp.py
+
+      - name: Regenerate documentation and verify it is committed in sync
+        run: |
+          python3 docsrc/generate_docs.py
+          # HTML must be byte-identical; the PDF is binary and timestamped
+          git diff --exit-code -- html/

@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<toc version="2.0">
+    <tocitem target="gracefoReading_product_page.html">gracefoReading Toolbox
+        <tocitem target="gracefoReading_getting_started.html">Getting Started</tocitem>
+        <tocitem target="gracefoReading.readL1b.html">gracefoReading.readL1b</tocitem>
+        <tocitem target="gracefoReading.readL1bMulti.html">gracefoReading.readL1bMulti</tocitem>
+        <tocitem target="gracefoReading.decodeQualFlags.html">gracefoReading.decodeQualFlags</tocitem>
+        <tocitem target="gracefoReading.checkQuaternionNorm.html">gracefoReading.checkQuaternionNorm</tocitem>
+        <tocitem target="gracefoReading.writeGroopsInstrument.html">gracefoReading.writeGroopsInstrument</tocitem>
+        <tocitem target="gracefoReading.version.html">gracefoReading.version</tocitem>
+        <tocitem target="gracefoReading.findGaps.html">gracefoReading.findGaps</tocitem>
+        <tocitem target="gracefoReading.findL1bFiles.html">gracefoReading.findL1bFiles</tocitem>
+        <tocitem target="gracefoReading.readGroopsInstrument.html">gracefoReading.readGroopsInstrument</tocitem>
+    </tocitem>
+</toc>

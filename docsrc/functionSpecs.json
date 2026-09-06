@@ -2,7 +2,7 @@
   "toolbox": {
     "name": "gracefoReading",
     "title": "GRACE-FO Level-1B ASCII data reading toolbox",
-    "version": "2.3.0",
+    "version": "1.0.0",
     "date": "2026-08-14",
     "developedWith": "Matthias Weigelt with the help of Anthropic Claude Opus 5",
     "license": "MIT",

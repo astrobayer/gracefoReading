@@ -18,7 +18,7 @@ function [versionString, info] = version()
 %
 %   OUTPUT
 %     versionString - char, [1 x C]
-%                Semantic version, e.g. '2.3.0'.
+%                Semantic version, e.g. '1.0.0'.
 %     info - struct, 1x1
 %                  version       char, same as versionString
 %                  date          char, release date 'yyyy-MM-dd'
@@ -38,7 +38,7 @@ function [versionString, info] = version()
 %
 %   EXAMPLES
 %     % 1. simple assertion in a processing script
-%     assert(string(gracefoReading.version()) >= "2.3.0")
+%     assert(string(gracefoReading.version()) >= "1.0.0")
 %
 %     % 2. numeric comparison, robust beyond version 9
 %     v = sscanf(gracefoReading.version(), '%d.%d.%d')';
@@ -46,13 +46,13 @@ function [versionString, info] = version()
 %
 %   See also gracefoReading.readL1b
 %
-%   Toolbox:  gracefoReading v2.3.0
+%   Toolbox:  gracefoReading v1.0.0
 %   Created:  2026-08-01
 %   Updated:  2026-08-14
 %   Author:   Developed by Matthias Weigelt with the help of Anthropic
 %             Claude Opus 5, 2026-08-14
 
-versionString = '2.3.0';
+versionString = '1.0.0';
 info = struct( ...
     'version', versionString, ...
     'date', '2026-08-14', ...

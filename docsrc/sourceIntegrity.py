@@ -31,7 +31,7 @@ EXIT STATUS
   0 - every file clean
   1 - at least one finding, one line per finding on stdout
 
-Toolbox:  gracefoReading v2.3.0
+Toolbox:  gracefoReading v1.0.0
 Created:  2026-09-06
 Author:   Developed by Matthias Weigelt with the help of Anthropic
           Claude Opus 5, 2026-09-06

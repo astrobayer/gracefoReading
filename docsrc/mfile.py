@@ -27,7 +27,7 @@ FUNCTIONS
 INPUT (all functions)
   lines - list[str], [N], the file split on '\\n', newlines removed.
 
-Toolbox:  gracefoReading v2.3.0
+Toolbox:  gracefoReading v1.0.0
 Created:  2026-09-06
 Author:   Developed by Matthias Weigelt with the help of Anthropic
           Claude Opus 5, 2026-09-06

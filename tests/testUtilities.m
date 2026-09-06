@@ -36,7 +36,7 @@ classdef testUtilities < matlab.unittest.TestCase
 %     results = runtests('testUtilities');
 %     disp(table(results));
 %
-%   Toolbox:  gracefoReading v2.3.0
+%   Toolbox:  gracefoReading v1.0.0
 %   Created:  2026-08-01
 %   Updated:  2026-08-14
 %   Author:   Developed by Matthias Weigelt with the help of Anthropic

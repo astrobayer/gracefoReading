@@ -34,17 +34,17 @@ a:hover { text-decoration: underline; }
 <h2>Input Arguments</h2>
 <p><em>This function takes no input arguments.</em></p>
 <h2>Output Arguments</h2>
-<table class="args"><tr><th>Name</th><th>Type</th><th>Size</th><th>Description</th><th>Options</th><th>Default</th></tr><tr><td class="mono">versionString</td><td>char</td><td>[1 x C]</td><td>Semantic version, e.g. &#x27;2.3.0&#x27;.</td><td></td><td class="mono"></td></tr><tr><td class="mono">info</td><td>struct</td><td>1x1</td><td><ul class="fields"><li><code>version</code> &ndash; char: same as versionString</li><li><code>date</code> &ndash; char: release date &#x27;yyyy-MM-dd&#x27;</li><li><code>developedWith</code> &ndash; char: authorship and model note</li><li><code>license</code> &ndash; char: &#x27;MIT&#x27;</li></ul></td><td></td><td class="mono"></td></tr></table>
+<table class="args"><tr><th>Name</th><th>Type</th><th>Size</th><th>Description</th><th>Options</th><th>Default</th></tr><tr><td class="mono">versionString</td><td>char</td><td>[1 x C]</td><td>Semantic version, e.g. &#x27;1.0.0&#x27;.</td><td></td><td class="mono"></td></tr><tr><td class="mono">info</td><td>struct</td><td>1x1</td><td><ul class="fields"><li><code>version</code> &ndash; char: same as versionString</li><li><code>date</code> &ndash; char: release date &#x27;yyyy-MM-dd&#x27;</li><li><code>developedWith</code> &ndash; char: authorship and model note</li><li><code>license</code> &ndash; char: &#x27;MIT&#x27;</li></ul></td><td></td><td class="mono"></td></tr></table>
 <h2>Accuracy and Limitations</h2><ul class="limits">
 <li>The version is a literal maintained in this file and mirrored in Contents.m and docsrc/functionSpecs.json; the consistency test testDocConsistency enforces that the three agree. Tests must never pin a version literal themselves, since that breaks on the next bump.</li>
 <li>String comparison of semantic versions is lexicographic and only reliable while all components stay single-digit; for robust checks compare the numeric parts, e.g. sscanf(gracefoReading.version(), &#x27;%d.%d.%d&#x27;).</li>
 </ul>
 <h2>Examples</h2>
 <p class="excap">simple assertion in a processing script</p>
-<pre class="example">assert(string(gracefoReading.version()) &gt;= &quot;2.3.0&quot;)</pre>
+<pre class="example">assert(string(gracefoReading.version()) &gt;= &quot;1.0.0&quot;)</pre>
 <p class="excap">numeric comparison, robust beyond version 9</p>
 <pre class="example">v = sscanf(gracefoReading.version(), &#x27;%d.%d.%d&#x27;)&#x27;;
 assert(v(1) &gt; 2 || (v(1) == 2 &amp;&amp; v(2) &gt;= 3))</pre>
 <h2>See Also</h2><p><a href="gracefoReading.readL1b.html"><code>gracefoReading.readL1b</code></a></p>
-<div class="footer">gracefoReading v2.3.0 &middot; 2026-08-14 &middot; Developed by Matthias Weigelt with the help of Anthropic Claude Opus 5, 2026-08-14 &middot; License: MIT &middot; Generated from the MATLAB help blocks &mdash; do not edit by hand.</div>
+<div class="footer">gracefoReading v1.0.0 &middot; 2026-08-14 &middot; Developed by Matthias Weigelt with the help of Anthropic Claude Opus 5, 2026-08-14 &middot; License: MIT &middot; Generated from the MATLAB help blocks &mdash; do not edit by hand.</div>
 </body></html>

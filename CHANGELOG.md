@@ -1,6 +1,22 @@
 # Changelog — gracefoReading
 
-## Unreleased
+## 1.0.0 — 2026-09-06
+
+### Changed — version scheme
+
+- **Renumbered from 2.3.0 to 1.0.0.** The toolbox carries no tag and no
+  release, so nothing published is rewritten by moving it. The number it
+  had said nothing: 2.3.0 was reached without a rollout, and the scheme
+  differed from every sibling repository's.
+- `1.0.0` under the scheme in `astrobayer/ci-actions/VERSIONING.md` means
+  the documented interface is treated as stable from here: breaking it
+  requires a MAJOR bump. It is not a claim of completeness.
+- The `## 2.3.0` heading below is left as it stands. It describes what
+  was done then, and rewriting it would make the record say something
+  that never happened.
+- `NonGravForces` declares a minimum of `gracefoReading 2.1` in
+  `dependencyReport.m`; that minimum moves to `1.0` in the same round.
+
 
 ### Fixed — the toolbox could not be loaded at all
 - `+gracefoReading/+internal/parseDataSection.m` and

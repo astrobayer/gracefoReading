@@ -79,7 +79,7 @@ function [timeMjd, timeNs, obs, aux] = parseClassicProduct(lines, hdrEnd, ...
 %
 %   See also gracefoReading.readL1b, gracefoReading.internal.parseDataSection
 %
-%   Toolbox:  gracefoReading v2.3.0
+%   Toolbox:  gracefoReading v1.0.0
 %   Created:  2026-08-01
 %   Updated:  2026-09-06
 %   Author:   Developed by Matthias Weigelt with the help of Anthropic

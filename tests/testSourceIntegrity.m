@@ -57,7 +57,7 @@ classdef testSourceIntegrity < matlab.unittest.TestCase
 %
 %   See also gracefoReading.internal.parseDataSection, testDocConsistency
 %
-%   Toolbox:  gracefoReading v2.3.0
+%   Toolbox:  gracefoReading v1.0.0
 %   Created:  2026-09-06
 %   Updated:  2026-09-06
 %   Author:   Developed by Matthias Weigelt with the help of Anthropic

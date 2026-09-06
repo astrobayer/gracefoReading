@@ -35,7 +35,7 @@ jobs:
     name: MATLAB suite
     runs-on: [self-hosted, Windows]
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
       # The probe and the reasoning behind it live in
       # astrobayer/ci-actions. Six repositories carried this step
       # byte-for-byte identically, and a copied step is what let one
@@ -67,7 +67,7 @@ jobs:
       - name: Report which real-data files the pool provides
         if: ${{ vars.READING_DATA_POOL != '' }}
         timeout-minutes: 2
-        uses: matlab-actions/run-command@v3
+        uses: matlab-actions/run-command@bfa857648f4895aa98a446fe41c85e0788421ed5 # v3
         env:
           READING_DATA_POOL: ${{ vars.READING_DATA_POOL }}
         with:
@@ -98,7 +98,7 @@ jobs:
       # command text: a path containing spaces or backslashes - and this
       # one contains both - cannot break the script.
       - name: Run test suites via the CI entry point
-        uses: matlab-actions/run-command@v2
+        uses: matlab-actions/run-command@37b454c384483087929a3d652be474ba585a9659 # v2
         env:
           READING_DATA_POOL: ${{ vars.READING_DATA_POOL }}
         with:
@@ -106,7 +106,7 @@ jobs:
 
       - name: Publish test report and coverage
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: testresults-self-hosted-windows
           path: artifacts/
@@ -115,9 +115,9 @@ jobs:
     name: Help audit and docs in sync
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
 
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
         with:
           python-version: '3.11'
 

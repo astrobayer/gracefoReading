@@ -62,7 +62,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: testresults-${{ matrix.os }}-${{ matrix.release }}
+          name: testresults-self-hosted-windows
           path: artifacts/
 
   documentation:
@@ -77,6 +77,11 @@ jobs:
 
       - name: Install documentation dependencies
         run: pip install reportlab --quiet
+
+      # Runs first and needs nothing installed. A file that MATLAB
+      # cannot parse must not consume the single self-hosted runner.
+      - name: Gate - source files parse and carry exactly one help block
+        run: python3 docsrc/sourceIntegrity.py
 
       - name: Audit every help block against the documentation standard
         run: python3 docsrc/auditHelp.py

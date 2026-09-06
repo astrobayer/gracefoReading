@@ -32,6 +32,10 @@ import os
 import re
 import sys
 
+import sys as _sys, os as _os
+_sys.path.insert(0, _os.path.dirname(_os.path.abspath(__file__)))
+from mfile import help_span
+
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 SPEC = json.load(open(os.path.join(ROOT, 'docsrc', 'functionSpecs.json')))
 VERSION = SPEC['toolbox']['version']
@@ -51,16 +55,8 @@ def help_block(path):
     """Return (lines, start_index) of the leading help comment block."""
     with open(path, encoding='utf-8') as fh:
         lines = fh.read().split('\n')
-    start = 0 if lines[0].startswith('%') else 1
-    out = []
-    for ln in lines[start:]:
-        if ln.startswith('%'):
-            out.append(ln)
-        elif ln.strip() == '' and out:
-            break
-        else:
-            break
-    return out, start
+    first, stop = help_span(lines)          # docsrc/mfile.py: single source
+    return lines[first:stop], first
 
 
 def audit_file(path):

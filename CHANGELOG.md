@@ -1,5 +1,51 @@
 # Changelog — gracefoReading
 
+## Unreleased
+
+### Fixed — the toolbox could not be loaded at all
+- `+gracefoReading/+internal/parseDataSection.m` and
+  `parseClassicProduct.m` carried their help block **between the two
+  physical lines of the function declaration**. MATLAB rejected both
+  files with `MATLAB:m_unbalanced_parens`, so for the interpreter they
+  did not exist and everything reaching `parseYamlProduct` errored.
+  Measured on the self-hosted runner, before and after:
+
+      before   15 passed, 33 failed, 34 incomplete
+      after    43 passed,  5 failed,  7 incomplete
+
+  Both files also carried a second, stale help block left over from the
+  same insertion; it has been removed. The surviving block is the
+  documented one and passes `docsrc/auditHelp.py` unchanged.
+
+### Fixed — the cause, not just the symptom
+- `docsrc/_sethelp.py` wrote the help block at line 2 unconditionally.
+  `docsrc/auditHelp.py`, `docsrc/helpparse.py` and
+  `tests/testDocConsistency.m` read it back with the same rule. Writer
+  and auditor shared one assumption, so the audit certified files that
+  MATLAB could not parse. All four now obtain the boundaries from
+  **`docsrc/mfile.py`**, the single point of access for the structure of
+  a MATLAB source file (`declaration_end`, `help_span`,
+  `comment_inside_decl`).
+
+### Added — checks that do not share that assumption
+- `docsrc/sourceIntegrity.py`: static gate. Split declarations,
+  duplicate help blocks, missing help. No MATLAB, no licence, under a
+  second — it fails the pull request on `ubuntu-latest` before the
+  single self-hosted runner is occupied. Verified against the
+  unrepaired tree: 4 findings; against the repaired tree: 0.
+- `tests/testSourceIntegrity.m`: asserts a property MATLAB defines —
+  every file parses under `checkcode` — plus one help block per file and
+  a reachable, correctly named H1. Its continuation rule is pinned to
+  the Python one by a shared set of test vectors.
+- `.github/workflows/ci.yml`: the gate runs first in the `documentation`
+  job. Artifact name no longer interpolates `matrix.os`/`matrix.release`,
+  which ceased to exist when the matrix was collapsed.
+
+### Known, not addressed here
+  Nine test points still fail for reasons unrelated to the parse defect;
+  they were masked by it and are visible for the first time. See the pull
+  request description for the measured list.
+
 ## 2.3.0 — 2026-08-14
 
 ### Added — CI and build

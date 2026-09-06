@@ -1,4 +1,5 @@
 function [timeMjd, timeNs, obs, aux] = parseDataSection(dataLines, dataLineNos, ...
+    varNames, varAttrs, fileName, timeVarOpt, numRecordsHeader, headerLines)
 %PARSEDATASECTION  Parse the record section shared by all L1B ASCII formats.
 %
 %   SYNTAX
@@ -86,42 +87,9 @@ function [timeMjd, timeNs, obs, aux] = parseDataSection(dataLines, dataLineNos, 
 %
 %   Toolbox:  gracefoReading v2.3.0
 %   Created:  2026-08-01
-%   Updated:  2026-08-14
+%   Updated:  2026-09-06
 %   Author:   Developed by Matthias Weigelt with the help of Anthropic
 %             Claude Opus 5, 2026-08-14
-    varNames, varAttrs, fileName, timeVarOpt, numRecordsHeader, headerLines)
-%PARSEDATASECTION  Parse the record section shared by all L1B ASCII formats.
-%
-%   Core engine behind gracefoReading.readL1b: tokenization, prod_flag-
-%   aware row-integrity checking, column type classification, time
-%   conversion (MJD/sec-of-day double pair AND exact int64 GPS
-%   nanoseconds), and aux assembly. Used by both the GRACE-FO YAML
-%   header path and the classic GRACE header path so that classic
-%   support reuses every validated code path.
-%
-%   INPUT
-%     dataLines        - string [R x 1], non-empty data lines
-%     dataLineNos      - double [R x 1], original file line numbers
-%     varNames         - cellstr [1 x V], declared variables in order
-%     varAttrs         - struct, per-variable attributes (units, ...)
-%     fileName         - string, for messages and aux
-%     timeVarOpt       - string, 'TimeVariable' override ("" = auto)
-%     numRecordsHeader - double, declared record count (NaN if none)
-%     headerLines      - cellstr [H x 1], raw header (stored in aux)
-%
-%   OUTPUT
-%     timeMjd - double [N x 2], integer MJD + seconds of day
-%     timeNs  - int64 [N x 1], GPS nanoseconds past 2000-01-01 12:00:00
-%               (exact integer arithmetic; no double round-trip)
-%     obs     - double [N x M]
-%     aux     - struct, core fields (see readL1b documentation)
-%
-%   Errors use the gracefoReading:readL1b:* identifiers documented in
-%   gracefoReading.readL1b.
-%
-%   Toolbox:  gracefoReading v2.3.0
-%   Created:  2026-08-01
-%   Author:   Developed with Claude Sonnet 5 (Anthropic)
 
 nVar = numel(varNames);
 nRec = numel(dataLines);

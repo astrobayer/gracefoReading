@@ -1,4 +1,5 @@
 function [timeMjd, timeNs, obs, aux] = parseClassicProduct(lines, hdrEnd, ...
+    fileName, timeVarOpt, columnNames)
 %PARSECLASSICPRODUCT  Parse a classic GRACE (2002-2017) Level-1B ASCII product.
 %
 %   SYNTAX
@@ -80,39 +81,9 @@ function [timeMjd, timeNs, obs, aux] = parseClassicProduct(lines, hdrEnd, ...
 %
 %   Toolbox:  gracefoReading v2.3.0
 %   Created:  2026-08-01
-%   Updated:  2026-08-14
+%   Updated:  2026-09-06
 %   Author:   Developed by Matthias Weigelt with the help of Anthropic
 %             Claude Opus 5, 2026-08-14
-    fileName, timeVarOpt, columnNames)
-%PARSECLASSICPRODUCT  Parse a classic GRACE (2002-2017) L1B ASCII product.
-%
-%   EXPERIMENTAL. Classic GRACE ASCII headers are "KEY : VALUE" lines
-%   terminated by "END OF HEADER" and, unlike GRACE-FO YAML headers, do
-%   NOT declare their data columns. Column layouts are therefore taken
-%   from built-in per-product tables assumed from the GRACE Level-1B
-%   handbook, or supplied explicitly via 'ColumnNames'. The layouts
-%   have NOT yet been validated against real classic files (see
-%   HANDOVER.md); readL1b emits a warning when this path is used.
-%
-%   Built-in layouts: ACC1B, SCA1B, KBR1B, GNV1B. Other products
-%   require 'ColumnNames'.
-%
-%   INPUT
-%     lines       - string [L x 1], all file lines
-%     hdrEnd      - double, index of the "END OF HEADER" line
-%     fileName    - string
-%     timeVarOpt  - string, 'TimeVariable' override ("" = auto)
-%     columnNames - string [1 x C], explicit layout override
-%                   (empty = use built-in table)
-%
-%   OUTPUT
-%     timeMjd, timeNs, obs, aux - see parseDataSection; aux
-%     additionally carries classicHeaderFields (struct of the parsed
-%     KEY : VALUE pairs)
-%
-%   Toolbox:  gracefoReading v2.3.0
-%   Created:  2026-08-01
-%   Author:   Developed with Claude Sonnet 5 (Anthropic)
 
 headerLines = cellstr(lines(1:hdrEnd));
 

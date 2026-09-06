@@ -2,3 +2,14 @@ artifacts/
 *.asv
 *.mat.cache
 __pycache__/
+
+# Real PO.DAAC products are supplied through the READING_DATA_POOL
+# variable, not committed: the five large ones are ~60 MB together and
+# actions/checkout removes untracked files with git clean -ffdx anyway,
+# so a copy dropped into the working tree would not survive a run. The
+# two small bundled products are excepted explicitly; they are already
+# tracked, this only guards against an accidental re-add.
+tests/realdata/*.txt
+tests/realdata/*.txt.gz
+!tests/realdata/MAS1B_2020-01-01_C_04.txt
+!tests/realdata/THR1B_2020-01-01_C_04.txt

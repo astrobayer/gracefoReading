@@ -176,8 +176,17 @@ classdef testDocConsistency < matlab.unittest.TestCase
                     name = opts{k}{1};
                     if any(strcmp(name, seen)), continue; end
                     seen{end+1} = name; %#ok<AGROW>
-                    pattern = ['%\s+', quote, name, quote, '\s+-.*?(?=\n%\s+', ...
-                               quote, '|\n%\s{3}[A-Z])'];
+                    % The entry ends at the NEXT entry header or the
+                    % next section - not at any continuation line that
+                    % happens to open with a quoted option name, such
+                    % as "'QualityBitMask'." inside the body of
+                    % 'ApplyQualityFlags'. That truncation cut the
+                    % Default: line off two entries. Mirror of ENTRY_RE
+                    % in docsrc/helpparse.py; keep the two in step.
+                    nextEntry = ['\n%\s{4,6}', quote, '?[A-Za-z_][\w.', ...
+                                 quote, ']*', quote, '?\s+-\s'];
+                    pattern = ['%\s+', quote, name, quote, '\s+-.*?(?=', ...
+                               nextEntry, '|\n%\s{3}[A-Z])'];
                     entry = regexp(blk, pattern, 'match', 'once');
                     testCase.verifyNotEmpty(entry, sprintf( ...
                         '%s.m: option %s is not documented in the help text', fname, name));
@@ -212,7 +221,18 @@ function blk = localHelpBlock(txt)
 % Leading help comment block of a MATLAB source file.
 lines = splitlines(string(txt));
 first = 1;
-if ~startsWith(strtrim(lines(1)), '%'), first = 2; end
+if ~startsWith(strtrim(lines(1)), '%')
+    % The declaration may span several physical lines through ...
+    % continuations; the help block starts after the LAST of them. The
+    % old rule "first = 2" was the same assumption that let a help block
+    % be written into the middle of a declaration and then certified as
+    % correct. Mirror of declaration_end() in docsrc/mfile.py.
+    k = 1;
+    while k < numel(lines) && localContinues(lines(k))
+        k = k + 1;
+    end
+    first = k + 1;
+end
 last = first - 1;
 for i = first:numel(lines)
     if startsWith(lines(i), '%'), last = i; else, break; end
@@ -222,4 +242,15 @@ if last < first
 else
     blk = char(join(lines(first:last), newline));
 end
+end
+
+function tf = localContinues(line)
+% True if LINE is continued on the next physical line.
+% Mirror of continues() in docsrc/mfile.py; keep the two in step.
+s = strtrim(line);
+if startsWith(s, '%'), tf = false; return; end
+i = strfind(line, '...');
+if isempty(i), tf = false; return; end
+before = extractBefore(line, i(1));
+tf = mod(count(before, ''''), 2) == 0 && ~contains(before, '%');
 end

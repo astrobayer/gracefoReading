@@ -24,6 +24,10 @@ Developed by Matthias Weigelt with the help of Anthropic Claude Opus 5,
 import os
 import re
 
+import sys as _sys, os as _os
+_sys.path.insert(0, _os.path.dirname(_os.path.abspath(__file__)))
+from mfile import help_span
+
 SECTION_RE = re.compile(r'^%\s{3}([A-Z][A-Z /-]{2,})\s*$')
 ENTRY_RE = re.compile(r"^%\s{4,6}('?[A-Za-z_][\w.']*'?)\s+-\s+(.+)$")
 ERRID_RE = re.compile(r'^%\s+(gracefoReading:[A-Za-z0-9_:]+)\s*(.*)$')
@@ -33,14 +37,8 @@ def read_block(path):
     """Leading help comment block of a MATLAB file, as list of lines."""
     with open(path, encoding='utf-8') as fh:
         lines = fh.read().split('\n')
-    start = 0 if lines[0].startswith('%') else 1
-    out = []
-    for ln in lines[start:]:
-        if ln.startswith('%'):
-            out.append(ln)
-        else:
-            break
-    return out
+    first, stop = help_span(lines)          # docsrc/mfile.py: single source
+    return lines[first:stop]
 
 
 def strip(ln):

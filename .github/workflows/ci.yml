@@ -12,38 +12,98 @@
 name: ci
 
 on:
+  # push limited to main. An unrestricted branch list next to
+  # pull_request fires BOTH events for every commit on a branch with
+  # an open PR, so the suite ran twice against the same tree. On a
+  # single self-hosted runner the second run queues behind the first.
   push:
-    branches: ['**']
+    branches: [main]
   pull_request:
   workflow_dispatch:
   schedule:
     # weekly run catches breakage introduced by new MATLAB releases
     - cron: '17 5 * * 1'
 
+# One run per ref: a quick second push releases the only runner
+# instead of leaving a superseded run holding it.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   matlab-tests:
-    name: MATLAB ${{ matrix.release }} on ${{ matrix.os }}
-    strategy:
-      fail-fast: false
-      matrix:
-        os: [ubuntu-latest, windows-latest]
-        release: [R2024b]
-        include:
-          # oldest supported release, Linux only, to keep the matrix small
-          - os: ubuntu-latest
-            release: R2020b
-    runs-on: ${{ matrix.os }}
+    name: MATLAB suite
+    runs-on: [self-hosted, Windows]
     steps:
       - uses: actions/checkout@v4
-
-      - name: Set up MATLAB
-        uses: matlab-actions/setup-matlab@v2
+      # Set up MATLAB is GONE, not disabled. This repository went
+      # private with the move to the organisation, and setup-matlab
+      # licenses base MATLAB by itself only on a PUBLIC repository -
+      # so the step could not have worked again, with or without a
+      # self-hosted runner. The batch-licensing token that covers
+      # private repositories comes from a MathWorks pilot closed to
+      # new requests.
+      #
+      # The probe replaces it: seconds, and a missing or
+      # misconfigured MATLAB fails by name here instead of as a
+      # confusing error inside the suite.
+      - name: Verify MATLAB on PATH (self-hosted)
+        timeout-minutes: 2
+        uses: matlab-actions/run-command@v3
         with:
-          release: ${{ matrix.release }}
-          products: MATLAB
+          command: >
+            fprintf('MATLAB on self-hosted runner: %s\n', version);
+      # The five large PO.DAAC products (ACT1B, GNV1B, SCA1B, KBR1B,
+      # LRI1B, ~60 MB) are too large to bundle, so six acceptance points
+      # skipped themselves on every run so far. A self-hosted machine
+      # can hold them once.
+      #
+      # THE PATH IS NOT IN THIS FILE. It comes from the repository
+      # variable READING_DATA_POOL, so the mechanism is version
+      # controlled while the machine-specific location is not. Unset
+      # variable: the step skips and the suite filters exactly as
+      # before.
+      #
+      # Reported as a named list, because a missing pool and a pool with
+      # the wrong layout produce the same six skipped points further
+      # down and are otherwise indistinguishable.
+      - name: Report which real-data files the pool provides
+        if: ${{ vars.READING_DATA_POOL != '' }}
+        timeout-minutes: 2
+        uses: matlab-actions/run-command@v3
+        env:
+          READING_DATA_POOL: ${{ vars.READING_DATA_POOL }}
+        with:
+          command: |
+            pool = string(getenv("READING_DATA_POOL"));
+            assert(isfolder(pool), 'gracefoReading:ci:dataPoolMissing', ...
+                'READING_DATA_POOL points at %s, which is not a folder.', pool);
+            fprintf('pool: %s\n', pool);
+            want = ["ACT1B_2020-01-01_C_04.txt"
+                    "GNV1B_2020-01-01_C_04.txt"
+                    "SCA1B_2020-01-01_C_04.txt"
+                    "KBR1B_2020-01-01_Y_04.txt"
+                    "LRI1B_2020-01-01_Y_04.txt"
+                    "MAS1B_2020-01-01_C_04.txt"
+                    "THR1B_2020-01-01_C_04.txt"];
+            for k = 1:numel(want)
+                f = fullfile(pool, want(k));
+                if isfile(f)
+                    d = dir(f);
+                    fprintf('  FOUND   %-34s %9d B\n', want(k), d.bytes);
+                else
+                    fprintf('  ABSENT  %s\n', want(k));
+                end
+            end
 
+      # The value reaches the suite through the environment and is read
+      # by getenv in testRealData.resolvePool, never interpolated into
+      # command text: a path containing spaces or backslashes - and this
+      # one contains both - cannot break the script.
       - name: Run test suites via the CI entry point
         uses: matlab-actions/run-command@v2
+        env:
+          READING_DATA_POOL: ${{ vars.READING_DATA_POOL }}
         with:
           command: addpath('ci'); runCI('Exit', true);
 
@@ -51,7 +111,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: testresults-${{ matrix.os }}-${{ matrix.release }}
+          name: testresults-self-hosted-windows
           path: artifacts/
 
   documentation:
@@ -66,6 +126,11 @@ jobs:
 
       - name: Install documentation dependencies
         run: pip install reportlab --quiet
+
+      # Runs first and needs nothing installed. A file that MATLAB
+      # cannot parse must not consume the single self-hosted runner.
+      - name: Gate - source files parse and carry exactly one help block
+        run: python3 docsrc/sourceIntegrity.py
 
       - name: Audit every help block against the documentation standard
         run: python3 docsrc/auditHelp.py

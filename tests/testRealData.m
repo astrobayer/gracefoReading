@@ -32,6 +32,15 @@ classdef testRealData < matlab.unittest.TestCase
 %       themselves when the corresponding file is absent, so a green
 %       run does not imply full-product coverage unless the archive
 %       files are present.
+%     - The five large products are looked up in the folder named by
+%       the environment variable READING_DATA_POOL before the bundled
+%       tests/realdata folder. The path is deliberately not in the
+%       repository; CI fills the variable from the repository variable
+%       of the same name. An unset or wrong variable is not an error
+%       here - the affected points skip - so a run that silently
+%       covers less looks identical to one that covers more. The
+%       workflow therefore names every expected file in its own step,
+%       where a wrong layout is visible.
 %     - Tolerances follow the ASCII precision of the products, which
 %       is well within double precision.
 %
@@ -47,6 +56,7 @@ classdef testRealData < matlab.unittest.TestCase
 
     properties
         dataDir
+        dataPool (1,1) string = ""
     end
 
     methods (TestClassSetup)
@@ -60,14 +70,54 @@ classdef testRealData < matlab.unittest.TestCase
                 testCase.addTeardown(@() rmpath(codeDir));
             end
             testCase.dataDir = fullfile(here, 'realdata');
+            testCase.dataPool = testRealData.resolvePool();
         end
     end
 
     methods (Access = private)
         function f = requireFile(testCase, name)
-            f = fullfile(testCase.dataDir, name);
-            testCase.assumeTrue(isfile(f), ...
-                sprintf('Real data file %s not present; test skipped.', name));
+            % Search order: external pool first, bundled folder second.
+            % The two small products travel with the toolbox; the five
+            % large ones are too big to bundle and live in the pool.
+            f = "";
+            if strlength(testCase.dataPool) > 0
+                cand = fullfile(testCase.dataPool, name);
+                if isfile(cand), f = cand; end
+            end
+            if strlength(f) == 0
+                f = fullfile(testCase.dataDir, name);
+            end
+            testCase.assumeTrue(isfile(f), sprintf( ...
+                ['Real data file %s not present in %s nor in the pool ' ...
+                 '(READING_DATA_POOL = "%s"); test skipped.'], ...
+                name, testCase.dataDir, testCase.dataPool));
+        end
+    end
+
+    methods (Static)
+        function pool = resolvePool()
+            %RESOLVEPOOL  Location of the external real-data pool, or "".
+            %
+            % SINGLE POINT OF ACCESS for the pool location. The path
+            % itself is NOT in the repository: it comes from the
+            % environment variable READING_DATA_POOL, which the CI
+            % workflow fills from the repository variable of the same
+            % name. That keeps the mechanism version controlled and the
+            % machine-specific location out of the tree, and a second
+            % runner needs no code change.
+            %
+            % Read with getenv rather than interpolated from anywhere,
+            % so a path containing spaces or backslashes cannot break.
+            %
+            % OUTPUT
+            %   pool - string, 1x1. "" when the variable is unset or
+            %          does not name a folder; every caller then falls
+            %          back to the bundled tests/realdata folder and the
+            %          affected points skip themselves as before.
+            pool = string(getenv('READING_DATA_POOL'));
+            if strlength(pool) == 0 || ~isfolder(pool)
+                pool = "";
+            end
         end
     end
 

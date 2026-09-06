@@ -85,6 +85,11 @@ classdef testSourceIntegrity < matlab.unittest.TestCase
             testCase.Files = sort(p(~skip));
             testCase.assertNotEmpty(testCase.Files, ...
                 'No source files found - is the repository laid out as expected?');
+            % help() resolves only with the package parent on the path.
+            % Without this the suite passed or failed depending on what
+            % an earlier suite had left behind - measured, not assumed.
+            testCase.applyFixture( ...
+                matlab.unittest.fixtures.PathFixture(testCase.Root));
         end
     end
 
@@ -151,11 +156,8 @@ classdef testSourceIntegrity < matlab.unittest.TestCase
                     bad(end+1, :) = [dotted, "help is empty"]; %#ok<AGROW>
                     continue
                 end
-                h1 = strtrim(extractBefore(h + newline, newline));
-                if strlength(h1) == 0
-                    nl = splitlines(strtrim(h));
-                    h1 = strtrim(nl(1));
-                end
+                nl = splitlines(strtrim(h));
+                h1 = strtrim(nl(1));
                 if ~startsWith(upper(h1), upper(name))
                     bad(end+1, :) = [dotted, "H1 does not name the function: " + h1]; %#ok<AGROW>
                 end
@@ -195,7 +197,10 @@ classdef testSourceIntegrity < matlab.unittest.TestCase
 
         function msg = report(~, what, bad)
             if isempty(bad), msg = ''; return, end
-            msg = sprintf('%d %s finding(s):\n', size(bad, 1), what);
+            % string, not char: char + char is numeric addition in
+            % MATLAB, which errored inside the failure path and hid the
+            % finding it was meant to report.
+            msg = string(sprintf('%d %s finding(s):\n', size(bad, 1), what));
             for k = 1:size(bad, 1)
                 msg = msg + sprintf('  %s -> %s\n', bad(k, 1), bad(k, 2));
             end

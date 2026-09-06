@@ -436,9 +436,16 @@ classdef testReadL1b < matlab.unittest.TestCase
             testCase.verifyEqual(a2.qualflg, a1.qualflg);
 
             % post-parse options work from cache: gpsns + TimeRange
+            % The epoch is 2000-01-01 12:00:00 GPS, so gps_time 0 is
+            % MJD 51544.5, not 51544. The window must start at noon to
+            % contain the first two records; the old literal 51544
+            % excluded the second and was never exercised because the
+            % file could not be parsed at all. The half-day shift is
+            % validated independently in testRealData against the
+            % Python reference (THR1B first epoch MJD 58849, 250.09 s).
             tns = gracefoReading.readL1b(f, 'CacheDir', cacheDir, ...
                 'TimeFormat', 'gpsns', ...
-                'TimeRange', [51544, 51544 + 43200/86400]);
+                'TimeRange', [51544 + 43200/86400, 51545]);
             testCase.verifyEqual(tns, int64([0; 43200000000000]));
 
             % content change -> different key -> fresh parse

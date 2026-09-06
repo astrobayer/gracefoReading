@@ -138,8 +138,14 @@ if ~isempty(options.DateRange)
     d = d(inRange); dates = dates(inRange); sats = sats(inRange);
 end
 
-[~, order] = sortrows([datenum(dates), double(char(sats + " "))], [1 2]); %#ok<DATNM>
-d = d(order); dates = dates(order); sats = sats(order);
+% Guard the empty case: char(strings(0,1) + " ") is 0x0, so the sort key
+% has a single column and sortrows(..., [1 2]) raises COLmismatchX. The
+% documented contract is an empty result, not an error, and the report
+% branch below already provides for it.
+if ~isempty(d)
+    [~, order] = sortrows([datenum(dates), double(char(sats + " "))], [1 2]); %#ok<DATNM>
+    d = d(order); dates = dates(order); sats = sats(order);
+end
 
 files = strings(numel(d), 1);
 for i = 1:numel(d)

@@ -176,8 +176,17 @@ classdef testDocConsistency < matlab.unittest.TestCase
                     name = opts{k}{1};
                     if any(strcmp(name, seen)), continue; end
                     seen{end+1} = name; %#ok<AGROW>
-                    pattern = ['%\s+', quote, name, quote, '\s+-.*?(?=\n%\s+', ...
-                               quote, '|\n%\s{3}[A-Z])'];
+                    % The entry ends at the NEXT entry header or the
+                    % next section - not at any continuation line that
+                    % happens to open with a quoted option name, such
+                    % as "'QualityBitMask'." inside the body of
+                    % 'ApplyQualityFlags'. That truncation cut the
+                    % Default: line off two entries. Mirror of ENTRY_RE
+                    % in docsrc/helpparse.py; keep the two in step.
+                    nextEntry = ['\n%\s{4,6}', quote, '?[A-Za-z_][\w.', ...
+                                 quote, ']*', quote, '?\s+-\s'];
+                    pattern = ['%\s+', quote, name, quote, '\s+-.*?(?=', ...
+                               nextEntry, '|\n%\s{3}[A-Z])'];
                     entry = regexp(blk, pattern, 'match', 'once');
                     testCase.verifyNotEmpty(entry, sprintf( ...
                         '%s.m: option %s is not documented in the help text', fname, name));

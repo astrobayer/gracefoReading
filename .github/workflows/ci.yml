@@ -53,8 +53,57 @@ jobs:
         with:
           command: >
             fprintf('MATLAB on self-hosted runner: %s\n', version);
+      # The five large PO.DAAC products (ACT1B, GNV1B, SCA1B, KBR1B,
+      # LRI1B, ~60 MB) are too large to bundle, so six acceptance points
+      # skipped themselves on every run so far. A self-hosted machine
+      # can hold them once.
+      #
+      # THE PATH IS NOT IN THIS FILE. It comes from the repository
+      # variable READING_DATA_POOL, so the mechanism is version
+      # controlled while the machine-specific location is not. Unset
+      # variable: the step skips and the suite filters exactly as
+      # before.
+      #
+      # Reported as a named list, because a missing pool and a pool with
+      # the wrong layout produce the same six skipped points further
+      # down and are otherwise indistinguishable.
+      - name: Report which real-data files the pool provides
+        if: ${{ vars.READING_DATA_POOL != '' }}
+        timeout-minutes: 2
+        uses: matlab-actions/run-command@v3
+        env:
+          READING_DATA_POOL: ${{ vars.READING_DATA_POOL }}
+        with:
+          command: |
+            pool = string(getenv("READING_DATA_POOL"));
+            assert(isfolder(pool), 'gracefoReading:ci:dataPoolMissing', ...
+                'READING_DATA_POOL points at %s, which is not a folder.', pool);
+            fprintf('pool: %s\n', pool);
+            want = ["ACT1B_2020-01-01_C_04.txt"
+                    "GNV1B_2020-01-01_C_04.txt"
+                    "SCA1B_2020-01-01_C_04.txt"
+                    "KBR1B_2020-01-01_Y_04.txt"
+                    "LRI1B_2020-01-01_Y_04.txt"
+                    "MAS1B_2020-01-01_C_04.txt"
+                    "THR1B_2020-01-01_C_04.txt"];
+            for k = 1:numel(want)
+                f = fullfile(pool, want(k));
+                if isfile(f)
+                    d = dir(f);
+                    fprintf('  FOUND   %-34s %9d B\n', want(k), d.bytes);
+                else
+                    fprintf('  ABSENT  %s\n', want(k));
+                end
+            end
+
+      # The value reaches the suite through the environment and is read
+      # by getenv in testRealData.resolvePool, never interpolated into
+      # command text: a path containing spaces or backslashes - and this
+      # one contains both - cannot break the script.
       - name: Run test suites via the CI entry point
         uses: matlab-actions/run-command@v2
+        env:
+          READING_DATA_POOL: ${{ vars.READING_DATA_POOL }}
         with:
           command: addpath('ci'); runCI('Exit', true);
 

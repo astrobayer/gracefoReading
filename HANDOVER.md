@@ -1,112 +1,183 @@
-# HANDOVER — gracefoReading v2.0.0 (2026-08-01)
+# HANDOVER — gracefoReading
 
-Developed with Claude Sonnet 5 (Anthropic). This document records
-status, design decisions, and open topics for the next session.
+**Revision 3.0 · 2026-09-08 · toolbox v1.0.1**
 
-## Status
+The single point of truth for this repository. Where this document and a
+general engineering habit disagree, this document is right. Read it
+before any code, and do not start from memory of a previous session.
 
-- Complete v2.0.0 rewrite in namespace `+gracefoReading`; v1.0.0
-  (`graceReading`, function `readGraceFoL1b`) is superseded.
-- **Motivating finding**: v1 failed on *every* real RL04 file — the
-  real header declaration style (`variables:` with `- varname:`)
-  differs from the invented style v1 parsed. Real-data validation was
-  therefore made the backbone of v2.
-- Parsing rules were first implemented and verified in Python
-  (`tests/python_reference/validate_realdata.py`) against the seven
-  real 2020-01-01 RL04 files (ACT1B, GNV1B, SCA1B, THR1B, KBR1B,
-  LRI1B, MAS1B): record counts vs. headers, first/last epochs,
-  column classification, MAS1B prod_flag expansion — all consistent.
-  The MATLAB acceptance suite `tests/testRealData.m` hardcodes those
-  independently derived values as regression truth.
-- MATLAB tests were **not executed here** (no MATLAB in this
-  environment — the reason .mltbx packaging was dropped). The suites
-  are written against the verified Python reference; run
-  `runtests('tests')` in MATLAB and report failures verbatim.
+`README.md` is the user-facing description (what the toolbox does, how to
+install it). This file is the developer record: status, decisions,
+obligations, and what a next session would be wrong for not reading.
+Facts live in one of the two, not both.
 
-## Key format knowledge (from real files)
+---
 
-- Header: `variables:` list, entries `- varname:` with indented
-  attributes (`units`, `comment`, `long_name`, `flag_meanings`, ...).
-- `time_frac` unit is **microseconds** in THR1B/MAS1B → scale 1e-6.
-- `qualflg`/`prod_flag` are 8-char bit strings; bit 0 = rightmost.
-- MAS1B: variable-length records; declared conditional columns appear
-  per record iff the matching prod_flag bit is set (ascending bit
-  order left→right in the data line).
-- `units: char` marks character columns (GRACEFO_id, time_ref,
-  coord_ref); `sca_id` is numeric but auxiliary (`*_id` rule);
-  `qual_rss` (SCA1B) is a genuine observation.
+## A. Status — measured, not asserted
 
-## v2.2.0 additions (this session)
+| | |
+|---|---|
+| Version | 1.0.1 (`gracefoReading.version()`; `Contents.m` and `docsrc/functionSpecs.json` must agree) |
+| Tests | **65 passed, 0 failed, 0 incomplete** — CI run 34251657704, self-hosted Windows runner, MATLAB R2026a Update 4, 2026-09-08 |
+| Static gates | `docsrc/sourceIntegrity.py` 28 files / 0 findings · `docsrc/auditHelp.py` 28 help blocks clean · `git diff --exit-code -- html/` clean |
+| Public units | 10 in `+gracefoReading/`, 8 internal in `+gracefoReading/+internal/` |
+| Tag / release | `v1.0.0` (lightweight tag + GitHub release, 2026-09-06). **v1.0.1 is merged but not tagged or released** — see O-4 |
 
-- Batch layer: findL1bFiles + findGaps + CacheDir (SHA-256 content-
-  hashed parse cache) + Multi monotonicity warning.
-- 'TimeFormat',"gpsns": exact int64 GPS nanoseconds (integer
-  arithmetic in internal.parseDataSection; never round-trips through
-  double, which cannot represent 2020-era GPS-ns values exactly).
-- 'QualityBitMask' selective filtering.
-- Classic GRACE support (EXPERIMENTAL): internal.parseClassicProduct
-  with built-in layouts for ACC1B/SCA1B/KBR1B/GNV1B; every classic
-  read warns classicExperimental until validated.
-- readGroopsInstrument (writer counterpart, roundtrip-tested).
-- buildfile.m, GitHub Actions CI (Linux+Windows), examples/ demo.
-- readL1b refactored: dispatcher + internal parse core; caching keys
-  include toolbox version, so caches self-invalidate on upgrade.
+Per-class test counts, for the prediction a next session must make
+*before* running: `testReadL1b` 22, `testUtilities` 15, `testBatchTools`
+8, `testRealData` 8, `testDocConsistency` 7, `testSourceIntegrity` 5.
+Sum 65, which reconciles with the CI total. `0 incomplete` means the
+real-data pool resolved and no acceptance point filtered itself out; a
+skipped fixture counts as incomplete and is a finding, not noise.
 
-## v2.3.0 additions (documentation, CI)
+**A correction to the record.** The `## 1.0.1` CHANGELOG entry states
+that no annotated tag or GitHub release exists for any version. That is
+false and was written without checking: `v1.0.0` was tagged and released
+on 2026-09-06. What is true, and is what O-4 now carries, is that the
+tag is *lightweight* where `astrobayer/ci-actions/VERSIONING.md` requires
+an annotated one, and that 1.0.1 has neither tag nor release.
 
-- Help text is now the single source of truth for documentation:
-  docsrc/helpparse.py parses the blocks, generate_html.py and
-  generate_guide.py render from that parse. Editing html/ or the PDF by
-  hand has no effect; edit the .m help and run
-  python3 docsrc/generate_docs.py.
-- docsrc/auditHelp.py enforces the standard (sections, typed/sized
-  arguments, stated defaults, accuracy statements, authorship). It runs
-  in CI and is mirrored by four tests in testDocConsistency.
-- ci/runCI.m is the one command for tests everywhere; docs/CI_SETUP.md
-  documents runner installation and licence handling.
-- doc/gracefoReading_Guide.pdf replaces the old UserManual PDF.
+---
 
-## Open topics
+## B. How to run
 
-1. **Run the MATLAB test suites** (user side): `runtests('tests')` —
-   now including testBatchTools and the extended testReadL1b (gpsns,
-   bit mask, cache, classic). The cache and classic paths are new
-   MATLAB code not executed in this sandbox.
-1b. **Classic GRACE layouts are ASSUMED, not validated.** The built-in
-   ACC1B/SCA1B/KBR1B/GNV1B column tables come from the GRACE L1B
-   handbook from memory. Before scientific use: obtain one real
-   classic file per product and either confirm the layouts (then add
-   the files to tests/realdata/ and remove the experimental warning)
-   or correct the tables in internal/parseClassicProduct.m. The v1
-   lesson applies: invented formats fail on real files. Classic
-   qualflg may also be decimal rather than an 8-char bit string —
-   verify.
-1c. **CI**: .github/workflows/ci.yml is ready but only runs once the
-   toolbox lives in a GitHub repository (matlab-actions requires a
-   licensed runner setup or the free MATLAB on GitHub-hosted runners
-   for public repos).
-   Expected: all pass; testRealData skips files absent from
-   tests/realdata/ (MAS1B + THR1B ship with the zip; copy the five
-   larger products in as available).
-2. **GROOPS export header conventions**: `writeGroopsInstrument`
-   writes `groops instrument version=<N>` + two-integer type/dim
-   header + lone record count + decimal-MJD records, per the known
-   structure. Verify version tag and type codes against the GROOPS
-   release in use before production.
-3. **Performance**: line-wise regexp tokenization handles an 86400-line
-   day file acceptably but has headroom (typed textscan fast path for
-   fixed-layout products). Profile in MATLAB before optimizing.
-4. Binary L1B format remains unsupported (explicit error).
-5. If PO.DAAC releases (RL05+) change header conventions, extend
-   `+gracefoReading/+internal/parseHeaderVariables.m` — and add the new files to
-   tests/realdata/.
+```matlab
+cd('...\gracefoReading'); setupGraceFOReading
+results = runtests('tests'); disp(table(results))
+```
 
-## Conventions
+`addpath('ci'); runCI('Exit', true)` is the one entry point CI uses; it
+writes `artifacts/` and exits non-zero on red so a batch call fails.
 
-- camelCase; `arguments` blocks; error ids `gracefoReading:<fn>:<id>`;
-  metadata block (Toolbox/Created/Author) in every file's help text.
-- Docs: edit `docsrc/functionSpecs.json`, regenerate with
-  `python3 docsrc/generate_docs.py`; never edit `html/` or the
-  PDF by hand. `tests/testDocConsistency.m` enforces code↔docs sync.
-- Real-data expectations must be derived independently (Python
-  reference) before being hardcoded into MATLAB tests.
+Licence-free, needs no MATLAB, runs in about a second — use these before
+every push:
+
+```bash
+python3 docsrc/sourceIntegrity.py    # files parse, exactly one help block each
+python3 docsrc/auditHelp.py          # help blocks meet the standard
+python3 docsrc/generate_docs.py      # regenerate html/ and the PDF guide
+git diff --exit-code -- html/        # the CI byte-identity check
+```
+
+**CI** (`.github/workflows/ci.yml`), two jobs, both required:
+`documentation` on ubuntu (the three commands above) and `MATLAB suite`
+on the **self-hosted Windows runner**. The five large PO.DAAC products
+are not bundled; their location comes from the repository variable
+`READING_DATA_POOL`, never from this file. Unset variable: the affected
+acceptance points filter themselves out and the count drops.
+
+---
+
+## C. Key format knowledge — from real files, not from a handbook
+
+This section is why v2 exists. **v1 failed on every real RL04 file**: it
+parsed an invented header style, and the real one differs. Every rule
+below was read off a real file.
+
+- Header: a `variables:` list, entries `- varname:` with indented
+  attributes (`units`, `comment`, `long_name`, `flag_meanings`, ...),
+  terminated by `# End of YAML header`.
+- `time_frac` is in **microseconds** in THR1B/MAS1B → scale 1e-6.
+- `qualflg` / `prod_flag` are 8-character bit strings; **bit 0 is
+  rightmost**.
+- MAS1B has variable-length records: a declared conditional column
+  appears in a record iff its `prod_flag` bit is set, in ascending bit
+  order left to right.
+- `units: char` marks character columns (`GRACEFO_id`, `time_ref`,
+  `coord_ref`). `sca_id` is numeric but auxiliary (the `*_id` rule).
+  `qual_rss` (SCA1B) is a genuine observation, not a flag.
+- Epoch: MJD 51544, GPS seconds counted from **2000-01-01 12:00**, so
+  `timeMjd = 51544 + floor((gps + 43200)/86400)`. Any test that
+  hardcodes an MJD must derive it from this, not guess it.
+- `readL1b` raises `noData` when a file holds no data records at all.
+  An empty result from `readL1b` or `readL1bMulti` therefore always
+  means a filter removed everything, never that the file was empty.
+
+---
+
+## D. Conventions
+
+- camelCase; `arguments` block on every public function; error
+  identifiers `gracefoReading:<fn>:<id>`; provenance footer
+  (`Toolbox:` / `Created:` / `Updated:` / `Author:`) in every help block.
+- **The help block is the single source of documentation.**
+  `docsrc/helpparse.py` parses it; `generate_html.py` and
+  `generate_guide.py` render from that parse. Editing `html/` or the PDF
+  by hand has no effect and will be overwritten. Edit the `.m` help and
+  run `python3 docsrc/generate_docs.py`.
+  *Revision 3.0 correction:* the previous Conventions section told the
+  reader to edit `docsrc/functionSpecs.json` and regenerate. That
+  contradicted the v2.3.0 section three paragraphs above it in the same
+  file. `functionSpecs.json` now carries toolbox-level metadata only
+  (name, version, date, summary); function bodies come from the help
+  blocks.
+- `Updated:` moves when a file's *content* changes, not when its version
+  stamp does. A version bump rewrites 28 stamps and must leave
+  `Updated:` alone in the files it did not otherwise touch.
+- Every identifier a public `.m` raises must appear in that function's
+  generated HTML page — `testDocConsistency.testErrorIdentifiersDocumented`
+  checks it, and it fails on a stale page long before a human notices.
+- Real-data expectations are derived independently (the Python reference
+  in `tests/python_reference/`) *before* being hardcoded in a MATLAB test.
+- Line length 100. Two lines in `readL1bMulti.m` exceed it and predate
+  the rule; a whitespace sweep is its own change, never mixed with a fix.
+
+---
+
+## E. Obligations
+
+Each has an owner and a re-entry condition. This is the list; nothing
+outside this table claims to be one.
+
+| id | obligation | owner | re-entry |
+|---|---|---|---|
+| O-1 | **Classic GRACE layouts are ASSUMED, not validated.** The built-in ACC1B/SCA1B/KBR1B/GNV1B column tables in `internal/parseClassicProduct.m` come from the GRACE L1B handbook *from memory*. Every classic read warns `classicExperimental`. Before any scientific use: obtain one real classic file per product, then either confirm the layouts (add the files to `tests/realdata/`, drop the warning) or correct the tables. Classic `qualflg` may be decimal rather than an 8-character bit string — verify. The v1 lesson applies exactly: invented formats fail on real files | owner | before any classic-era study |
+| O-2 | **GROOPS export conventions unverified.** `writeGroopsInstrument` writes `groops instrument version=20200123`, a two-integer type/dim header, a lone record count and decimal-MJD records, per the known structure. Neither writer nor reader has been checked against a real GROOPS installation. `NonGravForces` WP-34 (its O-19) closes this from the other side | owner | before production export |
+| O-3 | **Three version literals, one fact.** `astrobayer/ci-actions/VERSIONING.md` says `version.m` reads `Contents.m` at runtime and never hardcodes. Here `version.m`, `Contents.m` and `docsrc/functionSpecs.json` each carry the literal, reconciled by `testDocConsistency` and `auditHelp.py` rather than derived from one source (R1). A bump therefore touches 28 stamps plus three literals by hand | owner | next time the version machinery is touched |
+| O-4 | **Tagging is behind and off-standard.** `v1.0.0` is a *lightweight* tag; VERSIONING.md requires an annotated tag plus a GitHub release per version. v1.0.1 is merged with neither. Tags are immutable and are never moved, so `v1.0.0` stays as it is; the correction is forward-only | owner | before anyone depends on a pinned version |
+| O-5 | **Binary L1B is unsupported** and refuses with an explicit error. Only the ASCII products are read | — | if a binary product is ever needed |
+| O-6 | **RL05+ header conventions are unknown.** If PO.DAAC changes them, extend `internal/parseHeaderVariables.m` and add the new files to `tests/realdata/` | owner | when RL05 appears |
+| O-7 | **Line-wise regexp tokenisation has headroom.** An 86400-line day file parses acceptably, but a typed `textscan` fast path exists for fixed-layout products. Profile in MATLAB before optimising — no speed claim has been measured | — | if a day file becomes a bottleneck |
+
+Closed: **O-12 of `NonGravForces`** (issue #6, `readL1bMulti` raised
+`MATLAB:badsubscript` on an all-empty `TimeRange`) — fixed in 1.0.1,
+PR #7, merged 2026-09-08.
+
+---
+
+## F. Record of decisions
+
+| date | decision | why |
+|---|---|---|
+| 2026-08-01 | Rewrite as `+gracefoReading`; v1 (`graceReading`, `readGraceFoL1b`) superseded | v1 failed on every real RL04 file |
+| 2026-08-01 | Parsing rules implemented and verified in Python first (`tests/python_reference/validate_realdata.py`) against the seven real 2020-01-01 products, then hardcoded in `testRealData` | an expectation derived from the code it tests proves nothing |
+| 2026-08-14 | `'TimeFormat',"gpsns"` computes int64 GPS nanoseconds by integer arithmetic and never round-trips through double | 2020-era GPS-ns values are ~6.3e17, past double's exact integer range (2^53) |
+| 2026-08-14 | Cache key is a SHA-256 of content **plus the toolbox version** | caches self-invalidate on upgrade instead of silently serving an old parse |
+| 2026-09-06 | Renumber 2.3.0 → 1.0.0 | no tag, no release, nothing published was rewritten; 2.3.0 was reached without a rollout |
+| 2026-09-06 | `docsrc/mfile.py` becomes the single point of access for help-block boundaries | four copies of the rule "the declaration is line 1" existed and all four were wrong the same way; writer and auditor shared the error, so the audit certified files MATLAB could not parse |
+| 2026-09-08 | `readL1bMulti` returns clean empties for an all-excluding range rather than erroring, and reports it with `noRecordsInRange` | erroring would make the two readers disagree on one input class and would keep `NonGravForces` `l1bLoad`'s single/multi split alive permanently; silence would hide a wrong `TimeRange` |
+| 2026-09-08 | `localWarnNoRecords` derives every number in its message from the run | diagnostic text is a claim too (R3); a message restating the call can drift from what happened |
+
+---
+
+## G. What a next session would be wrong for not reading
+
+1. **The version was renumbered downwards.** 2.3.0 → 1.0.0 on 2026-09-06.
+   Anything in this repository's history that says "v2.x" describes the
+   same code under the old scheme. `HANDOVER.md` itself said v2.0.0 until
+   Revision 3.0 and listed CI-covered work as open — do not trust a
+   status line without a measured number beside it.
+2. **A version bump is a 31-file change.** 28 provenance stamps plus
+   `Contents.m`, `version.m` and `functionSpecs.json` (O-3). Keep it in
+   its own commit or the real diff becomes unreadable.
+3. **Regenerate the docs in the same change as any help edit.** CI runs
+   `git diff --exit-code -- html/`, and `testDocConsistency` requires
+   every raised identifier to be on its function's page. A new `error` or
+   `warning` id with a stale page is a red run.
+4. **The classic-GRACE path is unvalidated (O-1).** It warns on every
+   use. Do not let a green suite be read as evidence about it: no real
+   classic file exists in this repository.
+5. **Two test suites need things the sandbox does not have.**
+   `testRealData` needs `READING_DATA_POOL`; the full suite needs MATLAB.
+   A session with neither can still run all three static gates, and
+   should say so rather than reporting "green".

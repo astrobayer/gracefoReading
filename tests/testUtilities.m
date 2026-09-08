@@ -12,6 +12,14 @@ classdef testUtilities < matlab.unittest.TestCase
 %       results = runtests('testUtilities'); table(results)
 %
 %   COVERAGE
+%     - readL1bMulti: concatenation, single-file equivalence, option
+%       forwarding, and the empty-result contract of issue #6 - a
+%       'TimeRange' that excludes every record of every file returns
+%       the same clean empties readL1b returns (all three TimeFormats)
+%       under the noRecordsInRange warning instead of raising
+%       MATLAB:badsubscript from the monotonicity check; partial
+%       exclusion and a single surviving record still concatenate and
+%       stay warning-free
 %     - decodeQualFlags: bit order (bit 0 rightmost), meanings taken
 %       from header attributes, undocumented bits, counts and
 %       fractions, flagNotFound and notBitString errors
@@ -31,16 +39,23 @@ classdef testUtilities < matlab.unittest.TestCase
 %     - version tests verify structure only. Cross-artifact version
 %       agreement is the job of testDocConsistency, so a version bump
 %       never breaks this suite.
+%     - The MJD values the empty-range tests exclude are derived from
+%       the reader's own epoch convention, not guessed: writeSimple
+%       emits gps_time in seconds past 2000-01-01 12:00 GPS, and
+%       parseDataSection maps it with MJD = 51544 + floor((gps +
+%       43200)/86400). The two fixture files therefore cover MJD
+%       51544.5 to 51546.0, so [51000 51001] and 1999-12-31 both lie
+%       strictly before the data, exactly as in the issue report.
 %
 %   EXAMPLE
 %     results = runtests('testUtilities');
 %     disp(table(results));
 %
-%   Toolbox:  gracefoReading v1.0.0
+%   Toolbox:  gracefoReading v1.0.1
 %   Created:  2026-08-01
-%   Updated:  2026-08-14
+%   Updated:  2026-09-08
 %   Author:   Developed by Matthias Weigelt with the help of Anthropic
-%             Claude Opus 5, 2026-08-14
+%             Claude Opus 5, 2026-09-08
 
     properties
         workDir
@@ -130,6 +145,128 @@ classdef testUtilities < matlab.unittest.TestCase
                 'TimeFormat', 'datetime');
             testCase.verifyClass(t, 'datetime');
             testCase.verifySize(t, [4, 1]);
+        end
+
+        % ---- issue #6: TimeRange excluding every record -----------------
+
+        function testMultiEmptyRangeReturnsCleanEmpties(testCase)
+            % Before the fix this raised MATLAB:badsubscript from the
+            % cross-file monotonicity check, which indexed time(1,1) on the
+            % empty concatenation. The contract is now: clean empties, a
+            % fully populated aux, and one documented warning.
+            f1 = testCase.writeSimple('day1.txt', [0; 43200], 0);
+            f2 = testCase.writeSimple('day2.txt', [86400; 129600], 100);
+            files = [string(f1), string(f2)];
+
+            lastwarn('', '');
+            [t, obs, aux] = gracefoReading.readL1bMulti(files, ...
+                'TimeRange', [51000 51001]);
+            [msg, wid] = lastwarn();
+
+            testCase.verifyEqual(wid, 'gracefoReading:readL1bMulti:noRecordsInRange');
+            % the message must be derived from the run, not restated
+            testCase.verifyTrue(contains(msg, 'TimeRange'), ...
+                'Warning must name the filter that was actually active.');
+            testCase.verifyTrue(contains(msg, '4 record(s) parsed from 2 file(s)'), ...
+                'Warning must report the measured parsed-record count.');
+
+            testCase.verifyClass(t, 'double');
+            testCase.verifySize(t, [0, 2]);
+            testCase.verifySize(obs, [0, 1]);
+            testCase.verifyEqual(aux.fileNames, files(:));
+            testCase.verifyEqual(aux.recordsPerFile, [0; 0]);
+            testCase.verifyEqual(aux.numRecordsActual, [2; 2]);
+            testCase.verifyEqual(aux.obsNames, {'val'});
+        end
+
+        function testMultiEmptyRangeAllTimeFormats(testCase)
+            % All three branches of the monotonicity check indexed the
+            % first epoch, so all three failed. The datetime range is the
+            % one from the issue report: entirely before the data.
+            f1 = testCase.writeSimple('day1.txt', [0; 43200], 0);
+            f2 = testCase.writeSimple('day2.txt', [86400; 129600], 100);
+            files = [string(f1), string(f2)];
+            tr = [datetime(1999,12,31,0,0,0), datetime(1999,12,31,1,0,0)];
+            wid = 'gracefoReading:readL1bMulti:noRecordsInRange';
+
+            expected = {'mjd', 'double', [0 2]; ...
+                        'datetime', 'datetime', [0 1]; ...
+                        'gpsns', 'int64', [0 1]};
+            for k = 1:size(expected, 1)
+                fmt = expected{k, 1};
+                % 3-argument form: the documented signature that also
+                % returns the outputs of the called function
+                t = testCase.verifyWarning(@() gracefoReading.readL1bMulti( ...
+                    files, 'TimeRange', tr, 'TimeFormat', fmt), wid);
+                testCase.verifyClass(t, expected{k, 2}, ...
+                    sprintf('TimeFormat "%s" returned the wrong class.', fmt));
+                testCase.verifySize(t, expected{k, 3}, ...
+                    sprintf('TimeFormat "%s" lost its column count.', fmt));
+            end
+        end
+
+        function testMultiEmptyRangeMatchesReadL1b(testCase)
+            % Metamorphic: the divergence reported in issue #6 was that
+            % readL1b returned empties while readL1bMulti crashed on the
+            % same input. One file through both paths must now agree
+            % exactly - same class, same size, same content, no tolerance.
+            f1 = testCase.writeSimple('day1.txt', [0; 43200], 0);
+            tr = [datetime(1999,12,31,0,0,0), datetime(1999,12,31,1,0,0)];
+            wid = 'gracefoReading:readL1bMulti:noRecordsInRange';
+
+            for fmt = ["mjd", "datetime", "gpsns"]
+                [t1, o1] = gracefoReading.readL1b(f1, ...
+                    'TimeRange', tr, 'TimeFormat', fmt);
+                [t2, o2] = testCase.verifyWarning(@() gracefoReading.readL1bMulti( ...
+                    string(f1), 'TimeRange', tr, 'TimeFormat', fmt), wid);
+                testCase.verifyEqual(t2, t1, sprintf( ...
+                    'readL1bMulti and readL1b disagree on time for "%s".', fmt));
+                testCase.verifyEqual(o2, o1, sprintf( ...
+                    'readL1bMulti and readL1b disagree on obs for "%s".', fmt));
+            end
+        end
+
+        function testMultiEmptyRangeWarningIsPromotable(testCase)
+            % A caller that requires data converts the documented warning
+            % into an error. This is the contract point the issue asked
+            % for, so it must be a real identifier and not a bare crash.
+            f1 = testCase.writeSimple('day1.txt', [0; 43200], 0);
+            wid = 'gracefoReading:readL1bMulti:noRecordsInRange';
+            ws = warning('error', wid);   % returns the previous state of wid
+            testCase.addTeardown(@() warning(ws));
+            testCase.verifyError(@() gracefoReading.readL1bMulti( ...
+                string(f1), 'TimeRange', [51000 51001]), wid);
+        end
+
+        function testMultiPartiallyEmptyRangeConcatenates(testCase)
+            % Only some files emptied: the monotonicity check still runs on
+            % the survivors and must stay silent. Guards the mixed case the
+            % empty-guard could have broken.
+            f1 = testCase.writeSimple('day1.txt', [0; 43200], 0);
+            f2 = testCase.writeSimple('day2.txt', [86400; 129600], 100);
+            [t, obs, aux] = testCase.verifyWarningFree(@() ...
+                gracefoReading.readL1bMulti([string(f1), string(f2)], ...
+                'TimeRange', [51545.2 51546.5]));
+
+            testCase.verifySize(t, [2, 2]);
+            testCase.verifyEqual(t, [51545, 43200; 51546, 0], 'AbsTol', 1e-9);
+            testCase.verifyEqual(obs, [101; 102], 'AbsTol', 1e-9);
+            testCase.verifyEqual(aux.recordsPerFile, [0; 2]);
+        end
+
+        function testMultiSingleSurvivingRecordIsMonotonic(testCase)
+            % Boundary of the monotonicity check: diff of a one-element
+            % series is empty, so no warning may be raised - and one record
+            % is not the empty case either.
+            f1 = testCase.writeSimple('day1.txt', [0; 43200], 0);
+            f2 = testCase.writeSimple('day2.txt', [86400; 129600], 100);
+            [t, obs, aux] = testCase.verifyWarningFree(@() ...
+                gracefoReading.readL1bMulti([string(f1), string(f2)], ...
+                'TimeRange', [51545.9 51546.5]));
+
+            testCase.verifySize(t, [1, 2]);
+            testCase.verifyEqual(obs, 102, 'AbsTol', 1e-9);
+            testCase.verifyEqual(aux.recordsPerFile, [0; 1]);
         end
 
         function testDecodeQualFlagsMeanings(testCase)

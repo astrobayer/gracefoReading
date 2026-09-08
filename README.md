@@ -1,6 +1,6 @@
 # gracefoReading — GRACE-FO Level-1B ASCII reading toolbox for MATLAB
 
-Version 1.0.0 — 2026-08-14 — MIT license — requires MATLAB R2020b+
+Version 1.0.1 — 2026-09-08 — MIT license — requires MATLAB R2020b+
 Developed with Claude Sonnet 5 (Anthropic).
 
 Reads any GRACE-FO Level-1B RL04 ASCII product (ACT1B/ACC1B, SCA1B,

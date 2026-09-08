@@ -83,7 +83,7 @@ function results = runCI(options)
 %
 %   See also runtests, matlab.unittest.TestRunner, buildfile
 %
-%   Toolbox:  gracefoReading v1.0.0
+%   Toolbox:  gracefoReading v1.0.1
 %   Created:  2026-08-14
 %   Updated:  2026-08-14
 %   Author:   Developed by Matthias Weigelt with the help of Anthropic

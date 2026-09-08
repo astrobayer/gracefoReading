@@ -53,7 +53,10 @@ function [time, obs, aux] = readL1bMulti(fileNames, options)
 %   OUTPUT
 %     time - double, [N x 2] | datetime, [N x 1] | int64, [N x 1]
 %                Concatenated epochs in the requested format;
-%                N = total records kept across all files.
+%                N = total records kept across all files. N = 0 is a
+%                valid result (see ACCURACY AND LIMITATIONS); the
+%                column count is preserved, so an empty mjd result is
+%                0x2 and an empty datetime/gpsns result is 0x1.
 %     obs  - double, [N x M]
 %                Concatenated observation columns, ordered as
 %                aux.obsNames.
@@ -76,6 +79,16 @@ function [time, obs, aux] = readL1bMulti(fileNames, options)
 %       are still returned, so the caller can decide how to resolve
 %       the overlap.
 %     - Duplicate epochs are not removed automatically.
+%     - If 'TimeRange' or a quality option removes every record of
+%       every file, the result is empty rather than an error: time and
+%       obs are the same clean empties readL1b returns for one file,
+%       aux still carries fileNames, products, recordsPerFile (all
+%       zero) and the per-file record counts, and the outcome is
+%       reported by the noRecordsInRange warning. The monotonicity
+%       check is skipped, an empty series being trivially monotonic.
+%       Callers that require data should test isempty(time) or promote
+%       the warning with
+%       warning('error', 'gracefoReading:readL1bMulti:noRecordsInRange').
 %     - Memory grows linearly with the number of files; a full year of
 %       1 Hz ACT1B is roughly 3e7 records. For long series, read in
 %       blocks or use 'CacheDir' with per-day processing.
@@ -88,6 +101,8 @@ function [time, obs, aux] = readL1bMulti(fileNames, options)
 %     gracefoReading:readL1bMulti:fieldDropped      aux field not concatenable
 %     gracefoReading:readL1bMulti:timeNotMonotonic  time not strictly
 %                                                   increasing across files
+%     gracefoReading:readL1bMulti:noRecordsInRange  filters removed every
+%                                                   record of every file
 %
 %   EXAMPLES
 %     % 1. five consecutive days
@@ -102,14 +117,21 @@ function [time, obs, aux] = readL1bMulti(fileNames, options)
 %     [t, acc] = gracefoReading.readL1bMulti(files, ...
 %         'ApplyQualityFlags', true, 'CacheDir', 'l1bcache');
 %
+%     % 3. a range the files do not cover: empty, not an error
+%     tr = [datetime(2019,12,31,0,0,0), datetime(2019,12,31,1,0,0)];
+%     [t, acc, aux] = gracefoReading.readL1bMulti(files, 'TimeRange', tr);
+%     if isempty(t)
+%         fprintf('%d file(s) read, no record in range\n', numel(aux.fileNames));
+%     end
+%
 %   See also gracefoReading.readL1b, gracefoReading.findL1bFiles,
 %            gracefoReading.findGaps
 %
-%   Toolbox:  gracefoReading v1.0.0
+%   Toolbox:  gracefoReading v1.0.1
 %   Created:  2026-08-01
-%   Updated:  2026-08-14
+%   Updated:  2026-09-08
 %   Author:   Developed by Matthias Weigelt with the help of Anthropic
-%             Claude Opus 5, 2026-08-14
+%             Claude Opus 5, 2026-09-08
 
 arguments
     fileNames (1,:) string {mustBeNonempty}
@@ -147,22 +169,35 @@ end
 time = vertcat(timeAll{:});
 obs  = vertcat(obsAll{:});
 
-% cross-file monotonicity: catches wrong file order or duplicate days
-if isdatetime(time)
-    tCheck = seconds(time - time(1));
-elseif isa(time, 'int64')
-    tCheck = double(time - time(1)) * 1e-9;
+% Cross-file monotonicity: catches wrong file order or duplicate days.
+% All three branches below index the first epoch, so the check must never
+% run on an empty concatenation. readL1b returns clean empties when
+% 'TimeRange' or a quality option removes every record, so readL1bMulti can
+% legitimately be handed nFiles such results; it then raised a bare
+% MATLAB:badsubscript from inside the reader (issue #6). An empty series is
+% trivially monotonic, so the check is skipped and the same clean empties
+% readL1b produces are returned - reported under a documented identifier,
+% because silently returning nothing where a series was expected hides a
+% wrong 'TimeRange' or a wrong file list.
+if isempty(time)
+    localWarnNoRecords(auxAll, options, time);
 else
-    tCheck = (time(:,1) - time(1,1)) * 86400 + (time(:,2) - time(1,2));
-end
-iBad = find(diff(tCheck) <= 0, 1);
-if ~isempty(iBad)
-    boundaries = cumsum(cellfun(@(t) size(t,1), timeAll));
-    fileIdx = find(boundaries >= iBad + 1, 1);
-    warning('gracefoReading:readL1bMulti:timeNotMonotonic', ...
-        ['Concatenated time is not strictly increasing at record %d ', ...
-         '(in file %d of %d: "%s"). Check file order and duplicates.'], ...
-        iBad + 1, fileIdx, nFiles, fileNames(min(fileIdx, nFiles)));
+    if isdatetime(time)
+        tCheck = seconds(time - time(1));
+    elseif isa(time, 'int64')
+        tCheck = double(time - time(1)) * 1e-9;
+    else
+        tCheck = (time(:,1) - time(1,1)) * 86400 + (time(:,2) - time(1,2));
+    end
+    iBad = find(diff(tCheck) <= 0, 1);
+    if ~isempty(iBad)
+        boundaries = cumsum(cellfun(@(t) size(t,1), timeAll));
+        fileIdx = find(boundaries >= iBad + 1, 1);
+        warning('gracefoReading:readL1bMulti:timeNotMonotonic', ...
+            ['Concatenated time is not strictly increasing at record %d ', ...
+             '(in file %d of %d: "%s"). Check file order and duplicates.'], ...
+            iBad + 1, fileIdx, nFiles, fileNames(min(fileIdx, nFiles)));
+    end
 end
 
 aux = struct();
@@ -210,4 +245,37 @@ for f = 1:numel(candidates)
             'Auxiliary field "%s" is missing or inconsistently typed in at least one file and was not concatenated.', fn);
     end
 end
+end
+
+% ========================================================================
+function localWarnNoRecords(auxAll, options, time)
+% Report an all-empty concatenation under a documented identifier.
+% Every number in the message is read back from the run (parsed record
+% counts, the options actually set, the shape and class actually returned)
+% rather than restated from the call, so the text cannot drift from what
+% happened. readL1b raises noData when a file holds no records at all, so
+% an empty result normally means the filters removed everything; the
+% no-filter wording is kept honest for any future path that could produce
+% empties without one.
+nParsed = sum(cellfun(@(a) a.numRecordsActual, auxAll));
+active = string.empty(1, 0);
+if ~isempty(options.TimeRange)
+    active(end+1) = "TimeRange";
+end
+if options.ApplyQualityFlags
+    active(end+1) = "ApplyQualityFlags";
+end
+if ~isempty(options.QualityBitMask)
+    active(end+1) = "QualityBitMask";
+end
+if isempty(active)
+    cause = 'no filtering option was set';
+else
+    cause = ['active filters: ', char(strjoin(active, ', '))];
+end
+warning('gracefoReading:readL1bMulti:noRecordsInRange', ...
+    ['No record survived filtering: %d record(s) parsed from %d file(s), all ', ...
+     'removed (%s). Returning empty time (%s, %dx%d) and obs; aux still carries ', ...
+     'fileNames, products and recordsPerFile.'], ...
+    nParsed, numel(auxAll), cause, class(time), size(time, 1), size(time, 2));
 end

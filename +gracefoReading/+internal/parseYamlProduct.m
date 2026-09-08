@@ -56,7 +56,7 @@ function [timeMjd, timeNs, obs, aux] = parseYamlProduct(lines, hdrEnd, fileName,
 %
 %   See also gracefoReading.readL1b, gracefoReading.internal.parseDataSection
 %
-%   Toolbox:  gracefoReading v1.0.0
+%   Toolbox:  gracefoReading v1.0.1
 %   Created:  2026-08-01
 %   Updated:  2026-08-14
 %   Author:   Developed by Matthias Weigelt with the help of Anthropic

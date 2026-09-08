@@ -1,6 +1,6 @@
 # Continuous integration — setup guide
 
-Toolbox: gracefoReading v1.0.0
+Toolbox: gracefoReading v1.0.1
 Developed by Matthias Weigelt with the help of Anthropic Claude Opus 5, 2026-08-14.
 
 This document explains how to run the toolbox test suites automatically:

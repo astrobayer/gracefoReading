@@ -60,7 +60,16 @@
   `testDocConsistency` and `auditHelp` rather than deriving them from
   one source. Fixing that is a change to the version machinery and does
   not belong in a bug-fix pull request.
-- No annotated tag or GitHub release exists for any version.
+- No annotated tag exists. `v1.0.0` was tagged and released on
+  2026-09-06, but the tag is *lightweight*, where VERSIONING.md requires
+  an annotated tag plus a GitHub release per version.
+
+  **Correction, 2026-09-08.** This bullet first read "No annotated tag or
+  GitHub release exists for any version." That was false and was written
+  without checking the remote; the `v1.0.0` tag and its release both
+  existed at the time. Rewritten rather than deleted, because a record
+  that quietly loses a wrong claim teaches nothing. Tracked as O-4 in
+  `HANDOVER.md`.
 
 ## 1.0.0 — 2026-09-06
 

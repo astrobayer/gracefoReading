@@ -38,7 +38,7 @@ classdef testBatchTools < matlab.unittest.TestCase
 %     results = runtests('testBatchTools');
 %     disp(table(results));
 %
-%   Toolbox:  gracefoReading v1.0.0
+%   Toolbox:  gracefoReading v1.0.1
 %   Created:  2026-08-01
 %   Updated:  2026-08-14
 %   Author:   Developed by Matthias Weigelt with the help of Anthropic

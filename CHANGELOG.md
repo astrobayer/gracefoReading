@@ -1,5 +1,67 @@
 # Changelog — gracefoReading
 
+## 1.0.1 — 2026-09-08
+
+### Fixed — readL1bMulti crashed where readL1b returned empties
+
+- `+gracefoReading/readL1bMulti.m` indexed the first epoch of the
+  concatenated series unconditionally in its cross-file monotonicity
+  check — `time(1)` in the `datetime` and `int64` branches, `time(1,1)`
+  in the `mjd` branch. `readL1b` returns clean empties when `'TimeRange'`
+  or a quality option removes every record, so `vertcat` of K such
+  results is empty and all three branches raised a bare
+  `MATLAB:badsubscript` from inside the reader (issue #6). An empty
+  series is trivially monotonic; the check is now skipped.
+- The result is the **same clean empties `readL1b` returns**, not an
+  error. Erroring was the other option the issue offered and was
+  rejected: `readL1b` returning empties for an out-of-range file is
+  deliberate, and two readers disagreeing on one input class would keep
+  the single-file/multi-file split in `NonGravForces`
+  `io/private/l1bLoad` (O-12) alive permanently.
+- Returning nothing silently would hide a wrong `'TimeRange'` or a wrong
+  file list, so the outcome is reported under a new documented
+  identifier, **`gracefoReading:readL1bMulti:noRecordsInRange`**.
+  Callers that require data test `isempty(time)` or promote the warning
+  with `warning('error', id)`. Every number in the message is read back
+  from the run (parsed counts from `numRecordsActual`, the options
+  actually set, the class and shape actually returned).
+- Swept for the same pattern: `findGaps.localToMjdPair` is fully
+  vectorised and already carried `|| isempty(time)`; `decodeQualFlags`,
+  `checkQuaternionNorm` and `writeGroopsInstrument` never index element
+  1. `readL1bMulti` was the only offender. The mixed case — some files
+  emptied, some not — already worked and is now covered by a test.
+- Six tests added to `tests/testUtilities.m`, including a metamorphic
+  `readL1b` vs `readL1bMulti` equality check on the exact divergence
+  reported, and the single-surviving-record boundary where `diff()` is
+  empty.
+
+### Fixed — an EXAMPLE that could not run
+
+- `+gracefoReading/version.m` example 2 asserted `v >= 2.3`. The
+  renumbering from 2.3.0 to 1.0.0 in the previous release left it
+  impossible to satisfy. A runnable EXAMPLE section exists to expose
+  exactly this, and did.
+
+### Changed — version
+
+- `1.0.0` → `1.0.1`. PATCH, per
+  `astrobayer/ci-actions/VERSIONING.md`: PATCH rises for fixes, and is
+  not a revision counter. Provenance stamps in all 28 help blocks,
+  `Contents.m`, `version.m`, `docsrc/functionSpecs.json`, `README.md`
+  and `docs/CI_SETUP.md` move together; `Updated:` dates move only in
+  the files whose content changed.
+
+### Known deviations from VERSIONING.md (not addressed here)
+
+- `version.m` hardcodes the version literal. The organisation scheme
+  says `version.m` reads `Contents.m` at runtime and never hardcodes.
+  This repository instead keeps three literals (`version.m`,
+  `Contents.m`, `docsrc/functionSpecs.json`) reconciled by
+  `testDocConsistency` and `auditHelp` rather than deriving them from
+  one source. Fixing that is a change to the version machinery and does
+  not belong in a bug-fix pull request.
+- No annotated tag or GitHub release exists for any version.
+
 ## 1.0.0 — 2026-09-06
 
 ### Changed — version scheme

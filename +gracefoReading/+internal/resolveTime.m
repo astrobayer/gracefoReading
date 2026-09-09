@@ -80,7 +80,7 @@ function [timeColIdx, timeVarUsed, fracScale] = resolveTime(varNames, varAttrs, 
 %
 %   See also gracefoReading.readL1b, gracefoReading.internal.parseDataSection
 %
-%   Toolbox:  gracefoReading v1.0.1
+%   Toolbox:  gracefoReading v1.0.2
 %   Created:  2026-08-01
 %   Updated:  2026-09-09
 %   Author:   Developed by Matthias Weigelt with the help of Anthropic

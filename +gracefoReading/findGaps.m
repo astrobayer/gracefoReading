@@ -98,7 +98,7 @@ function [gaps, stats] = findGaps(time, options)
 %
 %   See also gracefoReading.readL1b, gracefoReading.readL1bMulti
 %
-%   Toolbox:  gracefoReading v1.0.1
+%   Toolbox:  gracefoReading v1.0.2
 %   Created:  2026-08-01
 %   Updated:  2026-08-14
 %   Author:   Developed by Matthias Weigelt with the help of Anthropic

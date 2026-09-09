@@ -18,7 +18,7 @@ function [versionString, info] = version()
 %
 %   OUTPUT
 %     versionString - char, [1 x C]
-%                Semantic version, e.g. '1.0.1'.
+%                Semantic version, e.g. '1.0.2'.
 %     info - struct, 1x1
 %                  version       char, same as versionString
 %                  date          char, release date 'yyyy-MM-dd'
@@ -49,16 +49,16 @@ function [versionString, info] = version()
 %
 %   See also gracefoReading.readL1b
 %
-%   Toolbox:  gracefoReading v1.0.1
+%   Toolbox:  gracefoReading v1.0.2
 %   Created:  2026-08-01
 %   Updated:  2026-09-08
 %   Author:   Developed by Matthias Weigelt with the help of Anthropic
 %             Claude Opus 5, 2026-09-08
 
-versionString = '1.0.1';
+versionString = '1.0.2';
 info = struct( ...
     'version', versionString, ...
-    'date', '2026-09-08', ...
+    'date', '2026-09-09', ...
     'developedWith', 'Matthias Weigelt with the help of Anthropic Claude Opus 5', ...
     'license', 'MIT');
 end

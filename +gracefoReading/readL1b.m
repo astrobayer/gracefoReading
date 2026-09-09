@@ -184,7 +184,7 @@ function [time, obs, aux] = readL1b(fileName, options)
 %            gracefoReading.writeGroopsInstrument,
 %            gracefoReading.readGroopsInstrument, gracefoReading.version
 %
-%   Toolbox:  gracefoReading v1.0.1
+%   Toolbox:  gracefoReading v1.0.2
 %   Created:  2026-08-01
 %   Updated:  2026-09-09
 %   Author:   Developed by Matthias Weigelt with the help of Anthropic

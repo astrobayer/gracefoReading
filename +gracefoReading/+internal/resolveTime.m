@@ -41,15 +41,30 @@ function [timeColIdx, timeVarUsed, fracScale] = resolveTime(varNames, varAttrs, 
 %     fracScale - double, 1x1
 %                Seconds per unit of the fractional column: 1 for
 %                seconds, 1e-3 for milliseconds, 1e-6 for
-%                microseconds. Returns 1 for single-column time tags.
+%                microseconds, 1e-9 for nanoseconds. Returns 1 for
+%                single-column time tags.
 %
 %   ACCURACY AND LIMITATIONS
 %     - Only the three known split-pair conventions are detected
 %       automatically; any other pair must be given via the override.
 %     - Unit strings are matched case-insensitively against the
-%       singular and plural forms of second, millisecond and
-%       microsecond; anything else raises unknownFracUnit rather than
-%       being guessed, because a wrong scale would corrupt every epoch.
+%       singular and plural forms of second, millisecond, microsecond
+%       and nanosecond; anything else raises unknownFracUnit rather
+%       than being guessed, because a wrong scale would corrupt every
+%       epoch. The refusal is deliberate and must stay: a fallback of
+%       s = 1 on an unrecognised unit would have put MAG1B epochs out
+%       by nine orders of magnitude with nothing visible to say so.
+%     - Which unit each product declares is a property of the file, not
+%       of the product family. Across GRACE-C RL04, MAG1B is the only
+%       product declaring nanoseconds; IHK1B, MAS1B, THR1B and TNK1B
+%       declare microseconds; the remaining products carry no time_frac
+%       at all. Do not infer a unit from a sibling product.
+%     - The scale is applied as fracScale*frac, and the exact int64
+%       nanosecond path of parseDataSection then recovers the integer
+%       by round(fracSec*1e9). That round trip was checked exhaustively
+%       over the full declared valid_range of every supported unit
+%       (0 to 999999999 for nanoseconds): zero mismatches, so 'gpsns'
+%       stays exact for MAG1B as it is for the microsecond products.
 %     - A fractional column without a declared unit is assumed to be in
 %       seconds, following the YAML default.
 %
@@ -67,9 +82,9 @@ function [timeColIdx, timeVarUsed, fracScale] = resolveTime(varNames, varAttrs, 
 %
 %   Toolbox:  gracefoReading v1.0.1
 %   Created:  2026-08-01
-%   Updated:  2026-08-14
+%   Updated:  2026-09-09
 %   Author:   Developed by Matthias Weigelt with the help of Anthropic
-%             Claude Opus 5, 2026-08-14
+%             Claude Opus 5, 2026-09-09
 
 fracScale = 1;
 if override ~= ""
@@ -119,6 +134,7 @@ switch unit
     case {'second','seconds'},           s = 1;
     case {'millisecond','milliseconds'}, s = 1e-3;
     case {'microsecond','microseconds'}, s = 1e-6;
+    case {'nanosecond','nanoseconds'},   s = 1e-9;   % MAG1B (issue #9)
     otherwise
         error('gracefoReading:readL1b:unknownFracUnit', ...
             'Unsupported fractional-time unit "%s" for variable %s.', unit, fracName);

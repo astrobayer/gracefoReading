@@ -16,8 +16,10 @@ function [time, obs, aux] = readL1b(fileName, options)
 %
 %     Handled automatically:
 %       - single (gps_time) and split (time_intg + time_frac) time tags
-%         with unit-aware fractional scaling (microseconds in the real
-%         THR1B/MAS1B files),
+%         with unit-aware fractional scaling, read from each file's own
+%         header rather than assumed per product family: microseconds
+%         in the real IHK1B/MAS1B/THR1B/TNK1B files, nanoseconds in
+%         MAG1B,
 %       - bit-string flag columns (qualflg, prod_flag) preserved as
 %         character bit patterns and decoded into logical bit matrices,
 %       - prod_flag-controlled variable-length records (e.g. MAS1B);
@@ -117,8 +119,9 @@ function [time, obs, aux] = readL1b(fileName, options)
 %   ACCURACY AND LIMITATIONS
 %     - Time in the default "mjd" format is a double pair; around
 %       MJD 58849 the seconds-of-day double resolves about 2e-11 s, so
-%       the L1B time tags (microsecond quantization) are represented
-%       without loss. The "gpsns" format is exact integer arithmetic
+%       the L1B time tags are represented without loss at both
+%       quantizations in use: microsecond, and the nanosecond tags of
+%       MAG1B, which 2e-11 s still resolves about fifty times over. The "gpsns" format is exact integer arithmetic
 %       and is the recommended handoff to nanosecond pipelines, since a
 %       single double cannot hold 2020-era GPS nanoseconds (~6.3e17 >
 %       2^53) without rounding.
@@ -183,9 +186,9 @@ function [time, obs, aux] = readL1b(fileName, options)
 %
 %   Toolbox:  gracefoReading v1.0.1
 %   Created:  2026-08-01
-%   Updated:  2026-08-14
+%   Updated:  2026-09-09
 %   Author:   Developed by Matthias Weigelt with the help of Anthropic
-%             Claude Opus 5, 2026-08-14
+%             Claude Opus 5, 2026-09-09
 
 arguments
     fileName (1,1) string {mustBeFile}

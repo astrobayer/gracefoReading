@@ -1,5 +1,53 @@
 # Changelog — gracefoReading
 
+## 1.0.2 — 2026-09-09
+
+### Fixed — MAG1B was unreadable
+
+- `+gracefoReading/+internal/resolveTime.m`, `localFracScale` supported
+  second, millisecond and microsecond and refused everything else, so
+  **MAG1B** — the only GRACE-C RL04 product declaring `time_frac` in
+  nanoseconds — raised `unknownFracUnit` and could not be read at all
+  (issue #9). One case added, `s = 1e-9`.
+- **The `otherwise` branch is unchanged, deliberately.** A fallback of
+  `s = 1` on an unrecognised unit would have put MAG1B epochs out by
+  nine orders of magnitude with nothing visible to say so. The refusal
+  is what made this a five-minute diagnosis instead of silent
+  corruption, and it stays.
+- The scale reaches the exact int64 nanosecond path as well as the
+  double MJD pair, so it had to be shown not to cost the `'gpsns'`
+  exactness guarantee. `int64(round(fracScale*frac*1e9))` was swept
+  across the full declared `valid_range` 0..999999999 in IEEE-754
+  doubles: **zero mismatches, maximum error 0 ns**. Microsecond,
+  millisecond and second were swept as controls and are also exact.
+- Three tests: scale and sign (500000000 ns lands half a second after
+  the integer tag), `'gpsns'` exactness at both boundary values, and a
+  guard on the thing that made this possible — the unit is a property
+  of the **file**, not the product family, so identical `time_frac`
+  digits must give different epochs through a MAG1B and a MAS1B header.
+
+### Fixed — two public help claims that had become wrong
+
+- `readL1b` described fractional scaling as "microseconds in the real
+  THR1B/MAS1B files", and claimed the `"mjd"` double pair represents
+  "the L1B time tags (microsecond quantization)" without loss. Both now
+  name the nanosecond case. The no-loss claim still holds — 2e-11 s
+  resolves a nanosecond tag about fifty times over — and now says why.
+
+### Changed — version
+
+- `1.0.1` → `1.0.2`. PATCH, per `astrobayer/ci-actions/VERSIONING.md`.
+
+### Notes
+
+- `localFracScale` is the only unit-driven scale table in the toolbox,
+  so this defect class has no sibling to fix.
+- Not implemented, and worth considering separately: the report notes
+  that MAG1B's `valid_range: 0, 999999999` confirms the declared unit.
+  Cross-checking `valid_range` against the unit would catch a header
+  whose unit and range disagree, but it is a new behaviour rather than
+  a fix and was left out of a bug-fix release.
+
 ## 1.0.1 — 2026-09-08
 
 ### Fixed — readL1bMulti crashed where readL1b returned empties

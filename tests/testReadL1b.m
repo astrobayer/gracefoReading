@@ -44,11 +44,11 @@ classdef testReadL1b < matlab.unittest.TestCase
 %     results = runtests('testReadL1b');
 %     disp(table(results));
 %
-%   Toolbox:  gracefoReading v1.0.1
+%   Toolbox:  gracefoReading v1.0.2
 %   Created:  2026-08-01
-%   Updated:  2026-08-14
+%   Updated:  2026-09-09
 %   Author:   Developed by Matthias Weigelt with the help of Anthropic
-%             Claude Opus 5, 2026-08-14
+%             Claude Opus 5, 2026-09-09
 
     properties
         workDir
@@ -145,6 +145,30 @@ classdef testReadL1b < matlab.unittest.TestCase
             fclose(fid);
         end
 
+        function f = writeMagLike(testCase, intg, fracNano, values)
+            % Synthetic MAG1B-style file: time_intg + time_frac declared in
+            % NANOSECONDS, the unit that made MAG1B unreadable (issue #9).
+            % The valid_range is written as the real header carries it,
+            % 0 to 999999999, because that range is what confirms the unit.
+            f = fullfile(testCase.workDir, 'MAG1B_synth.txt');
+            fid = fopen(f, 'wt');
+            fprintf(fid, 'header:\n  dimensions:\n    num_records: %d\n', numel(intg));
+            fprintf(fid, '  variables:\n');
+            fprintf(fid, '    - time_intg:\n        units: seconds\n');
+            fprintf(fid, ['    - time_frac:\n        long_name: Fractional portion of time tag\n', ...
+                '        units: nanoseconds\n        valid_range: 0, 999999999\n']);
+            fprintf(fid, '    - time_ref:\n        units: char\n');
+            fprintf(fid, '    - GRACEFO_id:\n        units: char\n');
+            fprintf(fid, '    - MfvX_RAW:\n        units: microTesla\n');
+            fprintf(fid, '    - qualflg:\n        comment: column\n');
+            fprintf(fid, '# End of YAML header\n');
+            for k = 1:numel(intg)
+                fprintf(fid, '%d %d G C %.10g 00000000\n', ...
+                    intg(k), fracNano(k), values(k));
+            end
+            fclose(fid);
+        end
+
         function f = writeLegacyStyle(testCase, gpsTimes)
             % Legacy "- name: varname" declaration style.
             f = fullfile(testCase.workDir, 'LEGACY_synth.txt');
@@ -194,6 +218,48 @@ classdef testReadL1b < matlab.unittest.TestCase
             testCase.verifyEqual(t(1,:), [51544, 43200.990452], 'AbsTol', 1e-9);
             testCase.verifyEqual(t(2,:), [51544, 46800.5], 'AbsTol', 1e-9);
             testCase.verifyEqual(obs(:,1), [1.5; 2.5], 'AbsTol', 1e-12);
+        end
+
+        function testNanosecondFracScaling(testCase)
+            % issue #9: MAG1B declares time_frac in nanoseconds and was
+            % unreadable - localFracScale refused the unit. 500000000 ns
+            % must land half a second after the integer tag, which pins
+            % the scale (1e-9) and the sign in one assertion.
+            f = testCase.writeMagLike([0; 3600], [500000000; 999999999], [1.5; 2.5]);
+            [t, obs, aux] = gracefoReading.readL1b(f);
+
+            testCase.verifyEqual(aux.timeVariable, 'time_intg+time_frac');
+            testCase.verifyEqual(t(1,:), [51544, 43200.5], 'AbsTol', 1e-9);
+            testCase.verifyEqual(t(2,:), [51544, 46800.999999999], 'AbsTol', 1e-9);
+            testCase.verifyEqual(obs(:,1), [1.5; 2.5], 'AbsTol', 1e-12);
+        end
+
+        function testNanosecondFracIsExactInGpsns(testCase)
+            % The scale must not cost the int64 exactness guarantee. The
+            % double round trip round(fracScale*frac*1e9) was checked
+            % exhaustively over 0..999999999 offline; this pins the two
+            % boundary values in MATLAB, where int64 arithmetic is what
+            % actually runs.
+            f = testCase.writeMagLike([0; 3600], [500000000; 999999999], [1.5; 2.5]);
+            t = gracefoReading.readL1b(f, 'TimeFormat', 'gpsns');
+
+            testCase.verifyClass(t, 'int64');
+            testCase.verifyEqual(t(1), int64(500000000));
+            testCase.verifyEqual(t(2), int64(3600) * 1000000000 + int64(999999999));
+        end
+
+        function testNanosecondUnitIsNotGuessedFromASibling(testCase)
+            % Across GRACE-C RL04 the unit is a property of the file: MAG1B
+            % declares nanoseconds, MAS1B microseconds. The same frac digits
+            % must therefore give different epochs, and a reader that
+            % guessed from the product family would return the same.
+            fNano = testCase.writeMagLike(0, 500000, 1.5);
+            fMicro = testCase.writeMasLike(0, 500000, {'001'}, {1.5});
+            tNano = gracefoReading.readL1b(fNano);
+            tMicro = gracefoReading.readL1b(fMicro);
+
+            testCase.verifyEqual(tNano(1,2), 43200.0005, 'AbsTol', 1e-9);
+            testCase.verifyEqual(tMicro(1,2), 43200.5, 'AbsTol', 1e-9);
         end
 
         function testProdFlagVariableLengthRecords(testCase)

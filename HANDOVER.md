@@ -18,7 +18,7 @@ Facts live in one of the two, not both.
 | | |
 |---|---|
 | Version | 1.0.2 (`gracefoReading.version()`; `Contents.m` and `docsrc/functionSpecs.json` must agree) |
-| Tests | **73 passed, 1 failed, 0 incomplete** — CI run 34807682341, self-hosted Windows runner, MATLAB R2026a Update 5, 2026-09-14. The one failure was `testGroopsBadTimeToken`, fixed in the commit after that run; **74 passed is predicted for the next run and is not yet measured** |
+| Tests | **74 passed, 0 failed, 0 incomplete** — CI run 34807977113, head `4ba4169`, self-hosted Windows runner, MATLAB R2026a Update 5, 2026-09-14. The preceding run 34807682341 was 73/1; `testGroopsBadTimeToken` caught a real ordering defect, fixed before this run |
 | Static gates | `docsrc/sourceIntegrity.py` 29 files / 0 findings · `docsrc/auditHelp.py` 29 help blocks clean · `git diff --exit-code -- html/` clean — all three run 2026-09-14 in a sandbox without MATLAB |
 | Public units | 10 in `+gracefoReading/`, 9 internal in `+gracefoReading/+internal/` |
 | Tag / release | `v1.0.0` (lightweight tag + GitHub release, 2026-09-06). **v1.0.1 is merged but not tagged or released** — see O-4 |
@@ -27,7 +27,7 @@ Per-class test counts, for the prediction a next session must make
 *before* running: `testReadL1b` **25**, `testUtilities` 15,
 `testBatchTools` **14** (was 8; six added 2026-09-14), `testRealData` 8,
 `testDocConsistency` 7, `testSourceIntegrity` 5. Sum **74**, reconciled
-against the per-class listing of CI run 34807682341. A run reporting
+against the per-class listing of CI run 34807977113. A run reporting
 anything else is a finding, not a rounding.
 
 **These counts were wrong until 2026-09-14, and the error was only

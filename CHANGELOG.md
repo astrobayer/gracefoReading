@@ -93,6 +93,8 @@ own commit; these entries are the content, not a release.
   defect in the ordering above rather than a bad test — see the fix in
   this same entry. Everything else passed first time, including the
   exactness and midnight-carry cases.
+- **Green after the fix: run 34807977113, 74 passed, 0 failed, 0
+  incomplete, 54.9 s**, matching the corrected prediction exactly.
 
 ### Fixed — the record's own test counts
 

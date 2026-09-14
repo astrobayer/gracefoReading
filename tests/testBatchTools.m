@@ -23,12 +23,23 @@ classdef testBatchTools < matlab.unittest.TestCase
 %     - readL1bMulti: timeNotMonotonic warning on overlapping files
 %       and warning-free concatenation in correct order
 %     - readGroopsInstrument: roundtrip against writeGroopsInstrument
-%       including header fields, badFormat and countMismatch errors
+%       including header fields, badFormat and countMismatch errors,
+%       exact int64 nanoseconds from hand-written digit fixtures,
+%       agreement of the three 'TimeFormat' representations, the
+%       midnight rounding carry, truncation past the 15th fractional
+%       digit, and refusal of exponential, signed and non-numeric tags
 %
 %   ACCURACY AND LIMITATIONS
 %     - The GROOPS roundtrip is checked to better than 1e-5 s, the
-%       resolution limit of the decimal-MJD time tag; it cannot verify
-%       compatibility with a real GROOPS installation.
+%       resolution limit of the decimal-MJD time tag as the WRITER
+%       forms it; the reader itself is exact to the printed digits and
+%       is tested separately against fixtures written as literal text.
+%       Neither can verify compatibility with a real GROOPS
+%       installation, nor that these functions read the TU Graz
+%       operational orbit products (HANDOVER.md, O-8).
+%     - Nanosecond expectations are derived independently in Python
+%       from the printed digits before being hardcoded here, per
+%       HANDOVER.md section D.
 %     - findL1bFiles is tested against the PO.DAAC naming convention
 %       only, since that is the convention the function documents.
 %     - Gap fixtures are built from exact arithmetic, so tolerances are
@@ -40,9 +51,9 @@ classdef testBatchTools < matlab.unittest.TestCase
 %
 %   Toolbox:  gracefoReading v1.0.2
 %   Created:  2026-08-01
-%   Updated:  2026-08-14
+%   Updated:  2026-09-14
 %   Author:   Developed by Matthias Weigelt with the help of Anthropic
-%             Claude Opus 5, 2026-08-14
+%             Claude, 2026-09-14
 
     properties
         workDir
@@ -77,6 +88,24 @@ classdef testBatchTools < matlab.unittest.TestCase
             fprintf(fid, '    - val:\n        units: m\n# End of YAML header\n');
             for k = 1:numel(gpsTimes)
                 fprintf(fid, '%.6f %.6f\n', gpsTimes(k), k);
+            end
+            fclose(fid);
+        end
+
+        function f = writeRawGroops(testCase, name, timeTokens, dataRows)
+            % Writes the time tag as literal TEXT, which writeGroopsInstrument
+            % cannot do: it forms the decimal MJD as a double first. Digits
+            % below the double's 0.63 us ulp only survive if they are printed
+            % directly, so the exactness tests need this fixture.
+            f = fullfile(testCase.workDir, name);
+            fid = fopen(f, 'w');
+            fprintf(fid, 'groops instrument version=20200123\n');
+            fprintf(fid, '0 %d\n', size(dataRows, 2));
+            fprintf(fid, '%d\n', numel(timeTokens));
+            for r = 1:numel(timeTokens)
+                fprintf(fid, '%s', timeTokens(r));
+                fprintf(fid, ' %.16e', dataRows(r, :));
+                fprintf(fid, '\n');
             end
             fclose(fid);
         end
@@ -218,6 +247,104 @@ classdef testBatchTools < matlab.unittest.TestCase
             fclose(fid);
             testCase.verifyError(@() gracefoReading.readGroopsInstrument(f2), ...
                 'gracefoReading:readGroopsInstrument:countMismatch');
+        end
+
+        function testGroopsExactNanoseconds(testCase)
+            % Expectations derived independently in Python from the printed
+            % digits (HANDOVER.md section D), not from the MATLAB code here.
+            % int64 literals are built by multiplication: 6.3e17 written as a
+            % plain literal would be parsed as a double first and lose digits.
+            toks = ["58849.5"; "58849.0"; "58849.500011574074074"; ...
+                    "58849.000000011574074"];
+            want = [int64(631152000) * int64(1e9); ...
+                    int64(631108800) * int64(1e9); ...
+                    int64(631152001) * int64(1e9); ...
+                    int64(631108800) * int64(1e9) + int64(1000000)];
+            f = testCase.writeRawGroops('exact.txt', toks, (1:4)');
+
+            tns = gracefoReading.readGroopsInstrument(f, 'TimeFormat', 'gpsns');
+            testCase.verifyClass(tns, 'int64');
+            testCase.verifyEqual(tns, want);
+
+            % what the replaced sscanf('%f') path would have produced. On
+            % IEEE-754 doubles this tag lands exactly 234 ns late; the bracket
+            % is wide enough to survive any difference in decimal-to-binary
+            % rounding while still proving the defect was hundreds of ns, far
+            % above the 1 ns the output is quoted in.
+            mjdDec = str2double(toks(3));
+            viaDouble = int64(round((mjdDec - floor(mjdDec)) * 86400 * 1e9));
+            slipNs = viaDouble - int64(43201) * int64(1e9);
+            testCase.verifyGreaterThan(slipNs, int64(200));
+            testCase.verifyLessThan(slipNs, int64(300));
+        end
+
+        function testGroopsTimeFormatsAgree(testCase)
+            % Metamorphic: the three representations describe one epoch set,
+            % so no tolerance is needed beyond datetime's own resolution.
+            toks = ["58849.25"; "58849.5"; "58850.75"];
+            f = testCase.writeRawGroops('fmt.txt', toks, (1:3)');
+
+            tMjd = gracefoReading.readGroopsInstrument(f);
+            tNs  = gracefoReading.readGroopsInstrument(f, 'TimeFormat', 'gpsns');
+            tDt  = gracefoReading.readGroopsInstrument(f, 'TimeFormat', 'datetime');
+
+            testCase.verifySize(tMjd, [3 2]);
+            fromMjd = (int64(tMjd(:,1)) - int64(51544)) * int64(86400) * int64(1e9) ...
+                    + int64(round(tMjd(:,2) * 1e9)) - int64(43200) * int64(1e9);
+            testCase.verifyEqual(fromMjd, tNs);
+
+            wantDt = datetime(2000,1,1,0,0,0) + days(tMjd(:,1) - 51544) ...
+                   + seconds(tMjd(:,2));
+            testCase.verifyEqual(tDt, wantDt);
+        end
+
+        function testGroopsMidnightCarry(testCase)
+            % A tag within ~43 ps of midnight rounds up to a whole day. Without
+            % the carry this reports seconds of day = 86400, which is not a
+            % valid seconds-of-day and would break any downstream floor/mod.
+            toks = ["58849." + repmat('9', 1, 15); "58849.5"];
+            f = testCase.writeRawGroops('carry.txt', toks, (1:2)');
+
+            t = gracefoReading.readGroopsInstrument(f);
+            testCase.verifyEqual(t(1,1), 58850);
+            testCase.verifyEqual(t(1,2), 0);
+            testCase.verifyGreaterThanOrEqual(t(:,2), 0);
+            testCase.verifyLessThan(t(:,2), 86400);
+
+            tns = gracefoReading.readGroopsInstrument(f, 'TimeFormat', 'gpsns');
+            testCase.verifyEqual(tns(1), int64(631195200) * int64(1e9));
+        end
+
+        function testGroopsExcessDigitsTruncated(testCase)
+            % Digits past the 15th are 86 ps or finer and are dropped, not
+            % rounded; the result must still equal the 15-digit reading.
+            toks15 = "58849." + repmat('1', 1, 15);
+            toks25 = "58849." + repmat('1', 1, 25);
+            f15 = testCase.writeRawGroops('d15.txt', toks15, 1);
+            f25 = testCase.writeRawGroops('d25.txt', toks25, 1);
+
+            a = gracefoReading.readGroopsInstrument(f15, 'TimeFormat', 'gpsns');
+            b = gracefoReading.readGroopsInstrument(f25, 'TimeFormat', 'gpsns');
+            testCase.verifyEqual(b, a);
+        end
+
+        function testGroopsBadTimeToken(testCase)
+            % Refuse rather than read approximately: an exponential or signed
+            % tag cannot go through the digit path, and silently falling back
+            % to a double would reintroduce the error this path removes.
+            for tok = ["5.8849e4", "-58849.5", "58849.5.5", "fifty"]
+                f = testCase.writeRawGroops('bad.txt', tok, 1);
+                testCase.verifyError(@() gracefoReading.readGroopsInstrument(f), ...
+                    'gracefoReading:readGroopsInstrument:badTimeToken', ...
+                    sprintf('tag "%s" should have been refused', tok));
+            end
+        end
+
+        function testGroopsTimeFormatValidated(testCase)
+            toks = "58849.5";
+            f = testCase.writeRawGroops('opt.txt', toks, 1);
+            testCase.verifyError(@() gracefoReading.readGroopsInstrument(f, ...
+                'TimeFormat', 'mjd2000'), 'MATLAB:validators:mustBeMember');
         end
 
     end

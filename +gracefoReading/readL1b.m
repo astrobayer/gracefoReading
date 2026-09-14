@@ -273,15 +273,8 @@ if ~all(keep)
 end
 
 % ---- output time format ------------------------------------------------
-switch options.TimeFormat
-    case "datetime"
-        time = datetime(2000, 1, 1, 0, 0, 0) ...
-             + days(timeMjd(:,1) - aux.epochMJD) + seconds(timeMjd(:,2));
-    case "gpsns"
-        time = timeNs;
-    otherwise
-        time = timeMjd;
-end
+time = gracefoReading.internal.formatEpoch(timeMjd, timeNs, ...
+    options.TimeFormat, aux.epochMJD);
 end
 
 % ========================================================================

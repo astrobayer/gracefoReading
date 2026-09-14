@@ -18,7 +18,7 @@ Facts live in one of the two, not both.
 | | |
 |---|---|
 | Version | 1.0.2 (`gracefoReading.version()`; `Contents.m` and `docsrc/functionSpecs.json` must agree) |
-| Tests | **74 passed, 0 failed, 0 incomplete** — CI run 34807977113, head `4ba4169`, MATLAB R2026a Update 5, 2026-09-14. **Predicted 89 passed / 1 incomplete after the ITSG change; NOT yet measured.** The 1 incomplete is `testFullDayKinematicJitter`, which needs a full ITSG day in the pool — see the note below |
+| Tests | **88 passed, 0 failed, 1 incomplete — 89 total** — CI run 34869994810, head `3618e84`, self-hosted Windows runner, MATLAB R2026a Update 5, 2026-09-14. The incomplete is `testFullDayKinematicJitter`, which needs a full ITSG day in the pool and is expected until one is copied there — see the note below |
 | Static gates | `docsrc/sourceIntegrity.py` 32 files / 0 findings · `docsrc/auditHelp.py` 32 help blocks clean · `git diff --exit-code -- html/` clean — all three run 2026-09-14 in a sandbox without MATLAB |
 | Public units | 11 in `+gracefoReading/`, 10 internal in `+gracefoReading/+internal/` |
 | Tag / release | `v1.0.0` (lightweight tag + GitHub release, 2026-09-06). **v1.0.1 is merged but not tagged or released** — see O-4 |
@@ -27,8 +27,16 @@ Per-class test counts, for the prediction a next session must make
 *before* running: `testReadL1b` **25**, `testUtilities` 15,
 `testBatchTools` **14**, `testItsgProducts` **15** (new 2026-09-14),
 `testRealData` 8, `testDocConsistency` 7, `testSourceIntegrity` 5. Sum
-**89**. The last measured total is 74, before `testItsgProducts`; a run
-reporting anything else is a finding, not a rounding.
+**89**, which reconciles with the CI total. A run reporting anything
+else is a finding, not a rounding.
+
+**Predict the split, not just the sum.** The 2026-09-14 prediction gave
+the per-class sum correctly as 89 and then wrote it as "89 passed and 1
+incomplete", which is 90 tests. The measured run is 88 passed + 1
+incomplete = 89. Nothing was wrong with the code or the count; the
+arithmetic of the *reconciliation* was wrong, and a sum that agrees with
+itself hides that. State the prediction as passed + failed + incomplete
+= total, and check that the three add up before running.
 
 **One incomplete is expected and is not a regression.**
 `testItsgProducts/testFullDayKinematicJitter` asserts the receiver-clock

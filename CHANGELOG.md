@@ -79,8 +79,10 @@
 ### Tests
 
 - 15 added in `testItsgProducts` against the five real fixtures
-  (suite 74 → **89 predicted**). Expectations derived independently in
-  Python from the file bytes and the README before being written down.
+  (suite 74 → **89**, measured: 88 passed + 1 incomplete, CI run
+  34869994810). Expectations derived independently in Python from the
+  file bytes and the README before being written down; all 15 passed or
+  skipped as predicted on the first run.
 - Fixtures are the first 60 records of each published file with the
   record-count line adjusted; headers and record text are byte-for-byte
   as published, ~58 KB together.
@@ -88,8 +90,11 @@
   full published day from `READING_DATA_POOL`, because the receiver-clock
   variation first occurs well past record 60. It skips until
   `GRACEFO-1_kinematicOrbit_2020-01-01.txt` is copied into the pool.
-- Not run: no MATLAB here. The three static gates pass (32 files, 32
-  help blocks, html byte-identical). CI is the gate.
+- Green on the first CI run of this work: 88 passed, 0 failed, 1
+  incomplete on MATLAB R2026a Update 5. Every Tier B assumption held —
+  the cell-wrapped `struct` fields, the string-array header parsing and
+  the rebuilt fixture in `testPaddingNotZeroWarns` all behaved as the
+  Python mirror said they would.
 
 Not version-bumped. A bump is a 31-file change (O-3) and belongs in its
 own commit; these entries are the content, not a release.

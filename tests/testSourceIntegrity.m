@@ -60,8 +60,7 @@ classdef testSourceIntegrity < matlab.unittest.TestCase
 %   Toolbox:  gracefoReading v1.0.2
 %   Created:  2026-09-06
 %   Updated:  2026-09-06
-%   Author:   Developed by Matthias Weigelt with the help of Anthropic
-%             Claude Opus 5, 2026-09-06
+%   Author:   Matthias Weigelt with support of Anthropic Claude
 
     properties (Constant)
         % Provenance stamp that marks the end of a help block.

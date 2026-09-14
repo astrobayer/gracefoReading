@@ -97,8 +97,7 @@ function [files, report] = findL1bFiles(archiveRoot, product, options)
 %   Toolbox:  gracefoReading v1.0.2
 %   Created:  2026-08-01
 %   Updated:  2026-08-14
-%   Author:   Developed by Matthias Weigelt with the help of Anthropic
-%             Claude Opus 5, 2026-08-14
+%   Author:   Matthias Weigelt with support of Anthropic Claude
 
 arguments
     archiveRoot (1,1) string {mustBeFolder}

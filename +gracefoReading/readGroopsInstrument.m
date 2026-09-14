@@ -120,8 +120,7 @@ function [time, data, info] = readGroopsInstrument(fileName, options)
 %   Toolbox:  gracefoReading v1.0.2
 %   Created:  2026-08-01
 %   Updated:  2026-09-14
-%   Author:   Developed by Matthias Weigelt with the help of Anthropic
-%             Claude, 2026-09-14
+%   Author:   Matthias Weigelt with support of Anthropic Claude
 
 arguments
     fileName (1,1) string {mustBeFile}

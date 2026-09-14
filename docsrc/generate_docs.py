@@ -13,7 +13,7 @@ the .m file and rerun this script.
 
 Usage: python3 docsrc/generate_docs.py
 
-Developed by Matthias Weigelt with the help of Anthropic Claude Opus 5,
+Matthias Weigelt with support of Anthropic Claude
 2026-08-14.
 """
 import os

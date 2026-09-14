@@ -52,8 +52,7 @@ classdef testBatchTools < matlab.unittest.TestCase
 %   Toolbox:  gracefoReading v1.0.2
 %   Created:  2026-08-01
 %   Updated:  2026-09-14
-%   Author:   Developed by Matthias Weigelt with the help of Anthropic
-%             Claude, 2026-09-14
+%   Author:   Matthias Weigelt with support of Anthropic Claude
 
     properties
         workDir

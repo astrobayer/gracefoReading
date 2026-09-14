@@ -14,7 +14,7 @@ Outputs:
 
 Usage: python3 docsrc/generate_html.py
 
-Developed by Matthias Weigelt with the help of Anthropic Claude Opus 5,
+Matthias Weigelt with support of Anthropic Claude
 2026-08-14.
 """
 import html
@@ -62,8 +62,7 @@ def esc(s):
 
 def footer(tb):
     return (f'<div class="footer">{esc(tb["name"])} v{esc(tb["version"])} &middot; '
-            f'{esc(tb["date"])} &middot; Developed by Matthias Weigelt with the help of '
-            f'Anthropic Claude Opus 5, {esc(tb["date"])} &middot; License: '
+            f'{esc(tb["date"])} &middot; Matthias Weigelt with support of Anthropic Claude &middot; License: '
             f'{esc(tb["license"])} &middot; Generated from the MATLAB help blocks '
             f'&mdash; do not edit by hand.</div>')
 

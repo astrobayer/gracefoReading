@@ -55,6 +55,13 @@
   `productNotRecognised` and leaves `aux.frame` empty. `'Frame'` and
   `'Product'` default to empty rather than to an assumption, so an
   omission stays distinguishable from a choice.
+- **The two are not documented the same way, so they are not treated the
+  same way.** The frame is stated per product; the time system is stated
+  once for the whole product set — "All times are GPS times" — so
+  `aux.timeSystem` is `'GPS'` for every file this function reads,
+  recognised or not. An earlier draft tied both to product recognition
+  and withheld `timeSystem` from an unrecognised product, which withheld
+  something the documentation actually gives.
 
 ### Measured — why the digit-based epoch path was necessary
 

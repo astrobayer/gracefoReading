@@ -39,7 +39,10 @@ function [time, obs, aux] = readItsgProduct(fileName, options)
 %     records not just the answer but how it was reached:
 %     aux.frameSource and aux.productSource. An unrecognised product is
 %     never given a frame by guesswork - aux.frame stays empty and the
-%     productNotRecognised warning fires.
+%     productNotRecognised warning fires. The time system is not withheld
+%     with it: the README states "All times are GPS times" for the whole
+%     product set rather than per product, so aux.timeSystem is 'GPS'
+%     either way.
 %
 %   INPUT
 %     fileName - string | char, 1x1
@@ -86,9 +89,9 @@ function [time, obs, aux] = readItsgProduct(fileName, options)
 %                included; see DESCRIPTION.
 %     aux  - struct, 1x1
 %                Fields: product, productSource, satellite, epochDate,
-%                frame, frameDescription, frameSource, timeSystem,
-%                timeSystemSource, obsNames, obsUnits, allColumns,
-%                allColumnNames, allColumnUnits, paddingColumns,
+%                frame, frameDescription, frameSource, timeSystem
+%                (always 'GPS'), timeSystemSource, obsNames, obsUnits,
+%                allColumns, allColumnNames, allColumnUnits, paddingColumns,
 %                groopsType, groopsTypeCode, numRecords, fileName,
 %                comments, and the full info struct from
 %                readGroopsInstrument as aux.groopsInfo.
@@ -96,9 +99,16 @@ function [time, obs, aux] = readItsgProduct(fileName, options)
 %   ACCURACY AND LIMITATIONS
 %     - The frame and the time system are NOT in the file. They are
 %       taken from the product README of 2025-10-16 and are therefore
-%       only as current as that document; aux.frameSource says so rather
-%       than presenting them as file content. Verify against the README
-%       before a result depends on the frame.
+%       only as current as that document; aux.frameSource and
+%       aux.timeSystemSource say so rather than presenting them as file
+%       content. Verify against the README before a result depends on
+%       the frame.
+%     - The two are not documented the same way and are not treated the
+%       same way here. The time system is stated once for the whole
+%       product set - "All times are GPS times" - so aux.timeSystem is
+%       'GPS' for every file this function reads, recognised product or
+%       not. The frame is stated per product, so an unrecognised product
+%       gets no frame at all.
 %     - Which columns a product carries is likewise documentation, not
 %       file content, but it is verified against the data on every read.
 %       The reverse is not checked: a column documented as carried that
@@ -121,7 +131,7 @@ function [time, obs, aux] = readItsgProduct(fileName, options)
 %     gracefoReading:readItsgProduct:productNotRecognised
 %       (warning) product not identified from the name and not given;
 %       no frame is recorded and every column is returned as an
-%       observation
+%       observation. The time system is still 'GPS'
 %     gracefoReading:readItsgProduct:paddingNotZero
 %       (warning) a column the documentation calls zero padding is not
 %       identically zero in this file
@@ -236,13 +246,14 @@ end
 obs = allData(:, carried);
 aux.obsNames = localPick(info.columnNames, carried, nCol);
 aux.obsUnits = localPick(info.columnUnits, carried, nCol);
-if isempty(spec)
-    aux.timeSystem = '';
-    aux.timeSystemSource = 'undeclared';
-else
-    aux.timeSystem = 'GPS';
-    aux.timeSystemSource = 'productDocumentation';
-end
+% GPS for every product this server publishes, not only the recognised ones:
+% README_referenceFrames.txt states "All times are GPS times" for the whole
+% product set, and README.txt repeats "GPS time" in each per-product column
+% table. Only the FRAME is a per-product fact, so only the frame is withheld
+% when the product is unknown. Tying the time system to product recognition
+% withheld something the documentation actually gives.
+aux.timeSystem = 'GPS';
+aux.timeSystemSource = 'productDocumentation';
 aux.epochDescription = ['GPS time as decimal MJD in the file; the toolbox pair is ' ...
     'integer MJD and seconds of day, the int64 form is nanoseconds past ' ...
     '2000-01-01 12:00:00 GPS'];

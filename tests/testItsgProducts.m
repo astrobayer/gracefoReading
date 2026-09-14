@@ -29,7 +29,10 @@ classdef testItsgProducts < matlab.unittest.TestCase
 %     - zero padding: kinematicOrbit returns 3 position columns and not
 %       the 9 the ORBIT type declares; reducedDynamicOrbit returns 6
 %     - frame and time system come from the product documentation with
-%       their provenance recorded, never from the file, never guessed
+%       their provenance recorded, never from the file, never guessed;
+%       the frame is per product and is withheld when the product is
+%       unknown, the time system is stated for the whole product set and
+%       is therefore 'GPS' either way
 %     - exact epochs: the kinematic products sit 213 ns off the integer
 %       second, the 10 s products sit exactly on it
 %     - warnings: productNotRecognised, paddingNotZero
@@ -238,9 +241,14 @@ classdef testItsgProducts < matlab.unittest.TestCase
             [~, obs, aux] = testCase.evalWithoutWarning(f);
             testCase.verifyEqual(aux.frame, '');
             testCase.verifyEqual(aux.frameSource, 'undeclared');
-            testCase.verifyEqual(aux.timeSystemSource, 'undeclared');
             testCase.verifySize(obs, [60 3]);          % everything, nothing dropped
             testCase.verifyEmpty(aux.paddingColumns);
+            % The time system is NOT withheld with the frame. The README states
+            % "All times are GPS times" for the whole product set, where it
+            % states the frame per product, so an unrecognised product still
+            % has a known time system and only an unknown frame.
+            testCase.verifyEqual(aux.timeSystem, 'GPS');
+            testCase.verifyEqual(aux.timeSystemSource, 'productDocumentation');
         end
 
         function testPaddingNotZeroWarns(testCase)

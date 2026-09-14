@@ -4,6 +4,8 @@
 % Reading
 %   gracefoReading.readL1b               - Read one Level-1B ASCII product file.
 %   gracefoReading.readL1bMulti          - Read and concatenate several files.
+%   gracefoReading.readItsgProduct       - Read a TU Graz (ITSG) satellite orbit
+%                                          product: orbit, covariance, attitude, forces.
 %
 % Batch tools
 %   gracefoReading.findL1bFiles          - Locate product files in an archive by
@@ -27,5 +29,4 @@
 %   Toolbox:  gracefoReading v1.0.2
 %   Created:  2026-08-01
 %   Updated:  2026-08-14
-%   Author:   Developed by Matthias Weigelt with the help of Anthropic
-%             Claude Opus 5, 2026-08-14
+%   Author:   Matthias Weigelt with support of Anthropic Claude

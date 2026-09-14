@@ -33,7 +33,7 @@ EXIT STATUS
 
 Toolbox:  gracefoReading v1.0.0
 Created:  2026-09-06
-Author:   Developed by Matthias Weigelt with the help of Anthropic
+Author:   Matthias Weigelt with support of Anthropic Claude
           Claude Opus 5, 2026-09-06
 """
 

@@ -16,7 +16,7 @@ The toolbox documentation standard requires, for every .m file:
   7. section  EXAMPLE(S)
   8. metadata block with the toolbox version, creation/update date and
      the authorship line
-       "Developed by Matthias Weigelt with the help of Anthropic Claude ..."
+       "Matthias Weigelt with support of Anthropic Claude"
 
 Test files (tests/*.m) are classdef suites: they need H1, DESCRIPTION,
 COVERAGE and the metadata block, but no INPUT/OUTPUT sections.
@@ -24,7 +24,7 @@ COVERAGE and the metadata block, but no INPUT/OUTPUT sections.
 Usage:  python3 docsrc/auditHelp.py [--quiet]
 Exit code 0 = clean, 1 = violations found.
 
-Developed by Matthias Weigelt with the help of Anthropic Claude Opus 5,
+Matthias Weigelt with support of Anthropic Claude
 2026-08-14.
 """
 import json
@@ -39,7 +39,7 @@ from mfile import help_span
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 SPEC = json.load(open(os.path.join(ROOT, 'docsrc', 'functionSpecs.json')))
 VERSION = SPEC['toolbox']['version']
-AUTHOR_LINE = 'Developed by Matthias Weigelt with the help of Anthropic Claude'
+AUTHOR_LINE = 'Matthias Weigelt with support of Anthropic Claude'
 
 FUNCTION_SECTIONS = ['SYNTAX', 'DESCRIPTION', 'INPUT', 'OUTPUT',
                      'ACCURACY AND LIMITATIONS', 'EXAMPLE']

@@ -2,6 +2,100 @@
 
 ## Unreleased
 
+### Added — reader for the TU Graz (ITSG) satellite orbit products (issue #11)
+
+- `gracefoReading.readItsgProduct` reads the operational products from
+  `ftp.tugraz.at/pub/ITSG/satelliteOrbitProducts/` into the toolbox's
+  `[time, obs, aux]` shape: kinematicOrbit, kinematicOrbitCovariance,
+  reducedDynamicOrbit, attitude and nonConservativeForces, plain or
+  gzip-compressed. **Written from five real files**, which is what
+  discharged obligation O-8 — the reader was deliberately not attempted
+  while the format could only be guessed at.
+- `readGroopsInstrument` now reads **real** GROOPS output, not only the
+  dialect this toolbox's own writer emits. Real files carry comment
+  lines the writer never produces — an epoch type name, a column legend
+  and a rule — so every one of them previously failed on line 2 with
+  `badFormat`. The header is partitioned on `#` and both dialects go
+  through one path.
+- The second header integer is **not** a column count in real files: it
+  is `1` in all five products, against 3, 4, 6 and 9 data columns. The
+  legend is the column authority where a file carries one; the raw
+  integer is reported as `info.headerCount`. Column names and units come
+  from that legend, so a GROOPS epoch type this toolbox has never seen
+  still returns named, united columns.
+- New `+internal/parseGroopsInstrument` returns both time forms, so each
+  reader parses a file once rather than twice.
+
+### Fixed — zero-padding columns were about to be returned as observations
+
+- The GROOPS ORBIT type always writes nine data columns. A
+  `kinematicOrbit` file carries position only: its six velocity and
+  acceleration columns are **identically zero** in all 8640 records. A
+  `reducedDynamicOrbit` file pads three. Returning them as observations
+  hands a caller exactly 0 m/s at every epoch of a kinematic orbit,
+  which differencing or integrating turns into silent nonsense.
+- `obs` therefore carries only the columns the product actually fills;
+  the rest stay in `aux.allColumns` and are named in
+  `aux.paddingColumns`. Which columns are carried is documentation, so
+  it is **checked against the data on every read** — a padding column
+  that is not identically zero raises `paddingNotZero` instead of being
+  dropped quietly.
+
+### Added — frame and time system, with their provenance
+
+- Measured: **neither is anywhere in these files.** No header field, no
+  filename suffix, no match for icrf/itrf/frame/gps/utc/tai in any of
+  the five. They come from the server's `README.txt` and
+  `README_referenceFrames.txt`, which give the frame per product and
+  state "All times are GPS times".
+- Because that mapping is keyed on the product and the product is read
+  from the file name, `aux` records how each answer was reached:
+  `frameSource`, `timeSystemSource`, `productSource`. An unrecognised
+  product is never given a frame by guesswork — `readItsgProduct` warns
+  `productNotRecognised` and leaves `aux.frame` empty. `'Frame'` and
+  `'Product'` default to empty rather than to an assumption, so an
+  omission stays distinguishable from a choice.
+- **The two are not documented the same way, so they are not treated the
+  same way.** The frame is stated per product; the time system is stated
+  once for the whole product set — "All times are GPS times" — so
+  `aux.timeSystem` is `'GPS'` for every file this function reads,
+  recognised or not. An earlier draft tied both to product recognition
+  and withheld `timeSystem` from an unrecognised product, which withheld
+  something the documentation actually gives.
+
+### Measured — why the digit-based epoch path was necessary
+
+- The ITSG tags carry **18 decimals** and, tested over 2000 of them, do
+  **not lie on the double lattice at all**. The kinematic products sit
+  **213 ns** before midnight and their sampling varies by up to
+  **±291 ns** over a day, which the product README explains: they are
+  corrected for receiver clock errors and are "NOT INTERPOLATED TO
+  INTEGER SECONDS NOR A CONSTANT SAMPLING".
+- 291 ns is **0.46 of a double's ulp** at MJD 58849. Reading these tags
+  through `sscanf('%f')`, as this reader did until earlier the same day,
+  would erase precisely the structure the documentation says is there.
+  The `'Unreleased'` entry above it is not a nicety for these files.
+
+### Tests
+
+- 15 added in `testItsgProducts` against the five real fixtures
+  (suite 74 → **89**, measured: 88 passed + 1 incomplete, CI run
+  34869994810). Expectations derived independently in Python from the
+  file bytes and the README before being written down; all 15 passed or
+  skipped as predicted on the first run.
+- Fixtures are the first 60 records of each published file with the
+  record-count line adjusted; headers and record text are byte-for-byte
+  as published, ~58 KB together.
+- **One incomplete is expected**: `testFullDayKinematicJitter` needs a
+  full published day from `READING_DATA_POOL`, because the receiver-clock
+  variation first occurs well past record 60. It skips until
+  `GRACEFO-1_kinematicOrbit_2020-01-01.txt` is copied into the pool.
+- Green on the first CI run of this work: 88 passed, 0 failed, 1
+  incomplete on MATLAB R2026a Update 5. Every Tier B assumption held —
+  the cell-wrapped `struct` fields, the string-array header parsing and
+  the rebuilt fixture in `testPaddingNotZeroWarns` all behaved as the
+  Python mirror said they would.
+
 Not version-bumped. A bump is a 31-file change (O-3) and belongs in its
 own commit; these entries are the content, not a release.
 

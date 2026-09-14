@@ -16,7 +16,7 @@ guide cannot drift from the code; the narrative sections live here.
 
 Usage: python3 docsrc/generate_guide.py   (needs reportlab)
 
-Developed by Matthias Weigelt with the help of Anthropic Claude Opus 5,
+Matthias Weigelt with support of Anthropic Claude
 2026-08-14.
 """
 import json
@@ -210,8 +210,7 @@ def build(tb=None):
         Spacer(1, 1.2 * cm),
         para(tb["summary"]),
         Spacer(1, 4.5 * cm),
-        para("Developed by Matthias Weigelt with the help of Anthropic Claude "
-             f'Opus 5, {tb["date"]}.'),
+        para("Matthias Weigelt with support of Anthropic Claude."),
         para(f'License: {tb["license"]}. Requires MATLAB {release} or later.'),
         para("Sections 6 and 7 are generated from the MATLAB help blocks, so this "
              "guide and the in-product help cannot disagree."),

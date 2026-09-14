@@ -13,3 +13,10 @@ tests/realdata/*.txt
 tests/realdata/*.txt.gz
 !tests/realdata/MAS1B_2020-01-01_C_04.txt
 !tests/realdata/THR1B_2020-01-01_C_04.txt
+
+# The five ITSG fixtures are the first 60 records of the real TU Graz
+# products with the record-count line adjusted to match; headers and record
+# text are byte-for-byte as published. ~58 KB together, so they are bundled
+# and the format is covered without the data pool. The full days go in
+# READING_DATA_POOL like the large PO.DAAC products.
+!tests/realdata/GRACEFO-1_*.txt

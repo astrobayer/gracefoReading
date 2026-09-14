@@ -42,8 +42,7 @@ classdef testDocConsistency < matlab.unittest.TestCase
 %   Toolbox:  gracefoReading v1.0.2
 %   Created:  2026-08-01
 %   Updated:  2026-08-14
-%   Author:   Developed by Matthias Weigelt with the help of Anthropic
-%             Claude Opus 5, 2026-08-14
+%   Author:   Matthias Weigelt with support of Anthropic Claude
 
     properties
         codeDir
@@ -150,7 +149,7 @@ classdef testDocConsistency < matlab.unittest.TestCase
                 testCase.verifyTrue(contains(blk, ['gracefoReading v', v]), ...
                     sprintf('%s.m: metadata block does not carry version %s', fname, v));
                 testCase.verifyTrue(contains(flat, ...
-                    'Developed by Matthias Weigelt with the help of Anthropic Claude'), ...
+                    'Matthias Weigelt with support of Anthropic Claude'), ...
                     sprintf('%s.m: missing authorship line', fname));
                 testCase.verifyNotEmpty(regexp(blk, 'Created:\s+\d{4}-\d{2}-\d{2}', 'once'), ...
                     sprintf('%s.m: missing Created date', fname));

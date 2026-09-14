@@ -2,6 +2,74 @@
 
 ## Unreleased
 
+### Added — ITSG date ranges: findItsgFiles and readItsgProductMulti (O-9)
+
+- `gracefoReading.findItsgFiles(root, product, ...)` locates ITSG files
+  by product, `'DateRange'` and `'Satellite'`, recursively by default
+  (the server lays products out by year), sorts them chronologically and
+  reports coverage including missing calendar days. Plain and `.gz`
+  alike; an empty result is not an error.
+- `gracefoReading.readItsgProductMulti(files, ...)` concatenates them
+  into one continuous record, forwarding `'Product'`, `'Frame'` and
+  `'TimeFormat'` to every file.
+- Together these are the "one file **or a date range**" the issue asked
+  for, and they mirror `findL1bFiles` + `readL1bMulti` so the ITSG side
+  reads the same way as the L1B side.
+- The naming convention now has one authority,
+  `+internal/parseItsgFileName`, used by both the reader and the finder.
+  A trailing variant marker stays with the product: `neutralDensity_ACC`
+  and `neutralDensity_KIN` are distinct products (accelerometer-derived
+  and kinematic-orbit-derived), so asking for `neutralDensity` matches
+  neither — deliberately.
+
+### Refused rather than concatenated
+
+- Files of **different products**, checked first because it is the most
+  informative thing to say about a bad list.
+- Files of the same product with **different observation columns**,
+  which means a mislabelled or malformed archive.
+- `aux.allColumns` is **not** concatenated. Stacking the zero padding
+  into one matrix would invite exactly the reading `readItsgProduct`
+  exists to prevent; read a file on its own when the padding is wanted.
+- Epoch order is **warned** about, not enforced: wrong file order and a
+  genuinely duplicated day are indistinguishable from here, and only the
+  caller knows which it is.
+
+### Two design notes worth keeping
+
+- **No frame check, deliberately.** An earlier draft had one. The frame
+  is derived from the product and `'Frame'` is forwarded to every file,
+  so equal products already mean equal frames — the check could never
+  fire, and a documented identifier that cannot be raised is a promise
+  the function cannot keep. It was removed rather than left as
+  decoration, and a test now pins the reasoning.
+- **`fileNames` is declared unsized and normalised**, not `(1,:)`.
+  `findItsgFiles` returns a `[K x 1]` column, so a `(1,:)` declaration
+  would reject exactly the call the pair exists to serve.
+
+### Found, not fixed — readL1bMulti rejects findL1bFiles' output (O-11)
+
+- `readL1bMulti` declares `fileNames (1,:) string` while `findL1bFiles`
+  returns `[K x 1]`, so the two-line workflow printed in both help
+  blocks raises a size-validation error for more than one file. Noticed
+  while deciding the ITSG signature. Left alone here because it is an
+  L1B change and this branch is issue #11; recorded as O-11.
+
+### Tests
+
+- 12 added in `testItsgBatch` (suite 89 → **101**, measured: 100 passed,
+  0 failed, 1 incomplete, CI run 34873244487). Predicted as a split and
+  matched exactly, which is the rule the previous entry's missed
+  reconciliation put in place.
+- Fixtures here are synthetic and in the real GROOPS dialect. Only one
+  date of real ITSG data exists in the repository, so a multi-day join
+  cannot be exercised against real files; this suite tests the batch
+  mechanics and leaves the parsing of real bytes to `testItsgProducts`.
+- Green on the first CI run of this work, with every Tier B assumption
+  holding: the `dir` glob built from a string pattern, the `sortrows`
+  empty guard, `gzip`/`delete` in the discovery test, and the unsized
+  `fileNames` declaration all behaved as reasoned.
+
 ### Added — reader for the TU Graz (ITSG) satellite orbit products (issue #11)
 
 - `gracefoReading.readItsgProduct` reads the operational products from

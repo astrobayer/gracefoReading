@@ -6,10 +6,13 @@
 %   gracefoReading.readL1bMulti          - Read and concatenate several files.
 %   gracefoReading.readItsgProduct       - Read a TU Graz (ITSG) satellite orbit
 %                                          product: orbit, covariance, attitude, forces.
+%   gracefoReading.readItsgProductMulti  - Read and concatenate several ITSG files.
 %
 % Batch tools
 %   gracefoReading.findL1bFiles          - Locate product files in an archive by
 %                                          product/date/satellite, with coverage report.
+%   gracefoReading.findItsgFiles         - Locate ITSG product files by product/date,
+%                                          with coverage report.
 %   gracefoReading.findGaps              - Detect sampling gaps and contiguous segments.
 %
 % Utilities

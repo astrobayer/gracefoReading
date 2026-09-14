@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<html><head><meta charset="utf-8"><title>gracefoReading.readItsgProduct</title>
+<style>
+body { font-family: Arial, Helvetica, sans-serif; margin: 0; padding: 0 2em 3em 2em;
+       color: #212121; max-width: 62em; }
+h1 { font-size: 1.6em; font-weight: normal; color: #b33; border-bottom: 1px solid #ccc;
+     padding-bottom: 0.2em; margin-top: 1em; }
+h2 { font-size: 1.2em; color: #333; margin-top: 1.6em; border-bottom: 1px solid #eee; }
+p.purpose { font-size: 1.05em; color: #444; }
+pre.syntax, pre.example { background: #f5f5f5; border: 1px solid #e0e0e0;
+     padding: 0.7em 1em; border-radius: 4px; overflow-x: auto;
+     font-family: Consolas, Monaco, monospace; font-size: 0.92em; }
+p.excap { margin-bottom: 0.2em; font-weight: bold; font-size: 0.92em; color: #444; }
+table.args { border-collapse: collapse; width: 100%; margin: 0.6em 0; }
+table.args th { background: #f0f0f0; text-align: left; padding: 0.4em 0.6em;
+     border: 1px solid #ddd; font-size: 0.88em; }
+table.args td { padding: 0.4em 0.6em; border: 1px solid #ddd; font-size: 0.88em;
+     vertical-align: top; }
+td.mono, code { font-family: Consolas, Monaco, monospace; }
+ul.fields { margin: 0.3em 0 0 0; padding-left: 1.1em; font-size: 0.95em; }
+ul.limits li { margin-bottom: 0.35em; }
+div.footer { margin-top: 3em; padding-top: 0.6em; border-top: 1px solid #ccc;
+     color: #888; font-size: 0.8em; }
+a { color: #06c; text-decoration: none; }
+a:hover { text-decoration: underline; }
+</style></head><body>
+<h1>gracefoReading.readItsgProduct</h1>
+<p class="purpose">Read a TU Graz (ITSG) satellite orbit product.</p>
+<h2>Syntax</h2>
+<pre class="syntax">[time, obs, aux] = gracefoReading.readItsgProduct(fileName)
+[time, obs, aux] = gracefoReading.readItsgProduct(fileName, Name, Value)</pre>
+<h2>Description</h2>
+<p>Reads one operational satellite orbit product published by the Institute of Geodesy, TU Graz, from ftp.tugraz.at/pub/ITSG/satelliteOrbitProducts/, and returns it in the same [time, obs, aux] shape as gracefoReading.readL1b. The products are GROOPS ASCII instrument files, so the parsing is done by gracefoReading.readGroopsInstrument and this function adds what the file itself does not carry.</p>
+<p>Two things it adds are not cosmetic:</p>
+<p>ZERO-PADDED COLUMNS. The GROOPS ORBIT type always writes nine data columns - position, velocity and acceleration. A kinematicOrbit file carries position only, and its six velocity and acceleration columns are identically zero; a reducedDynamicOrbit file carries position and velocity, and its three acceleration columns are identically zero. Returning those zeros as observations would hand a caller a velocity of exactly 0 m/s for every epoch of a kinematic orbit, which differencing or integrating turns into silent nonsense. OBS therefore holds only the columns the product actually carries; the padding is named in aux.paddingColumns and returned untouched in aux.allColumns. Which columns are carried comes from the product documentation, and is CHECKED against the file: a padding column that is not identically zero raises the paddingNotZero warning rather than being quietly dropped.</p>
+<p>FRAME AND TIME SYSTEM. Neither is declared anywhere in these files - no header field, no filename suffix, nothing. They come from the product README instead, which states the frame per product and &quot;All times are GPS times&quot;. Because that mapping is keyed on the product, and the product is identified from the file name, aux records not just the answer but how it was reached: aux.frameSource and aux.productSource. An unrecognised product is never given a frame by guesswork - aux.frame stays empty and the productNotRecognised warning fires.</p>
+<h2>Input Arguments</h2>
+<table class="args"><tr><th>Name</th><th>Type</th><th>Size</th><th>Description</th><th>Options</th><th>Default</th></tr><tr><td class="mono">fileName</td><td>string | char</td><td>1x1</td><td>Path to an ITSG product file, plain or gzip-compressed (.gz), named &lt;satellite&gt;_&lt;product&gt;_&lt;date&gt;.txt[.gz] as published, e.g. GRACEFO-1_kinematicOrbit_2020-01-01.txt.<br><em>Validation: mustBeFile</em></td><td></td><td class="mono"></td></tr><tr><td class="mono">&#x27;Product&#x27;</td><td>string</td><td>1x1</td><td>Override of the product identified from the file name, for a file that has been renamed.</td><td>&quot;kinematicOrbit&quot;, &quot;kinematicOrbitCovariance&quot;, &quot;reducedDynamicOrbit&quot;, &quot;attitude&quot;, &quot;nonConservativeForces&quot;</td><td class="mono">&quot;&quot; (take it from the file name)</td></tr><tr><td class="mono">&#x27;Frame&#x27;</td><td>string</td><td>1x1</td><td>Frame to record in aux.frame, overriding the documented one. Provided so a caller who knows better than this function is never blocked by it; the default is empty rather than a guess, so an omission stays distinguishable from a choice.</td><td></td><td class="mono">&quot;&quot; (use the product documentation)</td></tr><tr><td class="mono">&#x27;TimeFormat&#x27;</td><td>string</td><td>1x1</td><td>Representation of the TIME output, matching gracefoReading.readL1b.</td><td>&quot;mjd&quot; (integer MJD + seconds of day), &quot;datetime&quot; (GPS time scale), &quot;gpsns&quot; (int64 GPS nanoseconds past 2000-01-01 12:00:00)</td><td class="mono">&quot;mjd&quot;</td></tr></table>
+<h2>Output Arguments</h2>
+<table class="args"><tr><th>Name</th><th>Type</th><th>Size</th><th>Description</th><th>Options</th><th>Default</th></tr><tr><td class="mono">time</td><td>double | datetime | int64</td><td>[N x 2] | [N x 1]</td><td>Epochs according to &#x27;TimeFormat&#x27;. Recovered from the printed digits by integer arithmetic, which matters here: the kinematic products are corrected for receiver clock errors and are NOT on a constant sampling, and their epoch structure is finer than a double can hold.</td><td></td><td class="mono"></td></tr><tr><td class="mono">obs</td><td>double</td><td>[N x M]</td><td>The columns the product actually carries, in file order. Column j is named by aux.obsNames{j} and carries the unit aux.obsUnits{j}. Zero-padding columns are NOT included; see DESCRIPTION.</td><td></td><td class="mono"></td></tr><tr><td class="mono">aux</td><td>struct</td><td>1x1</td><td>Fields: product, productSource, satellite, epochDate, frame, frameDescription, frameSource, timeSystem, timeSystemSource, obsNames, obsUnits, allColumns, allColumnNames, allColumnUnits, paddingColumns, groopsType, groopsTypeCode, numRecords, fileName, comments, and the full info struct from readGroopsInstrument as aux.groopsInfo.</td><td></td><td class="mono"></td></tr></table>
+<h2>Fields of aux</h2>
+<table class="args"><tr><th>Field</th><th>Type</th><th>Size</th><th>Description</th></tr><tr><td class="mono">product</td><td>char</td><td>1x1</td><td>Product identified from the file name, e.g. &#x27;kinematicOrbit&#x27;.</td></tr><tr><td class="mono">productSource</td><td>char</td><td>1x1</td><td>&#x27;fileName&#x27; or &#x27;option&#x27;.</td></tr><tr><td class="mono">satellite</td><td>char</td><td>1x1</td><td>Satellite part of the file name, e.g. &#x27;GRACEFO-1&#x27;.</td></tr><tr><td class="mono">epochDate</td><td>datetime</td><td>1x1</td><td>Date part of the file name; NaT if the name does not follow the convention.</td></tr><tr><td class="mono">frame</td><td>char</td><td>1x1</td><td>Reference frame per the product documentation; &#x27;&#x27; when the product is not recognised.</td></tr><tr><td class="mono">frameDescription</td><td>char</td><td>1x1</td><td>Full wording of what the frame means for this product.</td></tr><tr><td class="mono">frameSource</td><td>char</td><td>1x1</td><td>&#x27;productDocumentation&#x27;, &#x27;option&#x27; or &#x27;undeclared&#x27;. The files declare no frame.</td></tr><tr><td class="mono">timeSystem</td><td>char</td><td>1x1</td><td>&#x27;GPS&#x27; per the product documentation; &#x27;&#x27; when the product is not recognised.</td></tr><tr><td class="mono">timeSystemSource</td><td>char</td><td>1x1</td><td>&#x27;productDocumentation&#x27; or &#x27;undeclared&#x27;.</td></tr><tr><td class="mono">obsNames / obsUnits</td><td>cellstr</td><td>1xM</td><td>Names and units of the OBS columns, read from the file&#x27;s own legend.</td></tr><tr><td class="mono">allColumns</td><td>double</td><td>NxC</td><td>Every data column as read, padding included.</td></tr><tr><td class="mono">allColumnNames / allColumnUnits</td><td>cellstr</td><td>1xC</td><td>Legend entries for all C columns.</td></tr><tr><td class="mono">paddingColumns</td><td>double</td><td>1xP</td><td>Indices into allColumns that the GROOPS type declares but this product does not carry.</td></tr><tr><td class="mono">groopsType / groopsTypeCode</td><td>char / double</td><td>1x1</td><td>Epoch type name and code from the file, e.g. &#x27;ORBIT&#x27; and -6.</td></tr><tr><td class="mono">groopsInfo</td><td>struct</td><td>1x1</td><td>The full info struct from readGroopsInstrument.</td></tr><tr><td class="mono">comments</td><td>cellstr</td><td>Cx1</td><td>Raw &#x27;#&#x27; header lines.</td></tr></table>
+<h2>Accuracy and Limitations</h2><ul class="limits">
+<li>The frame and the time system are NOT in the file. They are taken from the product README of 2025-10-16 and are therefore only as current as that document; aux.frameSource says so rather than presenting them as file content. Verify against the README before a result depends on the frame.</li>
+<li>Which columns a product carries is likewise documentation, not file content, but it is verified against the data on every read. The reverse is not checked: a column documented as carried that happens to be all zero in one file is not reported, because a genuinely zero observation is legitimate.</li>
+<li>One file per call. Reading a date range means calling this once per file and concatenating; there is no ITSG counterpart to readL1bMulti or findL1bFiles yet (HANDOVER.md, O-9).</li>
+<li>No frame rotation and no interpolation are performed, and none are planned here - both are out of scope for this toolbox.</li>
+<li>neutralDensity is published by the same server but is not in the product table, because no real file was available to read. It parses as a generic GROOPS file and warns productNotRecognised.</li>
+<li>Epoch tags are exact to 1 ns of what the file prints. The files carry 18 decimals of a day, finer than a nanosecond, so the nanosecond outputs round; at most the first 15 decimals are used (86 ps, see readGroopsInstrument).</li>
+</ul>
+<h2>Errors</h2><table class="args"><tr><th>Error identifier</th><th>Condition</th></tr><tr><td class="mono">gracefoReading:readItsgProduct:productNotRecognised</td><td>no frame is recorded and every column is returned as an observation</td></tr><tr><td class="mono">gracefoReading:readItsgProduct:paddingNotZero</td><td>identically zero in this file</td></tr><tr><td class="mono">gracefoReading:readItsgProduct:columnCountMismatch</td><td>the file has fewer columns than the documented product needs</td></tr></table>
+<h2>Examples</h2>
+<p class="excap">kinematic orbit: three position columns, not nine</p>
+<pre class="example">[t, pos, aux] = gracefoReading.readItsgProduct( ...
+   &#x27;GRACEFO-1_kinematicOrbit_2020-01-01.txt&#x27;);
+fprintf(&#x27;%s in the %s frame (%s)\n&#x27;, strjoin(aux.obsNames, &#x27;, &#x27;), ...
+   aux.frame, aux.frameSource);</pre>
+<p class="excap">exact epochs of a receiver-clock-corrected kinematic orbit</p>
+<pre class="example">tns = gracefoReading.readItsgProduct( ...
+   &#x27;GRACEFO-1_kinematicOrbit_2020-01-01.txt.gz&#x27;, &#x27;TimeFormat&#x27;, &#x27;gpsns&#x27;);
+fprintf(&#x27;sampling is constant: %d\n&#x27;, numel(unique(diff(tns))) == 1);</pre>
+<p class="excap">a day of orbit and its epoch-wise covariance</p>
+<pre class="example">[tk, pos] = gracefoReading.readItsgProduct(&#x27;GRACEFO-1_kinematicOrbit_2020-01-01.txt&#x27;);
+[tc, cov] = gracefoReading.readItsgProduct( ...
+   &#x27;GRACEFO-1_kinematicOrbitCovariance_2020-01-01.txt&#x27;);
+% cov columns are xx yy zz xy xz yz in m^2, on the same epochs as pos</pre>
+<h2>See Also</h2><p><a href="gracefoReading.readGroopsInstrument.html"><code>gracefoReading.readGroopsInstrument</code></a>, <a href="gracefoReading.readL1b.html"><code>gracefoReading.readL1b</code></a></p>
+<div class="footer">gracefoReading v1.0.2 &middot; 2026-09-09 &middot; Matthias Weigelt with support of Anthropic Claude &middot; License: MIT &middot; Generated from the MATLAB help blocks &mdash; do not edit by hand.</div>
+</body></html>

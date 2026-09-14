@@ -4,6 +4,7 @@
         <tocitem target="gracefoReading_getting_started.html">Getting Started</tocitem>
         <tocitem target="gracefoReading.readL1b.html">gracefoReading.readL1b</tocitem>
         <tocitem target="gracefoReading.readL1bMulti.html">gracefoReading.readL1bMulti</tocitem>
+        <tocitem target="gracefoReading.readItsgProduct.html">gracefoReading.readItsgProduct</tocitem>
         <tocitem target="gracefoReading.decodeQualFlags.html">gracefoReading.decodeQualFlags</tocitem>
         <tocitem target="gracefoReading.checkQuaternionNorm.html">gracefoReading.checkQuaternionNorm</tocitem>
         <tocitem target="gracefoReading.writeGroopsInstrument.html">gracefoReading.writeGroopsInstrument</tocitem>

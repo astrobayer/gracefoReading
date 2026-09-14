@@ -438,6 +438,108 @@
       ]
     },
     {
+      "name": "readItsgProduct",
+      "purpose": "Read a TU Graz (ITSG) satellite orbit product",
+      "auxFields": [
+        {
+          "name": "product",
+          "size": "1x1",
+          "type": "char",
+          "desc": "Product identified from the file name, e.g. 'kinematicOrbit'."
+        },
+        {
+          "name": "productSource",
+          "size": "1x1",
+          "type": "char",
+          "desc": "'fileName' or 'option'."
+        },
+        {
+          "name": "satellite",
+          "size": "1x1",
+          "type": "char",
+          "desc": "Satellite part of the file name, e.g. 'GRACEFO-1'."
+        },
+        {
+          "name": "epochDate",
+          "size": "1x1",
+          "type": "datetime",
+          "desc": "Date part of the file name; NaT if the name does not follow the convention."
+        },
+        {
+          "name": "frame",
+          "size": "1x1",
+          "type": "char",
+          "desc": "Reference frame per the product documentation; '' when the product is not recognised."
+        },
+        {
+          "name": "frameDescription",
+          "size": "1x1",
+          "type": "char",
+          "desc": "Full wording of what the frame means for this product."
+        },
+        {
+          "name": "frameSource",
+          "size": "1x1",
+          "type": "char",
+          "desc": "'productDocumentation', 'option' or 'undeclared'. The files declare no frame."
+        },
+        {
+          "name": "timeSystem",
+          "size": "1x1",
+          "type": "char",
+          "desc": "'GPS' per the product documentation; '' when the product is not recognised."
+        },
+        {
+          "name": "timeSystemSource",
+          "size": "1x1",
+          "type": "char",
+          "desc": "'productDocumentation' or 'undeclared'."
+        },
+        {
+          "name": "obsNames / obsUnits",
+          "size": "1xM",
+          "type": "cellstr",
+          "desc": "Names and units of the OBS columns, read from the file's own legend."
+        },
+        {
+          "name": "allColumns",
+          "size": "NxC",
+          "type": "double",
+          "desc": "Every data column as read, padding included."
+        },
+        {
+          "name": "allColumnNames / allColumnUnits",
+          "size": "1xC",
+          "type": "cellstr",
+          "desc": "Legend entries for all C columns."
+        },
+        {
+          "name": "paddingColumns",
+          "size": "1xP",
+          "type": "double",
+          "desc": "Indices into allColumns that the GROOPS type declares but this product does not carry."
+        },
+        {
+          "name": "groopsType / groopsTypeCode",
+          "size": "1x1",
+          "type": "char / double",
+          "desc": "Epoch type name and code from the file, e.g. 'ORBIT' and -6."
+        },
+        {
+          "name": "groopsInfo",
+          "size": "1x1",
+          "type": "struct",
+          "desc": "The full info struct from readGroopsInstrument."
+        },
+        {
+          "name": "comments",
+          "size": "Cx1",
+          "type": "cellstr",
+          "desc": "Raw '#' header lines."
+        }
+      ]
+    },
+    {
       "name": "decodeQualFlags",
       "purpose": "Decode a bit-string flag column using header metadata",
       "syntax": [

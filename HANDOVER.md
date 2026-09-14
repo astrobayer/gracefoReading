@@ -18,17 +18,27 @@ Facts live in one of the two, not both.
 | | |
 |---|---|
 | Version | 1.0.2 (`gracefoReading.version()`; `Contents.m` and `docsrc/functionSpecs.json` must agree) |
-| Tests | **65 passed, 0 failed, 0 incomplete** — CI run 34251657704, self-hosted Windows runner, MATLAB R2026a Update 4, 2026-09-08. **Predicted 71 after the 2026-09-14 change; NOT yet measured on any MATLAB tier** |
+| Tests | **73 passed, 1 failed, 0 incomplete** — CI run 34807682341, self-hosted Windows runner, MATLAB R2026a Update 5, 2026-09-14. The one failure was `testGroopsBadTimeToken`, fixed in the commit after that run; **74 passed is predicted for the next run and is not yet measured** |
 | Static gates | `docsrc/sourceIntegrity.py` 29 files / 0 findings · `docsrc/auditHelp.py` 29 help blocks clean · `git diff --exit-code -- html/` clean — all three run 2026-09-14 in a sandbox without MATLAB |
 | Public units | 10 in `+gracefoReading/`, 9 internal in `+gracefoReading/+internal/` |
 | Tag / release | `v1.0.0` (lightweight tag + GitHub release, 2026-09-06). **v1.0.1 is merged but not tagged or released** — see O-4 |
 
 Per-class test counts, for the prediction a next session must make
-*before* running: `testReadL1b` 22, `testUtilities` 15, `testBatchTools`
-**14** (was 8; six added 2026-09-14), `testRealData` 8,
-`testDocConsistency` 7, `testSourceIntegrity` 5. Sum **71**. The last
-CI-measured total is 65, before those six; a run that reports anything
-other than 71 is a finding, not a rounding. `0 incomplete` means the
+*before* running: `testReadL1b` **25**, `testUtilities` 15,
+`testBatchTools` **14** (was 8; six added 2026-09-14), `testRealData` 8,
+`testDocConsistency` 7, `testSourceIntegrity` 5. Sum **74**, reconciled
+against the per-class listing of CI run 34807682341. A run reporting
+anything else is a finding, not a rounding.
+
+**These counts were wrong until 2026-09-14, and the error was only
+caught by making the prediction.** This table said `testReadL1b` 22 and
+a total of 65. The real figures before the 2026-09-14 change were 25 and
+**68**: the three MAG1B tests added for issue #9 in v1.0.2 went into
+`testReadL1b` and the table was never updated, so the 1.0.2 bump shipped
+with a stale status line. A prediction of 71 was made from it and missed
+by exactly those three. Predict before running, and reconcile per class
+rather than on the total — a total that is wrong by the same amount in
+both places still agrees with itself. `0 incomplete` means the
 real-data pool resolved and no acceptance point filtered itself out; a
 skipped fixture counts as incomplete and is a finding, not noise.
 
@@ -162,6 +172,7 @@ PR #7, merged 2026-09-08.
 | 2026-09-08 | `localWarnNoRecords` derives every number in its message from the run | diagnostic text is a claim too (R3); a message restating the call can drift from what happened |
 | 2026-09-14 | Issue #11 stopped **before** implementation and recorded as O-8 instead of being built from the layout the issue quotes | the issue itself asks to "check rather than assume", and the check is impossible from here. `resolveTime` already states the governing rule for this repository: a unit "is a property of the file, not of the product family. Do not infer a unit from a sibling product" — building the Graz reader from the COST-G benchmark layout is exactly that inference |
 | 2026-09-14 | `readGroopsInstrument` recovers the epoch from the printed **digits** (integer split at the decimal point, int64 throughout) rather than from `sscanf('%f')` | measured, not assumed: over 100 000 epochs of 2020-01-01 the double path misplaced tags by up to **314 ns** and the digit path by **0 ns**. Without this, `'TimeFormat', "gpsns"` would return nine digits of which three are noise |
+| 2026-09-14 | `readGroopsInstrument` validates time tags **before** the declared column count | CI run 34807682341 showed the other order naming the wrong cause: a tag like `58849.5.5` makes `sscanf('%f')` return three values where two columns were declared, and `fifty` returns none, so both were reported as `countMismatch` when the real fault was the time tag. R3 — a diagnostic is a claim too |
 | 2026-09-14 | The `'TimeFormat'` mapping moved to `internal/formatEpoch`, called by both readers | the datetime epoch formula was about to exist in two files. That is the 2026-09-06 failure mode exactly, and a divergence would shift every epoch of one reader with nothing visible to say so |
 
 ---
@@ -190,11 +201,12 @@ PR #7, merged 2026-09-08.
    writer's convention, and whether a Graz file is that convention is
    unknown. The unblock is one real file per sub-product in
    `tests/realdata/`, nothing more.
-6. **The 2026-09-14 change has never run.** Static gates passed in a
-   sandbox with no MATLAB; the 71-test prediction is arithmetic, not a
-   measurement. The first MATLAB tier to see it — CI or a local run —
-   is the gate, and `testGroopsExactNanoseconds` is the row to read
-   first if anything is red.
+6. **Section A's test counts were stale for a whole release, and only
+   a prediction caught it.** See the note under the per-class table: the
+   v1.0.2 MAG1B work added three `testReadL1b` tests that were never
+   recorded, so the status line said 65 when the suite ran 68. Nothing
+   failed because of it — a stale count is invisible until someone
+   predicts against it, which is the reason the prediction step exists.
 7. **Two test suites need things the sandbox does not have.**
    `testRealData` needs `READING_DATA_POOL`; the full suite needs MATLAB.
    A session with neither can still run all three static gates, and

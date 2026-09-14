@@ -57,7 +57,11 @@ own commit; these entries are the content, not a release.
   a double it would have returned nine digits of which three were noise.
 - New error `gracefoReading:readGroopsInstrument:badTimeToken`. An
   exponential, negative or non-numeric time tag is **refused**, not read
-  approximately. This follows `resolveTime`'s precedent exactly: a
+  approximately. Time tags are validated **before** the declared column
+  count: a tag like `58849.5.5` makes `sscanf('%f')` return three values
+  where two columns were declared, and `fifty` returns none, so the
+  other order reported `countMismatch` for what is really a time-tag
+  fault. A diagnostic is a claim too (R3). This follows `resolveTime`'s precedent exactly: a
   silent fallback to the double path would reintroduce the error the
   digit path exists to remove.
 - Reader accuracy is now limited by the **writer**, not the reader:
@@ -76,16 +80,28 @@ own commit; these entries are the content, not a release.
 
 ### Tests
 
-- Six added to `testBatchTools` (8 → 14, suite 65 → **71 predicted**):
-  exact nanoseconds against independently derived expectations,
-  agreement of the three `'TimeFormat'` representations, the midnight
-  carry, truncation past the 15th digit, refusal of four malformed tags,
-  and `mustBeMember` validation of the option.
+- Six added to `testBatchTools` (8 → 14, suite 68 → **74**): exact
+  nanoseconds against independently derived expectations, agreement of
+  the three `'TimeFormat'` representations, the midnight carry,
+  truncation past the 15th digit, refusal of four malformed tags, and
+  `mustBeMember` validation of the option.
 - Expectations were derived in Python from the printed digits before
   being hardcoded, per HANDOVER.md section D. The same mirror was
   fault-injected: all malformed tags refused, split/merge bitwise equal.
-- **Not run.** No MATLAB was reachable; only the three licence-free
-  static gates passed. CI is the gate.
+- CI run 34807682341 (R2026a Update 5) ran these for the first time:
+  73 passed, 1 failed. The failure was `testGroopsBadTimeToken`, a real
+  defect in the ordering above rather than a bad test — see the fix in
+  this same entry. Everything else passed first time, including the
+  exactness and midnight-carry cases.
+
+### Fixed — the record's own test counts
+
+- HANDOVER.md section A said `testReadL1b` 22 and a suite total of 65.
+  The true figures before this change were **25 and 68**: the three
+  MAG1B tests added for issue #9 in v1.0.2 went into `testReadL1b` and
+  the status line was never updated, so v1.0.2 shipped with a stale
+  count. It surfaced only because a prediction was made against it and
+  missed by exactly those three.
 
 
 ## 1.0.2 — 2026-09-09

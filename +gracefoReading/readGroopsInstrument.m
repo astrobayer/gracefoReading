@@ -74,6 +74,11 @@ function [time, data, info] = readGroopsInstrument(fileName, options)
 %       nanosecond output meaningful. A sign is accepted only as '+':
 %       MJD is positive for every real epoch, and a negative tag would
 %       need floor semantics the integer split does not implement.
+%     - Time tags are validated before the declared column count, so a
+%       malformed tag raises badTimeToken and not countMismatch. The
+%       other order names the wrong cause: a tag like "58849.5.5" makes
+%       sscanf return three values where two columns were declared, and
+%       the reader would report a count error for a time problem.
 %     - Only the ASCII instrument format is read; GROOPS binary files
 %       are not supported.
 %     - Declared record and column counts are enforced, which catches
@@ -149,6 +154,14 @@ info = struct('version', str2double(verTok{1}), ...
 
 recLines = lines(4:end);
 n = numel(recLines);
+
+% Read and validate the time tags BEFORE the column count. A malformed tag
+% derails sscanf's column arithmetic - "58849.5.5" yields three values where
+% two were declared, "fifty" yields none - so with the count check first the
+% reader blamed countMismatch for what is really a bad time tag. The specific
+% diagnostic has to win, or the message names the wrong cause.
+[mjd, nsOfDay] = localExactMjd(recLines, fileName);
+
 vals = sscanf(char(join(recLines, newline)), '%f');
 nCols = numel(vals) / max(n, 1);
 if n ~= info.numRecords || mod(numel(vals), max(n,1)) ~= 0 || nCols ~= info.dataColumns + 1
@@ -159,8 +172,6 @@ if n ~= info.numRecords || mod(numel(vals), max(n,1)) ~= 0 || nCols ~= info.data
 end
 M = reshape(vals, nCols, n)';
 data = M(:, 2:end);
-
-[mjd, nsOfDay] = localExactMjd(recLines, fileName);
 
 % GPS seconds count from 2000-01-01 12:00, i.e. MJD 51544 + 43200 s
 % (HANDOVER.md section C). Formed in int64 so "gpsns" never touches a double.

@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html><head><meta charset="utf-8"><title>gracefoReading.findItsgFiles</title>
+<style>
+body { font-family: Arial, Helvetica, sans-serif; margin: 0; padding: 0 2em 3em 2em;
+       color: #212121; max-width: 62em; }
+h1 { font-size: 1.6em; font-weight: normal; color: #b33; border-bottom: 1px solid #ccc;
+     padding-bottom: 0.2em; margin-top: 1em; }
+h2 { font-size: 1.2em; color: #333; margin-top: 1.6em; border-bottom: 1px solid #eee; }
+p.purpose { font-size: 1.05em; color: #444; }
+pre.syntax, pre.example { background: #f5f5f5; border: 1px solid #e0e0e0;
+     padding: 0.7em 1em; border-radius: 4px; overflow-x: auto;
+     font-family: Consolas, Monaco, monospace; font-size: 0.92em; }
+p.excap { margin-bottom: 0.2em; font-weight: bold; font-size: 0.92em; color: #444; }
+table.args { border-collapse: collapse; width: 100%; margin: 0.6em 0; }
+table.args th { background: #f0f0f0; text-align: left; padding: 0.4em 0.6em;
+     border: 1px solid #ddd; font-size: 0.88em; }
+table.args td { padding: 0.4em 0.6em; border: 1px solid #ddd; font-size: 0.88em;
+     vertical-align: top; }
+td.mono, code { font-family: Consolas, Monaco, monospace; }
+ul.fields { margin: 0.3em 0 0 0; padding-left: 1.1em; font-size: 0.95em; }
+ul.limits li { margin-bottom: 0.35em; }
+div.footer { margin-top: 3em; padding-top: 0.6em; border-top: 1px solid #ccc;
+     color: #888; font-size: 0.8em; }
+a { color: #06c; text-decoration: none; }
+a:hover { text-decoration: underline; }
+</style></head><body>
+<h1>gracefoReading.findItsgFiles</h1>
+<p class="purpose">Locate ITSG product files in an archive by product and date.</p>
+<h2>Syntax</h2>
+<pre class="syntax">[files, report] = gracefoReading.findItsgFiles(archiveRoot, product)
+[files, report] = gracefoReading.findItsgFiles(archiveRoot, product, ...
+Name, Value)</pre>
+<h2>Description</h2>
+<p>Searches an archive folder, recursively by default, for TU Graz (ITSG) product files named &lt;satellite&gt;_&lt;product&gt;_&lt;date&gt;.txt or .txt.gz, sorts them chronologically and reports the coverage including missing calendar days. With gracefoReading.readItsgProductMulti this turns a month of orbits into two lines. It is the ITSG counterpart of gracefoReading.findL1bFiles and behaves the same way, including returning an empty result rather than an error when nothing matches.</p>
+<p>The product must be given exactly as it appears in the name. The release-1.0 density products are published as neutralDensity_ACC and neutralDensity_KIN, and those are the product names: one is derived from accelerometer data and the other from kinematic orbits, so &quot;neutralDensity&quot; deliberately matches neither.</p>
+<h2>Input Arguments</h2>
+<table class="args"><tr><th>Name</th><th>Type</th><th>Size</th><th>Description</th><th>Options</th><th>Default</th></tr><tr><td class="mono">archiveRoot</td><td>string | char</td><td>1x1</td><td>Folder to search.<br><em>Validation: mustBeFolder</em></td><td></td><td class="mono"></td></tr><tr><td class="mono">product</td><td>string</td><td>1x1</td><td>Product segment of the file name, e.g. &quot;kinematicOrbit&quot;, &quot;reducedDynamicOrbit&quot;, &quot;attitude&quot;, &quot;kinematicOrbitCovariance&quot;, &quot;nonConservativeForces&quot;.</td><td></td><td class="mono"></td></tr><tr><td class="mono">&#x27;DateRange&#x27;</td><td>datetime</td><td>1x2</td><td>Inclusive date window, compared against the date in the file name.</td><td></td><td class="mono">[] (every date found)</td></tr><tr><td class="mono">&#x27;Satellite&#x27;</td><td>string</td><td>1x1</td><td>Satellite segment to keep, e.g. &quot;GRACEFO-1&quot;. Compared case-sensitively, as published.</td><td></td><td class="mono">&quot;&quot; (any satellite)</td></tr><tr><td class="mono">&#x27;Recursive&#x27;</td><td>logical</td><td>1x1</td><td>Search subfolders. The server lays products out by year, so the default is true.</td><td>true | false</td><td class="mono">true</td></tr></table>
+<h2>Output Arguments</h2>
+<table class="args"><tr><th>Name</th><th>Type</th><th>Size</th><th>Description</th><th>Options</th><th>Default</th></tr><tr><td class="mono">files</td><td>string</td><td>[K x 1]</td><td>Full paths sorted by date, then by satellite. Empty when nothing matches, which is not an error.</td><td></td><td class="mono"></td></tr><tr><td class="mono">report</td><td>struct</td><td>1x1</td><td><ul class="fields"><li><code>dates</code> &ndash; datetime [K x 1]: one per file</li><li><code>satellites</code> &ndash; string [K x 1]: </li><li><code>products</code> &ndash; string [K x 1]: the product actually parsed from each name</li><li><code>compressed</code> &ndash; logical [K x 1]: true for .gz</li><li><code>firstDate</code> &ndash; datetime: NaT when empty</li><li><code>lastDate</code> &ndash; datetime: NaT when empty</li><li><code>missingDates</code> &ndash; datetime: calendar days with no file inside the covered span or &#x27;DateRange&#x27;</li></ul></td><td></td><td class="mono"></td></tr></table>
+<h2>Fields of aux</h2>
+<table class="args"><tr><th>Field</th><th>Type</th><th>Size</th><th>Description</th></tr><tr><td class="mono">dates</td><td>datetime</td><td>Kx1</td><td>Date parsed from each file name.</td></tr><tr><td class="mono">satellites</td><td>string</td><td>Kx1</td><td>Satellite parsed from each file name.</td></tr><tr><td class="mono">products</td><td>string</td><td>Kx1</td><td>Product parsed from each file name.</td></tr><tr><td class="mono">compressed</td><td>logical</td><td>Kx1</td><td>true for a .gz file.</td></tr><tr><td class="mono">firstDate / lastDate</td><td>datetime</td><td>1x1</td><td>Coverage span; NaT when nothing matched.</td></tr><tr><td class="mono">missingDates</td><td>datetime</td><td>Mx1</td><td>Calendar days with no file inside the covered span or &#x27;DateRange&#x27;.</td></tr></table>
+<h2>Accuracy and Limitations</h2><ul class="limits">
+<li>Only the file name is read. A file whose name does not follow the convention is skipped silently, which is what makes it safe to point this at a folder holding other products too.</li>
+<li>A day present as both .txt and .txt.gz is reported twice, once per file. Nothing here decides which of the two to prefer, because either is readable and dropping one would be a guess about which is current.</li>
+<li>missingDates counts calendar days, so a genuine gap in the published series is indistinguishable from a file you have not downloaded. It reports what is on disk, not what exists.</li>
+</ul>
+<h2>Examples</h2>
+<p class="excap">a month of kinematic orbits, with coverage</p>
+<pre class="example">[files, report] = gracefoReading.findItsgFiles(root, &quot;kinematicOrbit&quot;, ...
+   &#x27;DateRange&#x27;, [datetime(2020,1,1) datetime(2020,1,31)], ...
+   &#x27;Satellite&#x27;, &quot;GRACEFO-1&quot;);
+fprintf(&#x27;%d file(s), %d day(s) missing\n&#x27;, ...
+   numel(files), numel(report.missingDates));</pre>
+<p class="excap">straight into a concatenated read</p>
+<pre class="example">[t, pos, aux] = gracefoReading.readItsgProductMulti(files);</pre>
+<h2>See Also</h2><p><a href="gracefoReading.readItsgProductMulti.html"><code>gracefoReading.readItsgProductMulti</code></a>, <a href="gracefoReading.readItsgProduct.html"><code>gracefoReading.readItsgProduct</code></a>, <a href="gracefoReading.findL1bFiles.html"><code>gracefoReading.findL1bFiles</code></a></p>
+<div class="footer">gracefoReading v1.0.2 &middot; 2026-09-09 &middot; Matthias Weigelt with support of Anthropic Claude &middot; License: MIT &middot; Generated from the MATLAB help blocks &mdash; do not edit by hand.</div>
+</body></html>

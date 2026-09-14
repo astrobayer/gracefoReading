@@ -264,23 +264,11 @@ end
 % ========================================================================
 function [product, satellite, epochDate] = localIdentify(fileName, override)
 %LOCALIDENTIFY  Satellite, product and date from the published file name.
-%   The convention is <satellite>_<product>_<yyyy-mm-dd>.txt[.gz], stated in
-%   the product README. Only the product is allowed to be overridden, because
-%   only the product decides how the columns are read.
-[~, base, ext] = fileparts(fileName);
-if strcmpi(ext, '.gz')
-    [~, base] = fileparts(base);
-end
-tok = regexp(char(base), '^(.+?)_(.+?)_(\d{4}-\d{2}-\d{2})$', 'tokens', 'once');
-if isempty(tok)
-    satellite = '';
-    epochDate = NaT;
-    product = char(override);
-else
-    satellite = tok{1};
-    product = tok{2};
-    epochDate = datetime(tok{3}, 'InputFormat', 'yyyy-MM-dd');
-end
+%   The convention itself lives in internal.parseItsgFileName, which
+%   findItsgFiles also uses. Only the product may be overridden here,
+%   because only the product decides how the columns are read.
+[product, satellite, epochDate] = ...
+    gracefoReading.internal.parseItsgFileName(fileName);
 if override ~= ""
     product = char(override);
 end

@@ -1,6 +1,6 @@
 # HANDOVER — gracefoReading
 
-**Revision 3.2 · 2026-09-14 · toolbox v1.0.2**
+**Revision 3.3 · 2026-09-14 · toolbox v1.0.2**
 
 The single point of truth for this repository. Where this document and a
 general engineering habit disagree, this document is right. Read it
@@ -18,16 +18,17 @@ Facts live in one of the two, not both.
 | | |
 |---|---|
 | Version | 1.0.2 (`gracefoReading.version()`; `Contents.m` and `docsrc/functionSpecs.json` must agree) |
-| Tests | **88 passed, 0 failed, 1 incomplete — 89 total** — CI run 34869994810, head `3618e84`, self-hosted Windows runner, MATLAB R2026a Update 5, 2026-09-14. The incomplete is `testFullDayKinematicJitter`, which needs a full ITSG day in the pool and is expected until one is copied there — see the note below |
-| Static gates | `docsrc/sourceIntegrity.py` 32 files / 0 findings · `docsrc/auditHelp.py` 32 help blocks clean · `git diff --exit-code -- html/` clean — all three run 2026-09-14 in a sandbox without MATLAB |
-| Public units | 11 in `+gracefoReading/`, 10 internal in `+gracefoReading/+internal/` |
+| Tests | **88 passed, 0 failed, 1 incomplete — 89 total** — CI run 34869994810, head `3618e84`, MATLAB R2026a Update 5, 2026-09-14. **Predicted for the O-9 change: 100 passed, 0 failed, 1 incomplete, 101 total — NOT yet measured.** The incomplete stays `testFullDayKinematicJitter` |
+| Static gates | `docsrc/sourceIntegrity.py` 36 files / 0 findings · `docsrc/auditHelp.py` 36 help blocks clean · `git diff --exit-code -- html/` clean — all three run 2026-09-14 in a sandbox without MATLAB |
+| Public units | 13 in `+gracefoReading/`, 11 internal in `+gracefoReading/+internal/` |
 | Tag / release | `v1.0.0` (lightweight tag + GitHub release, 2026-09-06). **v1.0.1 is merged but not tagged or released** — see O-4 |
 
 Per-class test counts, for the prediction a next session must make
 *before* running: `testReadL1b` **25**, `testUtilities` 15,
 `testBatchTools` **14**, `testItsgProducts` **15** (new 2026-09-14),
-`testRealData` 8, `testDocConsistency` 7, `testSourceIntegrity` 5. Sum
-**89**, which reconciles with the CI total. A run reporting anything
+`testRealData` 8, `testItsgBatch` **12** (new 2026-09-14), `testDocConsistency` 7,
+`testSourceIntegrity` 5. Sum **101**, of which 100 pass and 1 is the
+documented incomplete. The last measured total is 89. A run reporting anything
 else is a finding, not a rounding.
 
 **Predict the split, not just the sum.** The 2026-09-14 prediction gave
@@ -168,13 +169,21 @@ outside this table claims to be one.
 | O-4 | **Tagging is behind and off-standard.** `v1.0.0` is a *lightweight* tag; VERSIONING.md requires an annotated tag plus a GitHub release per version. v1.0.1 is merged with neither. Tags are immutable and are never moved, so `v1.0.0` stays as it is; the correction is forward-only | owner | before anyone depends on a pinned version |
 | O-5 | **Binary L1B is unsupported** and refuses with an explicit error. Only the ASCII products are read | — | if a binary product is ever needed |
 | O-6 | **RL05+ header conventions are unknown.** If PO.DAAC changes them, extend `internal/parseHeaderVariables.m` and add the new files to `tests/realdata/` | owner | when RL05 appears |
-| O-9 | **`readItsgProduct` reads one file per call.** Issue #11 asked for "one file or a date range"; the date range is not built. There is no ITSG counterpart to `readL1bMulti` (concatenation, aux merging, monotonicity) or to `findL1bFiles` (the ITSG names are `<satellite>_<product>_<yyyy-mm-dd>.txt[.gz]`, not the PO.DAAC pattern). Callers loop and concatenate for now | owner | when a multi-day ITSG study is actually needed |
+| O-11 | **`readL1bMulti` cannot take what `findL1bFiles` returns.** Its `arguments` block declares `fileNames (1,:) string` while `findL1bFiles` returns a `[K x 1]` column, so the two-line workflow printed in both help blocks raises a size-validation error for K > 1. Found while building the ITSG pair, which is declared unsized and normalised instead. Not fixed here: it is an L1B change and this branch is issue #11 | owner | next time `readL1bMulti` is touched, or sooner if a user hits it |
 | O-10 | **`neutralDensity` is not in the product table.** The ITSG server publishes it and the README gives two different column layouts for releases 1.0 and 1.5/2.0, but no real file was read, so no entry was written. It parses as a generic GROOPS file and warns `productNotRecognised`. Writing the entry from the README alone is the mistake O-1 records | owner | when a real neutralDensity file exists |
 | O-7 | **Line-wise regexp tokenisation has headroom.** An 86400-line day file parses acceptably, but a typed `textscan` fast path exists for fixed-layout products. Profile in MATLAB before optimising — no speed claim has been measured | — | if a day file becomes a bottleneck |
 
 Closed: **O-12 of `NonGravForces`** (issue #6, `readL1bMulti` raised
 `MATLAB:badsubscript` on an all-empty `TimeRange`) — fixed in 1.0.1,
 PR #7, merged 2026-09-08.
+
+Closed: **O-9** (the ITSG date range). `findItsgFiles` and
+`readItsgProductMulti` were added 2026-09-14, mirroring `findL1bFiles`
+and `readL1bMulti` so the ITSG side reads the same way as the L1B side.
+The one limitation worth carrying forward is in the tests, not the code:
+only one date of real ITSG data exists here, so the batch suite exercises
+the mechanics on synthetic multi-day files and leaves the parsing of real
+bytes to `testItsgProducts`.
 
 Closed: **O-8** (the TU Graz reader, issue #11). Opened 2026-09-14 when
 the format could not be reached and discharged the same day when five
@@ -203,6 +212,8 @@ The half of it that remains is O-2's writer side, not this.
 | 2026-09-14 | Issue #11 implemented from five real files rather than from the layout the issue quoted | the files arrived, so O-8's re-entry condition was met. Every structural claim in the reader was read off the bytes: the comment lines, the type names and codes, and the second header integer being 1 against 3/4/6/9 columns — which the issue's quoted layout would not have revealed |
 | 2026-09-14 | `readItsgProduct` excludes zero-padding columns from OBS and verifies the exclusion against the data | the GROOPS ORBIT type always writes 9 columns; a kinematicOrbit file fills 3. Returning the zeros would give a caller exactly 0 m/s at every epoch of a kinematic orbit. The documentation says which columns are carried, so the check fires when a file disagrees with it rather than trusting either side alone |
 | 2026-09-14 | The frame and time system are recorded with their provenance, never inferred from the file name alone | measured: no frame or time-system string appears anywhere in the files. The product README supplies both, keyed on the product, and the product comes from the name — so `aux.frameSource`, `aux.timeSystemSource` and `aux.productSource` say how each answer was reached, and an unrecognised product gets no frame at all |
+| 2026-09-14 | `readItsgProductMulti` checks the product first and does not check the frame at all | the frame is derived from the product and `'Frame'` is forwarded to every file, so equal products already mean equal frames. A frame check could never fire, and a documented identifier that cannot be raised is a promise the function cannot keep — the same standard `auditHelp.py` enforces in the other direction |
+| 2026-09-14 | `readItsgProductMulti` declares `fileNames` unsized and normalises it, rather than copying `readL1bMulti`'s `(1,:)` | `findItsgFiles` returns a `[K x 1]` column, exactly as `findL1bFiles` does. Copying the declaration would have reproduced O-11, where the documented two-line workflow fails for more than one file |
 | 2026-09-14 | The `'TimeFormat'` mapping moved to `internal/formatEpoch`, called by both readers | the datetime epoch formula was about to exist in two files. That is the 2026-09-06 failure mode exactly, and a divergence would shift every epoch of one reader with nothing visible to say so |
 
 ---

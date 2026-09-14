@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html><head><meta charset="utf-8"><title>gracefoReading.readItsgProductMulti</title>
+<style>
+body { font-family: Arial, Helvetica, sans-serif; margin: 0; padding: 0 2em 3em 2em;
+       color: #212121; max-width: 62em; }
+h1 { font-size: 1.6em; font-weight: normal; color: #b33; border-bottom: 1px solid #ccc;
+     padding-bottom: 0.2em; margin-top: 1em; }
+h2 { font-size: 1.2em; color: #333; margin-top: 1.6em; border-bottom: 1px solid #eee; }
+p.purpose { font-size: 1.05em; color: #444; }
+pre.syntax, pre.example { background: #f5f5f5; border: 1px solid #e0e0e0;
+     padding: 0.7em 1em; border-radius: 4px; overflow-x: auto;
+     font-family: Consolas, Monaco, monospace; font-size: 0.92em; }
+p.excap { margin-bottom: 0.2em; font-weight: bold; font-size: 0.92em; color: #444; }
+table.args { border-collapse: collapse; width: 100%; margin: 0.6em 0; }
+table.args th { background: #f0f0f0; text-align: left; padding: 0.4em 0.6em;
+     border: 1px solid #ddd; font-size: 0.88em; }
+table.args td { padding: 0.4em 0.6em; border: 1px solid #ddd; font-size: 0.88em;
+     vertical-align: top; }
+td.mono, code { font-family: Consolas, Monaco, monospace; }
+ul.fields { margin: 0.3em 0 0 0; padding-left: 1.1em; font-size: 0.95em; }
+ul.limits li { margin-bottom: 0.35em; }
+div.footer { margin-top: 3em; padding-top: 0.6em; border-top: 1px solid #ccc;
+     color: #888; font-size: 0.8em; }
+a { color: #06c; text-decoration: none; }
+a:hover { text-decoration: underline; }
+</style></head><body>
+<h1>gracefoReading.readItsgProductMulti</h1>
+<p class="purpose">Read and concatenate several ITSG product files.</p>
+<h2>Syntax</h2>
+<pre class="syntax">[time, obs, aux] = gracefoReading.readItsgProductMulti(fileNames)
+[time, obs, aux] = gracefoReading.readItsgProductMulti(fileNames, ...
+Name, Value)</pre>
+<h2>Description</h2>
+<p>Calls gracefoReading.readItsgProduct on each file - typically consecutive days of one product from gracefoReading.findItsgFiles - and concatenates the results into one continuous record. It is the ITSG counterpart of gracefoReading.readL1bMulti and follows the same rules.</p>
+<p>Three things are refused rather than concatenated, because each would produce a result that looks continuous and is not:</p>
+<p>- Files whose observation columns differ. Stacking a kinematic orbit (3 position columns) on a reduced-dynamic one (6) would silently change what column 4 means partway down the matrix. - Files of different products, even when their column counts happen to agree. This is checked first, because it is the most informative thing to say about a bad list.</p>
+<p>The reference frame is deliberately NOT checked separately. It is derived from the product, and &#x27;Frame&#x27; is forwarded to every file, so equal products already mean equal frames; a frame check here could never fire and would be a promise this function cannot keep.</p>
+<p>Epoch order is checked but not enforced: a non-increasing join raises the timeNotMonotonic warning naming the record and the file, because wrong file order and a genuine duplicate day look identical here and only the caller knows which it is.</p>
+<h2>Input Arguments</h2>
+<table class="args"><tr><th>Name</th><th>Type</th><th>Size</th><th>Description</th><th>Options</th><th>Default</th></tr><tr><td class="mono">fileNames</td><td>string | cellstr</td><td>[1 x K]</td><td>Paths in concatenation order, normally chronological. Each may be plain or gzip-compressed. An empty list raises noFiles rather than returning an ambiguous empty.</td><td></td><td class="mono"></td></tr><tr><td class="mono">&#x27;Product&#x27;</td><td>string</td><td>1x1</td><td>Forwarded to readItsgProduct for every file.</td><td></td><td class="mono">&quot;&quot; (take it from each file name)</td></tr><tr><td class="mono">&#x27;Frame&#x27;</td><td>string</td><td>1x1</td><td>Forwarded to readItsgProduct for every file.</td><td></td><td class="mono">&quot;&quot; (use the product documentation)</td></tr><tr><td class="mono">&#x27;TimeFormat&#x27;</td><td>string</td><td>1x1</td><td>Representation of the TIME output.</td><td>&quot;mjd&quot;, &quot;datetime&quot;, &quot;gpsns&quot;</td><td class="mono">&quot;mjd&quot;</td></tr></table>
+<h2>Output Arguments</h2>
+<table class="args"><tr><th>Name</th><th>Type</th><th>Size</th><th>Description</th><th>Options</th><th>Default</th></tr><tr><td class="mono">time</td><td>double | datetime | int64</td><td>[N x 2] | [N x 1]</td><td>Concatenated epochs; N is the total record count.</td><td></td><td class="mono"></td></tr><tr><td class="mono">obs</td><td>double</td><td>[N x M]</td><td>Concatenated observations, the carried columns only. Zero padding is excluded per file, as in readItsgProduct.</td><td></td><td class="mono"></td></tr><tr><td class="mono">aux</td><td>struct</td><td>1x1</td><td>product, frame, frameDescription, frameSource, timeSystem, timeSystemSource, obsNames, obsUnits, groopsType, groopsTypeCode and epochDescription are taken from the first file and verified against the rest. Per-file: fileNames [K x 1], satellites [K x 1], epochDates [K x 1], recordsPerFile [K x 1], paddingColumns (cell, [K x 1]), numRecords [K x 1]. allColumns is NOT concatenated; see LIMITATIONS.</td><td></td><td class="mono"></td></tr></table>
+<h2>Fields of aux</h2>
+<table class="args"><tr><th>Field</th><th>Type</th><th>Size</th><th>Description</th></tr><tr><td class="mono">product / frame / frameDescription / frameSource</td><td>char</td><td>1x1</td><td>Taken from the first file and verified against the rest.</td></tr><tr><td class="mono">timeSystem / timeSystemSource / epochDescription</td><td>char</td><td>1x1</td><td>As in readItsgProduct; &#x27;GPS&#x27; for every ITSG product.</td></tr><tr><td class="mono">obsNames / obsUnits</td><td>cellstr</td><td>1xM</td><td>Names and units of the concatenated OBS columns.</td></tr><tr><td class="mono">groopsType / groopsTypeCode</td><td>char / double</td><td>1x1</td><td>Epoch type of the first file, e.g. &#x27;ORBIT&#x27; and -6.</td></tr><tr><td class="mono">fileNames</td><td>string</td><td>Kx1</td><td>The input list, in concatenation order.</td></tr><tr><td class="mono">satellites</td><td>string</td><td>Kx1</td><td>Satellite segment of each file name.</td></tr><tr><td class="mono">epochDates</td><td>datetime</td><td>Kx1</td><td>Date segment of each file name.</td></tr><tr><td class="mono">recordsPerFile</td><td>double</td><td>Kx1</td><td>Records contributed by each file; cumsum gives the split points.</td></tr><tr><td class="mono">numRecords</td><td>double</td><td>Kx1</td><td>Record count declared in each file&#x27;s header.</td></tr><tr><td class="mono">paddingColumns</td><td>cell</td><td>Kx1</td><td>Per-file padding column indices; allColumns is deliberately not concatenated.</td></tr></table>
+<h2>Accuracy and Limitations</h2><ul class="limits">
+<li>aux.allColumns is deliberately absent. Concatenating it would stack the zero padding into a single matrix and invite exactly the reading readItsgProduct exists to prevent. Read a file on its own when the padding is what you want.</li>
+<li>Nothing is interpolated, resampled or gap-filled, and no frame rotation is applied. A gap between files stays a gap; use gracefoReading.findGaps on the result to find it.</li>
+<li>The kinematic products are not on a constant sampling by design, so a monotonicity check is the only ordering assertion made. Do not read strict monotonicity as evenly spaced.</li>
+<li>Memory is the limit on how many days can be joined: every file is parsed in full before concatenation. A year of 10 s orbits is roughly 3 million records.</li>
+</ul>
+<h2>Errors</h2><table class="args"><tr><th>Error identifier</th><th>Condition</th></tr><tr><td class="mono">gracefoReading:readItsgProductMulti:noFiles</td><td>the file list is empty</td></tr><tr><td class="mono">gracefoReading:readItsgProductMulti:inconsistentProduct</td><td>two files are different products</td></tr><tr><td class="mono">gracefoReading:readItsgProductMulti:inconsistentColumns</td><td>two files of the same product expose different observation columns, which means a malformed or mislabelled archive</td></tr><tr><td class="mono">gracefoReading:readItsgProductMulti:timeNotMonotonic</td><td></td></tr></table>
+<h2>Examples</h2>
+<p class="excap">a month of kinematic orbits in two lines</p>
+<pre class="example">files = gracefoReading.findItsgFiles(root, &quot;kinematicOrbit&quot;, ...
+   &#x27;DateRange&#x27;, [datetime(2020,1,1) datetime(2020,1,31)]);
+[t, pos, aux] = gracefoReading.readItsgProductMulti(files);</pre>
+<p class="excap">exact epochs across the join, then look for gaps</p>
+<pre class="example">tns = gracefoReading.readItsgProductMulti(files, &#x27;TimeFormat&#x27;, &#x27;gpsns&#x27;);
+gaps = gracefoReading.findGaps(tns);</pre>
+<h2>See Also</h2><p><a href="gracefoReading.findItsgFiles.html"><code>gracefoReading.findItsgFiles</code></a>, <a href="gracefoReading.readItsgProduct.html"><code>gracefoReading.readItsgProduct</code></a>, <a href="gracefoReading.readL1bMulti.html"><code>gracefoReading.readL1bMulti</code></a>, <a href="gracefoReading.findGaps.html"><code>gracefoReading.findGaps</code></a></p>
+<div class="footer">gracefoReading v1.0.2 &middot; 2026-09-09 &middot; Matthias Weigelt with support of Anthropic Claude &middot; License: MIT &middot; Generated from the MATLAB help blocks &mdash; do not edit by hand.</div>
+</body></html>

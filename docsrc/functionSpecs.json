@@ -540,6 +540,72 @@
       ]
     },
     {
+      "name": "readItsgProductMulti",
+      "purpose": "Read and concatenate several ITSG product files",
+      "auxFields": [
+        {
+          "name": "product / frame / frameDescription / frameSource",
+          "size": "1x1",
+          "type": "char",
+          "desc": "Taken from the first file and verified against the rest."
+        },
+        {
+          "name": "timeSystem / timeSystemSource / epochDescription",
+          "size": "1x1",
+          "type": "char",
+          "desc": "As in readItsgProduct; 'GPS' for every ITSG product."
+        },
+        {
+          "name": "obsNames / obsUnits",
+          "size": "1xM",
+          "type": "cellstr",
+          "desc": "Names and units of the concatenated OBS columns."
+        },
+        {
+          "name": "groopsType / groopsTypeCode",
+          "size": "1x1",
+          "type": "char / double",
+          "desc": "Epoch type of the first file, e.g. 'ORBIT' and -6."
+        },
+        {
+          "name": "fileNames",
+          "size": "Kx1",
+          "type": "string",
+          "desc": "The input list, in concatenation order."
+        },
+        {
+          "name": "satellites",
+          "size": "Kx1",
+          "type": "string",
+          "desc": "Satellite segment of each file name."
+        },
+        {
+          "name": "epochDates",
+          "size": "Kx1",
+          "type": "datetime",
+          "desc": "Date segment of each file name."
+        },
+        {
+          "name": "recordsPerFile",
+          "size": "Kx1",
+          "type": "double",
+          "desc": "Records contributed by each file; cumsum gives the split points."
+        },
+        {
+          "name": "numRecords",
+          "size": "Kx1",
+          "type": "double",
+          "desc": "Record count declared in each file's header."
+        },
+        {
+          "name": "paddingColumns",
+          "size": "Kx1",
+          "type": "cell",
+          "desc": "Per-file padding column indices; allColumns is deliberately not concatenated."
+        }
+      ]
+    },
+    {
       "name": "decodeQualFlags",
       "purpose": "Decode a bit-string flag column using header metadata",
       "syntax": [
@@ -883,6 +949,48 @@
       "seealso": [
         "readL1bMulti",
         "readL1b"
+      ]
+    },
+    {
+      "name": "findItsgFiles",
+      "purpose": "Locate ITSG product files in an archive by product and date",
+      "auxFields": [
+        {
+          "name": "dates",
+          "size": "Kx1",
+          "type": "datetime",
+          "desc": "Date parsed from each file name."
+        },
+        {
+          "name": "satellites",
+          "size": "Kx1",
+          "type": "string",
+          "desc": "Satellite parsed from each file name."
+        },
+        {
+          "name": "products",
+          "size": "Kx1",
+          "type": "string",
+          "desc": "Product parsed from each file name."
+        },
+        {
+          "name": "compressed",
+          "size": "Kx1",
+          "type": "logical",
+          "desc": "true for a .gz file."
+        },
+        {
+          "name": "firstDate / lastDate",
+          "size": "1x1",
+          "type": "datetime",
+          "desc": "Coverage span; NaT when nothing matched."
+        },
+        {
+          "name": "missingDates",
+          "size": "Mx1",
+          "type": "datetime",
+          "desc": "Calendar days with no file inside the covered span or 'DateRange'."
+        }
       ]
     },
     {

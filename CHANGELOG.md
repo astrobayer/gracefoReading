@@ -57,14 +57,18 @@
 
 ### Tests
 
-- 12 added in `testItsgBatch` (suite 89 → **101 predicted**: 100 passed,
-  1 the documented incomplete).
+- 12 added in `testItsgBatch` (suite 89 → **101**, measured: 100 passed,
+  0 failed, 1 incomplete, CI run 34873244487). Predicted as a split and
+  matched exactly, which is the rule the previous entry's missed
+  reconciliation put in place.
 - Fixtures here are synthetic and in the real GROOPS dialect. Only one
   date of real ITSG data exists in the repository, so a multi-day join
   cannot be exercised against real files; this suite tests the batch
   mechanics and leaves the parsing of real bytes to `testItsgProducts`.
-- Not run: no MATLAB here. The three static gates pass (36 files, 36
-  help blocks, html byte-identical). CI is the gate.
+- Green on the first CI run of this work, with every Tier B assumption
+  holding: the `dir` glob built from a string pattern, the `sortrows`
+  empty guard, `gzip`/`delete` in the discovery test, and the unsized
+  `fileNames` declaration all behaved as reasoned.
 
 ### Added — reader for the TU Graz (ITSG) satellite orbit products (issue #11)
 

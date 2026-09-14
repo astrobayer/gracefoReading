@@ -18,7 +18,7 @@ Facts live in one of the two, not both.
 | | |
 |---|---|
 | Version | 1.0.2 (`gracefoReading.version()`; `Contents.m` and `docsrc/functionSpecs.json` must agree) |
-| Tests | **88 passed, 0 failed, 1 incomplete — 89 total** — CI run 34869994810, head `3618e84`, MATLAB R2026a Update 5, 2026-09-14. **Predicted for the O-9 change: 100 passed, 0 failed, 1 incomplete, 101 total — NOT yet measured.** The incomplete stays `testFullDayKinematicJitter` |
+| Tests | **100 passed, 0 failed, 1 incomplete — 101 total** — CI run 34873244487, head `7672291`, self-hosted Windows runner, MATLAB R2026a Update 5, 2026-09-14. The incomplete is `testFullDayKinematicJitter`, expected until a full ITSG day is in the pool. The prediction was stated as a split and matched it exactly |
 | Static gates | `docsrc/sourceIntegrity.py` 36 files / 0 findings · `docsrc/auditHelp.py` 36 help blocks clean · `git diff --exit-code -- html/` clean — all three run 2026-09-14 in a sandbox without MATLAB |
 | Public units | 13 in `+gracefoReading/`, 11 internal in `+gracefoReading/+internal/` |
 | Tag / release | `v1.0.0` (lightweight tag + GitHub release, 2026-09-06). **v1.0.1 is merged but not tagged or released** — see O-4 |

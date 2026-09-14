@@ -1,5 +1,111 @@
 # Changelog — gracefoReading
 
+## Unreleased
+
+Not version-bumped. A bump is a 31-file change (O-3) and belongs in its
+own commit; these entries are the content, not a release.
+
+### Not done — a reader for the TU Graz operational orbit products (issue #11)
+
+- **Deliberately not implemented, and recorded as obligation O-8.** The
+  issue asks for a reader for
+  `ftp.tugraz.at/pub/ITSG/satelliteOrbitProducts/operational/GRACEFO-1/`
+  and says of the format: "please check rather than assume". The check
+  is not possible from the development sandbox — `ftp.tugraz.at` is
+  refused by the egress policy (403 on CONNECT), attaching
+  `groops-devs/groops` was denied, and no other reachable source
+  documents the layout. **Nothing about these files has been measured.**
+- Two of the four requirements cannot even be specified without a file:
+  the frame must be read from the header rather than inferred from the
+  `_icrf`/`_itrf` filename, and the covariance is wanted "where the
+  product carries it". Both are properties of bytes nobody here has seen.
+- **Answering the issue's actual question:** `readGroopsInstrument` is
+  *not* established as the reader for these files. It requires its own
+  writer's three-line header as line 1, so a leading comment raises
+  `badFormat`; `sscanf('%f')` stops at the first non-numeric column; and
+  `info` has no frame field, so the metadata could not travel with the
+  data even if the parse succeeded. `findL1bFiles` cannot discover them
+  either — its regexp is the PO.DAAC `PROD1B_yyyy-MM-dd_S_RR` convention.
+- The unblock is one real file per sub-product in `tests/realdata/`, or
+  egress for `ftp.tugraz.at`.
+
+### Fixed — readGroopsInstrument lost sub-microsecond epochs
+
+- The time tag was read with `sscanf('%f')`, which rounds the decimal
+  MJD into a double before anything else happens. A double holds MJD
+  58849 to an ulp of **0.63 us**, so every digit below that was noise.
+  The epoch is now recovered from the **printed digits**: the token is
+  split at the decimal point and converted in `int64` throughout.
+- Measured over 100 000 epochs of 2020-01-01, comparing both paths
+  against the exact nanosecond count they should reproduce: the double
+  path was out by up to **314 ns**, the digit path by **0 ns**. A worked
+  single case — the tag `58849.500011574074074` reads as
+  `43201000000000` ns of day exactly, and as `43201000000234` ns through
+  a double.
+- Rounding the fraction to whole nanoseconds can reach a full day for a
+  tag within ~43 ps of midnight. That carry is applied, so seconds of
+  day stays in `[0, 86400)` instead of reporting `86400.0`.
+- Digits past the 15th are dropped, not rounded: the 15th digit of a day
+  is 86 ps, three orders below the nanosecond the result is quoted in,
+  and `str2double` stops being exact beyond it.
+
+### Added — 'TimeFormat' on readGroopsInstrument
+
+- `"mjd"` (default, unchanged), `"datetime"` and `"gpsns"`, matching
+  `readL1b` so the two readers hand off to the same downstream code.
+  `"gpsns"` is only meaningful because of the digit path above; through
+  a double it would have returned nine digits of which three were noise.
+- New error `gracefoReading:readGroopsInstrument:badTimeToken`. An
+  exponential, negative or non-numeric time tag is **refused**, not read
+  approximately. Time tags are validated **before** the declared column
+  count: a tag like `58849.5.5` makes `sscanf('%f')` return three values
+  where two columns were declared, and `fifty` returns none, so the
+  other order reported `countMismatch` for what is really a time-tag
+  fault. A diagnostic is a claim too (R3). This follows `resolveTime`'s precedent exactly: a
+  silent fallback to the double path would reintroduce the error the
+  digit path exists to remove.
+- Reader accuracy is now limited by the **writer**, not the reader:
+  `writeGroopsInstrument` still forms the decimal MJD as a double before
+  printing, so a write-then-read roundtrip remains a ~0.6 us operation.
+  Only a file whose digits carry true sub-microsecond information
+  delivers it.
+
+### Changed — one authority for the time-format mapping
+
+- The `'TimeFormat'` switch moved out of `readL1b` into
+  `+internal/formatEpoch.m`, now called by both readers. The datetime
+  epoch formula was otherwise about to exist in two files, which is the
+  2026-09-06 failure mode; a divergence would have shifted every epoch
+  of one reader with nothing visible to say so.
+
+### Tests
+
+- Six added to `testBatchTools` (8 → 14, suite 68 → **74**): exact
+  nanoseconds against independently derived expectations, agreement of
+  the three `'TimeFormat'` representations, the midnight carry,
+  truncation past the 15th digit, refusal of four malformed tags, and
+  `mustBeMember` validation of the option.
+- Expectations were derived in Python from the printed digits before
+  being hardcoded, per HANDOVER.md section D. The same mirror was
+  fault-injected: all malformed tags refused, split/merge bitwise equal.
+- CI run 34807682341 (R2026a Update 5) ran these for the first time:
+  73 passed, 1 failed. The failure was `testGroopsBadTimeToken`, a real
+  defect in the ordering above rather than a bad test — see the fix in
+  this same entry. Everything else passed first time, including the
+  exactness and midnight-carry cases.
+- **Green after the fix: run 34807977113, 74 passed, 0 failed, 0
+  incomplete, 54.9 s**, matching the corrected prediction exactly.
+
+### Fixed — the record's own test counts
+
+- HANDOVER.md section A said `testReadL1b` 22 and a suite total of 65.
+  The true figures before this change were **25 and 68**: the three
+  MAG1B tests added for issue #9 in v1.0.2 went into `testReadL1b` and
+  the status line was never updated, so v1.0.2 shipped with a stale
+  count. It surfaced only because a prediction was made against it and
+  missed by exactly those three.
+
+
 ## 1.0.2 — 2026-09-09
 
 ### Fixed — MAG1B was unreadable

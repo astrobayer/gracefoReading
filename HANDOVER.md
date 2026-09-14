@@ -1,6 +1,6 @@
 # HANDOVER — gracefoReading
 
-**Revision 3.0 · 2026-09-08 · toolbox v1.0.1**
+**Revision 3.1 · 2026-09-14 · toolbox v1.0.2**
 
 The single point of truth for this repository. Where this document and a
 general engineering habit disagree, this document is right. Read it
@@ -17,16 +17,28 @@ Facts live in one of the two, not both.
 
 | | |
 |---|---|
-| Version | 1.0.1 (`gracefoReading.version()`; `Contents.m` and `docsrc/functionSpecs.json` must agree) |
-| Tests | **65 passed, 0 failed, 0 incomplete** — CI run 34251657704, self-hosted Windows runner, MATLAB R2026a Update 4, 2026-09-08 |
-| Static gates | `docsrc/sourceIntegrity.py` 28 files / 0 findings · `docsrc/auditHelp.py` 28 help blocks clean · `git diff --exit-code -- html/` clean |
-| Public units | 10 in `+gracefoReading/`, 8 internal in `+gracefoReading/+internal/` |
+| Version | 1.0.2 (`gracefoReading.version()`; `Contents.m` and `docsrc/functionSpecs.json` must agree) |
+| Tests | **74 passed, 0 failed, 0 incomplete** — CI run 34807977113, head `4ba4169`, self-hosted Windows runner, MATLAB R2026a Update 5, 2026-09-14. The preceding run 34807682341 was 73/1; `testGroopsBadTimeToken` caught a real ordering defect, fixed before this run |
+| Static gates | `docsrc/sourceIntegrity.py` 29 files / 0 findings · `docsrc/auditHelp.py` 29 help blocks clean · `git diff --exit-code -- html/` clean — all three run 2026-09-14 in a sandbox without MATLAB |
+| Public units | 10 in `+gracefoReading/`, 9 internal in `+gracefoReading/+internal/` |
 | Tag / release | `v1.0.0` (lightweight tag + GitHub release, 2026-09-06). **v1.0.1 is merged but not tagged or released** — see O-4 |
 
 Per-class test counts, for the prediction a next session must make
-*before* running: `testReadL1b` 22, `testUtilities` 15, `testBatchTools`
-8, `testRealData` 8, `testDocConsistency` 7, `testSourceIntegrity` 5.
-Sum 65, which reconciles with the CI total. `0 incomplete` means the
+*before* running: `testReadL1b` **25**, `testUtilities` 15,
+`testBatchTools` **14** (was 8; six added 2026-09-14), `testRealData` 8,
+`testDocConsistency` 7, `testSourceIntegrity` 5. Sum **74**, reconciled
+against the per-class listing of CI run 34807977113. A run reporting
+anything else is a finding, not a rounding.
+
+**These counts were wrong until 2026-09-14, and the error was only
+caught by making the prediction.** This table said `testReadL1b` 22 and
+a total of 65. The real figures before the 2026-09-14 change were 25 and
+**68**: the three MAG1B tests added for issue #9 in v1.0.2 went into
+`testReadL1b` and the table was never updated, so the 1.0.2 bump shipped
+with a stale status line. A prediction of 71 was made from it and missed
+by exactly those three. Predict before running, and reconcile per class
+rather than on the total — a total that is wrong by the same amount in
+both places still agrees with itself. `0 incomplete` means the
 real-data pool resolved and no acceptance point filtered itself out; a
 skipped fixture counts as incomplete and is a finding, not noise.
 
@@ -137,6 +149,7 @@ outside this table claims to be one.
 | O-4 | **Tagging is behind and off-standard.** `v1.0.0` is a *lightweight* tag; VERSIONING.md requires an annotated tag plus a GitHub release per version. v1.0.1 is merged with neither. Tags are immutable and are never moved, so `v1.0.0` stays as it is; the correction is forward-only | owner | before anyone depends on a pinned version |
 | O-5 | **Binary L1B is unsupported** and refuses with an explicit error. Only the ASCII products are read | — | if a binary product is ever needed |
 | O-6 | **RL05+ header conventions are unknown.** If PO.DAAC changes them, extend `internal/parseHeaderVariables.m` and add the new files to `tests/realdata/` | owner | when RL05 appears |
+| O-8 | **The TU Graz operational orbit reader (issue #11) is NOT started, and must not be written from the layout quoted in the issue.** Nothing about these files has been *measured*: `ftp.tugraz.at` is refused by the sandbox egress policy (403 on CONNECT, 2026-09-14), attaching `groops-devs/groops` was denied, and no other reachable source documents the format. Two of the issue's four asks — the frame read from the header, epoch-wise covariance where the product carries it — cannot even be specified without a file. **`readGroopsInstrument` is not established as the reader for them**: it requires its own writer's three-line header as line 1, so any leading comment raises `badFormat`; its `sscanf('%f')` stops at the first non-numeric column; and `info` carries no frame field, so R2 could not be met even if it parsed. `findL1bFiles` cannot discover them either — its regexp is the PO.DAAC `PROD1B_yyyy-MM-dd_S_RR` convention. Section C applies exactly: v1 failed on every real RL04 file because it parsed an invented header style | owner | one real file per sub-product (`reducedDynamicOrbit`, `kinematicOrbit`, `attitude`, `covariance`) in `tests/realdata/`, or egress for `ftp.tugraz.at` |
 | O-7 | **Line-wise regexp tokenisation has headroom.** An 86400-line day file parses acceptably, but a typed `textscan` fast path exists for fixed-layout products. Profile in MATLAB before optimising — no speed claim has been measured | — | if a day file becomes a bottleneck |
 
 Closed: **O-12 of `NonGravForces`** (issue #6, `readL1bMulti` raised
@@ -157,6 +170,10 @@ PR #7, merged 2026-09-08.
 | 2026-09-06 | `docsrc/mfile.py` becomes the single point of access for help-block boundaries | four copies of the rule "the declaration is line 1" existed and all four were wrong the same way; writer and auditor shared the error, so the audit certified files MATLAB could not parse |
 | 2026-09-08 | `readL1bMulti` returns clean empties for an all-excluding range rather than erroring, and reports it with `noRecordsInRange` | erroring would make the two readers disagree on one input class and would keep `NonGravForces` `l1bLoad`'s single/multi split alive permanently; silence would hide a wrong `TimeRange` |
 | 2026-09-08 | `localWarnNoRecords` derives every number in its message from the run | diagnostic text is a claim too (R3); a message restating the call can drift from what happened |
+| 2026-09-14 | Issue #11 stopped **before** implementation and recorded as O-8 instead of being built from the layout the issue quotes | the issue itself asks to "check rather than assume", and the check is impossible from here. `resolveTime` already states the governing rule for this repository: a unit "is a property of the file, not of the product family. Do not infer a unit from a sibling product" — building the Graz reader from the COST-G benchmark layout is exactly that inference |
+| 2026-09-14 | `readGroopsInstrument` recovers the epoch from the printed **digits** (integer split at the decimal point, int64 throughout) rather than from `sscanf('%f')` | measured, not assumed: over 100 000 epochs of 2020-01-01 the double path misplaced tags by up to **314 ns** and the digit path by **0 ns**. Without this, `'TimeFormat', "gpsns"` would return nine digits of which three are noise |
+| 2026-09-14 | `readGroopsInstrument` validates time tags **before** the declared column count | CI run 34807682341 showed the other order naming the wrong cause: a tag like `58849.5.5` makes `sscanf('%f')` return three values where two columns were declared, and `fifty` returns none, so both were reported as `countMismatch` when the real fault was the time tag. R3 — a diagnostic is a claim too |
+| 2026-09-14 | The `'TimeFormat'` mapping moved to `internal/formatEpoch`, called by both readers | the datetime epoch formula was about to exist in two files. That is the 2026-09-06 failure mode exactly, and a divergence would shift every epoch of one reader with nothing visible to say so |
 
 ---
 
@@ -177,7 +194,20 @@ PR #7, merged 2026-09-08.
 4. **The classic-GRACE path is unvalidated (O-1).** It warns on every
    use. Do not let a green suite be read as evidence about it: no real
    classic file exists in this repository.
-5. **Two test suites need things the sandbox does not have.**
+5. **Issue #11 is blocked, not forgotten (O-8).** A reader for the TU
+   Graz operational orbit products was asked for and deliberately not
+   written. Do not take the `readGroopsInstrument` work of 2026-09-14
+   as a down payment on it: that function still reads only its own
+   writer's convention, and whether a Graz file is that convention is
+   unknown. The unblock is one real file per sub-product in
+   `tests/realdata/`, nothing more.
+6. **Section A's test counts were stale for a whole release, and only
+   a prediction caught it.** See the note under the per-class table: the
+   v1.0.2 MAG1B work added three `testReadL1b` tests that were never
+   recorded, so the status line said 65 when the suite ran 68. Nothing
+   failed because of it — a stale count is invisible until someone
+   predicts against it, which is the reason the prediction step exists.
+7. **Two test suites need things the sandbox does not have.**
    `testRealData` needs `READING_DATA_POOL`; the full suite needs MATLAB.
    A session with neither can still run all three static gates, and
    should say so rather than reporting "green".

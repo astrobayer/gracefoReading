@@ -1,14 +1,18 @@
-# CONCEPT — Preprocessing layer of gracefoReading (ACC calibration, LRI)
+# CONCEPT — Instrument preprocessing (gracefoReading) and accelerometer calibration (NonGravForces)
 
-**Revision 0.3 (DRAFT, Q1–Q3 and Q5 decided) · 2026-09-18 · written with Claude Opus 5 (Anthropic)**
+**Revision 0.4 (DRAFT) · 2026-09-18 · written with Claude Opus 5 (Anthropic)**
 
-This file is the **single point of truth for the design** of the
-preprocessing layer. `HANDOVER.md` stays the single point of truth for
-status, obligations and the decision record, and points here. Nothing in
-this file is implemented yet. Decisions still open (section 11) block the
-work packages named there until the owner has answered.
-Rev 0.2: Q1 = A, Q2 = lsqvce, Q3 = no fill by default. Rev 0.3: Q5 = keep the
-repo's help-footer rule (owner, 2026-09-18).
+This file is the **single point of truth for the design** of two pieces of
+work that share one pipeline: the instrument-level preprocessing layer of
+`gracefoReading` (masks, QC, CRN, gaps, correlation, the LRI chain) and the
+accelerometer calibration application in `NonGravForces.app`. Each
+repository's `HANDOVER.md` stays the single point of truth for its own
+status, obligations and decisions and points here (gracefoReading O-13,
+NonGravForces O-45). Nothing in this file is implemented yet.
+
+History: Rev 0.1 draft · Rev 0.2 Q1 = A, Q2 = lsqvce, Q3 = no fill ·
+Rev 0.3 Q5 = keep the footer rule · **Rev 0.4 Q7 = the ACC calibration
+application lives in NonGravForces**, owner 2026-09-18 (section 11).
 
 Read at: gracefoReading `a18e9ad` (v1.0.2) · referenceSystem `311e060`
 (2.1.244) · NonGravForces `3cc0123` (0.12.0) · lsqvce `ac981cd` (6.1).
@@ -17,278 +21,260 @@ v2.4.2).
 
 ---
 
-## 1. Why, and what is in scope
+## 1. Why, and where each part lives
 
 GRACE-FO Level-1B series are not usable as delivered: spurious samples must
 be found and down-weighted, systematic effects must be pre-estimated or
 pre-eliminated, gaps must be bridged for consumers that need continuity, and
 hidden dependencies (β′ angle, eclipse, solar activity, SNR) must be made
-visible by correlation analysis. Today this happens in a stand-alone legacy
-toolbox (AccelBiasScaleToolbox v2.4.2) and partly in `NonGravForces`; the
-two have drifted and duplicate each other.
+visible by correlation analysis.
 
-| in scope | out of scope (authority elsewhere) |
+**The split follows the dependency that already exists.** A force model
+needs orbit, attitude and mass, so NonGravForces reads through
+gracefoReading (`io/private/l1bLoad` → `readL1bMulti`). Calibration needs
+data *and* the force model, so it sits above both — in NonGravForces' `app`
+layer, beside `forceBudget` and `densityInversion`. Everything that needs no
+physics and serves every instrument (ACC, KBR, LRI) sits in gracefoReading.
+
+| gracefoReading — instrument data, no physics | NonGravForces — physics and the ACC application |
 |---|---|
-| ACC1B/ACT1B: masking, QC, CRN consistency, bias/scale calibration, gaps, attribution | reading (L0 of this repo, unchanged) |
-| LRI1B (KBR1B as reference): masking, QC, phase jumps, KBR↔LRI comparison, gaps, spectra, attribution | force models, environment (`NonGravForces`) |
-| shared: data container, masks, CRN kernel, gap policy, drivers, correlation, estimation bridge | time scales, frames, ephemerides (`referenceSystem`) |
-| | least-squares engine (`lsqvce`, Q2) · orbit/gravity estimation, LGD, mascons |
+| reading (L0, unchanged) | force model `Model`, environment, eclipse, space weather |
+| `Arc`, `preproc.Config` | `app.calibrate` (upgraded to the v3 design), `app.Calibration` |
+| exact CRN kernel, masks (qualflg, thrusters, eclipse), generic QC | bias/scale/K2/1-rev/jump design, time-varying scale, model comparison |
+| alignment check, gaps and fill | per-revolution parameters, attribution to force constituents and space weather |
+| estimation bridge to lsqvce, observability, bootstrap, blocked CV | EIV bound, scale-matrix decomposition, ACC truth generator |
+| drivers (β′, argument of latitude), correlation analysis | `sensor.Electrostatic` (takes the CRN kernel from gracefoReading) |
+| the LRI/KBR chain | |
 
-GRACE-FO first. Classic GRACE ACC1B/KBR1B is blocked by O-1 (layouts
-unvalidated) and enters only after O-1 is discharged.
+Out of scope for both: time scales and frames (referenceSystem), orbit and
+gravity estimation, LGD, mascons. GRACE-FO first; classic GRACE is blocked
+by gracefoReading O-1.
 
 ---
 
 ## 2. Authority map — one owner per capability (R1)
 
-The rule that decides every row: **a capability that already has an owner is
-called, never re-implemented**. The v3 handover was written for a stand-alone
-toolbox and re-implements five of these; those parts are retired (section 10).
-
-| capability | authority | consequence here |
+| capability | authority | consequence |
 |---|---|---|
-| L1B / ITSG / GROOPS reading, gz, cache | `gracefoReading` L0: `findL1bFiles`, `readL1bMulti`, `findItsgFiles`, `readItsgProductMulti`, `readGroopsInstrument` | v3 `+io` (findL1bFiles, readL1bArc, readGroopsArc) **retired** |
-| qualflg bit meanings | the file's own header via `decodeQualFlags` | v3's handbook bit table from memory **retired** (it is the O-1 mistake) |
-| sampling gaps, segments | `findGaps` | reused by the gap stage |
-| int64 GPS-ns epochs | `readL1b 'TimeFormat' "gpsns"` (`internal/formatEpoch`) | `Arc` accepts gpsns only; no own conversion |
-| time scales, leap seconds | `referenceSystem.convertTimeScale`, `leapSecondTable` | v3 `+time` toGps/fromGps/leapSeconds **retired** |
-| rotations, quaternions, SLERP, Sun, ITRS→GCRS | `referenceSystem` (`rotationItrsToGcrs`, `interpolateQuaternions`, `geocentricBodyState`, `rotationGcrsToRsw`) | β′, argument of latitude computed from these (no owner yet → owned here, `preproc.drivers`) |
-| modelled non-gravitational acceleration | `NonGravForces.Model` · ITSG `nonConservativeForces` · any GROOPS file | enters **as data** (an `Arc`), never as a call (Q1) |
-| eclipse factor, space weather | `NonGravForces.env.eclipseFactor`, `NonGravForces.io.spaceWeather` | enter **as data** (driver series) (Q1) |
-| exact ATBD CRN kernel + derivative kernels | **nobody** — `NonGravForces.sensor.Electrostatic` states "not implemented, supply the kernel" | **owned here** (`preproc.crnKernel`, port of v2 `crnFilter`); NonGravForces then consumes it |
-| residual QC: Hampel, impulses, jumps, event table | `NonGravForces.qc` 0.12.0 → **`gracefoReading.preproc.qc`** (Q1) | ported here (P-03); NonGravForces forwards for one release, then deletes (P-13) |
-| least-squares estimation (weights, robust, ARMA/PSD/VAR whitening, local-parameter pre-elimination, priors, VCE) | `lsqvce.fit` 6.1 (Q2) | the one estimator, called only from `preproc.estimate`; v3 `fit.solve` and `+noise` **retired** |
-| accelerometer calibration | `NonGravForces.app.calibrate` → **`gracefoReading.acc.calibrate`** (Q1, Q2) | one calibration in the ecosystem; NonGravForces forwards, then deletes (P-13) |
-| processing settings | `gracefoReading.preproc.Config` (one resolved, hashed object) | every stage reads its section; the result carries it |
+| L1B / ITSG / GROOPS reading, gz, cache | gracefoReading L0 | v3 `+io` **retired** |
+| qualflg bit meanings | the file's own header via `decodeQualFlags` | v3 handbook bit table **retired** (O-1 lesson) |
+| gaps, segments | `gracefoReading.findGaps` | reused |
+| int64 GPS-ns epochs | `readL1b 'TimeFormat' "gpsns"` | `Arc` accepts gpsns only |
+| time scales, leap seconds, rotations, quaternions, Sun | referenceSystem | v3 `+time` **retired** |
+| orbit in the celestial frame | `NonGravForces.io.readGNV1B` (GNV1B ITRS→GCRS) · ITSG `reducedDynamicOrbit` via `readItsgProduct` | `preproc.drivers` takes an orbit `Arc` whose frame is celestial and refuses any other; it never rotates GNV1B itself |
+| β′, argument of latitude | **nobody yet** → `gracefoReading.preproc.drivers` | from the orbit `Arc` and `referenceSystem.geocentricBodyState` |
+| modelled non-gravitational acceleration, per effect | `NonGravForces.Model` (`series`, `budget`) | inside `app.calibrate`; external references (ITSG `nonConservativeForces`, GROOPS) enter as an `Arc` |
+| eclipse factor, space weather | `NonGravForces.env.eclipseFactor`, `io.spaceWeather` | used directly by `app.calibrate`; enter gracefoReading as driver data |
+| exact ATBD CRN kernel + derivative kernels | **nobody yet** (`sensor.Electrostatic`: "not implemented, supply the kernel") → `gracefoReading.preproc.crnKernel` | port of v2 `crnFilter`; NonGravForces consumes it |
+| residual QC: Hampel, impulses, jumps, event table | `NonGravForces.qc` 0.12.0 → **`gracefoReading.preproc.qc`** | ported down (LRI needs it; needs the CRN kernel); NonGravForces forwards for one release, then deletes (N-01) |
+| least-squares estimation | `lsqvce.fit` 6.1, reached **only** through `gracefoReading.preproc.estimate` | one estimator, one bridge, used by the LRI chain and by `app.calibrate`; `app.calibrate`'s own QR solver **retired** (N-02) |
+| accelerometer calibration | **`NonGravForces.app.calibrate`**, upgraded in place | one calibration in the ecosystem; v3 `+fit`, `+unc`, `+diag` ACC parts land here |
+| processing settings | `gracefoReading.preproc.Config` (instrument stages) embedded in the calibration options | one resolved, hashed object per run; the result carries it |
 
 ---
 
 ## 3. Architecture
 
-### 3.1 Layers inside the repository (downward calls only, tested mechanically)
+### 3.1 Dependency graph (acyclic)
 
 ```
-L4  gracefoReading.preprocess                     single point of access
-L3  +gracefoReading/+acc    +gracefoReading/+lri  product chains
-L2  +gracefoReading/+preproc                      shared stages, estimation bridge
-L1  gracefoReading.Arc, preproc.Config            data model, settings
-L0  gracefoReading.read*/find*/decode*/…          existing reader, UNCHANGED, zero dependencies
+referenceSystem <-- gracefoReading (L2 preproc.drivers)   <-- NonGravForces (io, env, app)
+lsqvce          <-- gracefoReading (L2 preproc.estimate)  <-- NonGravForces.app.calibrate
 ```
 
-- **L0 keeps zero external dependencies.** NonGravForces and every other
-  consumer can keep using the reader without referenceSystem or lsqvce.
-- `referenceSystem` (≥ 2.1) is called only from L2 `preproc.drivers`;
-  `lsqvce` (≥ 6.1) only from L2 `preproc.estimate`. A missing dependency
-  errors at the point of use with `gracefoReading:<fn>:depMissing`, naming
-  the setup function — never a silent fallback (R4).
-- A layering test (as in referenceSystem) fails any upward call and any
-  call to `lsqvce`/`referenceSystem` outside the two named files.
+Checked 2026-09-18: no `.m` file of lsqvce `ac981cd` or referenceSystem
+`311e060` calls gracefoReading or NonGravForces. NonGravForces never calls
+lsqvce directly, so its "no least-squares code inside NonGravForces" rule
+becomes true again once `app.calibrate`'s own QR is retired.
 
-### 3.2 Dependency graph between repositories — **decided: A (Q1)**
-
-NonGravForces already depends on gracefoReading. If the new layer *calls*
-NonGravForces, the two repositories depend on each other.
-
-| option | graph | cost |
-|---|---|---|
-| **A (decided)** | referenceSystem ← gracefoReading ← NonGravForces; NonGravForces outputs (model, eclipse, space weather) enter as data | NonGravForces `qc` and `app.calibrate` move here (instrument level) and are forwarded there for one release, then deleted — a change in the NonGravForces repo |
-| B | preproc calls NonGravForces; rule: NonGravForces may call only gracefoReading L0 | no code moves, but each repo's CI must check out the other's `main`; a breaking change needs coordinated PRs in both; neither toolbox installs alone |
-
-Why A: gracefoReading is the instrument-data layer, NonGravForces the physics
-layer on top. QC on L1B residuals and calibration of an L1B instrument are
-instrument-level; the CRN kernel they both need is owned here anyway. The
-calibration must also accept a reference that did *not* come from
-NonGravForces (ITSG, GROOPS), so taking it as data is required regardless.
-
-Resulting graph, checked 2026-09-18 by searching every `.m` file of lsqvce
-`ac981cd` and referenceSystem `311e060` for calls into gracefoReading or
-NonGravForces (none found): **acyclic**.
+### 3.2 Layers in gracefoReading (downward calls only, tested mechanically)
 
 ```
-referenceSystem <-- gracefoReading (L2 drivers)  <-- NonGravForces
-lsqvce          <-- gracefoReading (L2 estimate) <-- (transitively, after P-13)
+L4  gracefoReading.preprocess                 single point of access, instrument level
+L3  +gracefoReading/+lri                      LRI/KBR chain
+L2  +gracefoReading/+preproc                  shared stages; the only callers of lsqvce and referenceSystem
+L1  gracefoReading.Arc, preproc.Config        data model, settings
+L0  gracefoReading.read*/find*/decode*/…      reader, UNCHANGED, zero dependencies
 ```
 
-Consequence for NonGravForces: after P-13 it reaches lsqvce through
-`gracefoReading.acc.calibrate`; its B.4 row ("lsqvce not a dependency")
-stays true for its own code and must say so when P-13 lands.
+L0 keeps zero external dependencies. A missing dependency errors at the
+point of use with `gracefoReading:<fn>:depMissing` naming the setup function
+(R4). The layering test fails any upward call and any call to lsqvce or
+referenceSystem outside `preproc.estimate` and `preproc.drivers`.
+
+### 3.3 In NonGravForces
+
+The calibration application stays in the `app` layer (L8) and calls
+gracefoReading L1–L2 by qualified name, exactly as it calls referenceSystem
+today. NonGravForces' governing rule (its HANDOVER A.2, "computes forces and
+torques and nothing else") must be reworded to admit the `app` layer it
+already has (N-06).
 
 ---
 
-## 4. Single point of access
+## 4. Single points of access
 
-One entry, chained after reading, **product-driven** (the chain is chosen by
-`arc.product`, which is read from the file — R3, never declared):
+**Instrument level (any product) — gracefoReading**, chained after reading;
+the chain is chosen by `arc.product`, read from the file (R3):
 
 ```matlab
-% read — L0, unchanged
-files       = gracefoReading.findL1bFiles(root, "ACT1B", 'Satellite', "C", 'DateRange', dr);
 [t, a, aux] = gracefoReading.readL1bMulti(files, 'TimeFormat', "gpsns");
-acc         = gracefoReading.Arc(t, a, aux);             % the chain point; metadata travels
-
-% easy: the product preset
-res = gracefoReading.preprocess(acc, 'Reference', mdl);  % mdl: an Arc of modelled accelerations
-
-% powerful: one Config, every knob, reproducible
-cfg = gracefoReading.preproc.Config(acc);                % preset for the measured product
-cfg.acc.scale = "full";  cfg.fill.method = "collocation";
-res = gracefoReading.preprocess(acc, cfg, 'Reference', mdl, 'Drivers', drv);
-
-% LRI — same entry, other product
-lri = gracefoReading.Arc(tl, rl, auxl);   kbr = gracefoReading.Arc(tk, rk, auxk);
-res = gracefoReading.preprocess(lri, 'Reference', kbr, 'Drivers', drv);
+acc = gracefoReading.Arc(t, a, aux);
+res = gracefoReading.preprocess(acc, 'Reference', ref);          % masks, QC, CRN, gaps, report
+res = gracefoReading.preprocess(lri, 'Reference', kbr, 'Drivers', drv);   % LRI chain
 ```
 
-Three interface levels, **one code path** (v3 F4): `preprocess` only
-composes the stage functions below; a user who chains the stages by hand runs
-the same code. Every stage is `Arc → Arc (+ info)` or `Arc → result`.
+**Accelerometer calibration — NonGravForces**, chained after the same read:
 
-`res` (field set pinned by a contract test):
+```matlab
+acc = gracefoReading.Arc(t, a, aux);
+M   = NonGravForces.Model(NonGravForces.geom.graceFO("C"), NonGravForces.Options("standard"), ...
+                         'Eop', eop, 'SpaceWeather', sw);
+res = NonGravForces.app.calibrate(acc, M, 'Orbit', orb, 'Attitude', att);   % a priori from M
+res = NonGravForces.app.calibrate(acc, itsgArc);                           % external reference
+cfg = gracefoReading.preproc.Config(acc);                                  % full control
+res = NonGravForces.app.calibrate(acc, M, 'Orbit', orb, 'Attitude', att, ...
+          'Preproc', cfg, 'Scale', "full", 'Bias', "pspline");
+```
 
-| field | content |
-|---|---|
-| `arc` | cleaned `Arc`: weights, named mask layers, `filled` layer, provenance |
-| `reference` | the reference aligned onto `arc` epochs (CRN-consistent) |
-| `calibration` | `acc.Calibration` (apply / invert / summaryTable / save / load) or the LRI comparison struct |
-| `diagnostics` | preflight gates, per-layer removal counts, alignment verdict, noise model |
-| `correlation` | driver table and binned maps (section 7) |
-| `flags` | unique warning identifiers with their messages, in order of first occurrence |
-| `config` | the resolved `Config`; `preprocess(arc, res.config, …)` reproduces `res` |
-| `provenance` | toolbox + dependency versions, config SHA-256, input content hashes, UTC time |
+- The reference is a `Model` (then `'Orbit'` — GNV1B via `io.readGNV1B` —
+  and `'Attitude'` — SCA1B via `io.readSCA1B` — are required, and the a
+  priori acceleration, **per effect**, is evaluated on the ACC epochs through
+  `Model.budget(epoch, r, v, q)`) or an `Arc` (ITSG, GROOPS, a stored run).
+- `app.calibrate` runs the instrument stages by calling
+  `gracefoReading.preprocess` — **one code path** for masks, QC, CRN,
+  alignment and gaps (v3 F4) — then design, estimation through
+  `preproc.estimate`, uncertainty, attribution.
+- Per-effect a priori (drag, radiation, thermal) is what makes constituent
+  attribution possible (v3 D7); this is the concrete gain of calibrating
+  inside NonGravForces.
+
+`res` of `gracefoReading.preprocess` (field set pinned by a contract test):
+`arc` (cleaned: weights, named layers, `filled`, provenance), `reference`
+(aligned, CRN-consistent), `diagnostics` (gates, per-layer removal counts,
+alignment verdict, noise model), `correlation`, `flags`, `config`,
+`provenance`. `app.calibrate` returns the same fields plus `calibration`
+(an `app.Calibration`: apply / invert / summaryTable / save / load) and
+`attribution`.
 
 ---
 
 ## 5. Data model
 
-**`gracefoReading.Arc`** (value class). Constructed from the reader's triple;
-refuses anything but `int64` gpsns time (`gracefoReading:Arc:timeFormat`).
+**`gracefoReading.Arc`** (value class), constructed from the reader's triple;
+refuses anything but int64 gpsns time (`gracefoReading:Arc:timeFormat`).
 
 | property | type, size | source |
 |---|---|---|
 | `t` | int64 N×1, strictly increasing | reader, gpsns |
 | `obs` | double N×M | reader |
-| `names`, `units` | string 1×M | file header (`aux.obsNames`, `aux.variableUnits`) |
-| `product`, `satellite`, `frame`, `frameSource` | string | `aux`; a frame not stated by the file or by an explicit option stays `""` and a stage needing it refuses (v3 F5) |
+| `names`, `units` | string 1×M | file header |
+| `product`, `satellite`, `frame`, `frameSource` | string | `aux`; a frame the file or an explicit option does not state stays `""`, and a stage needing it refuses (v3 F5) |
 | `weights` | double N×1 in [0,1] | `min` over layers; fits scale rows by √w |
-| `layers` | struct of N×1 logical, true = remove | additive, named; layers only ever remove |
-| `filled` | logical N×1 | samples created by the gap stage; weight 0 in every fit |
+| `layers` | struct of N×1 logical, true = remove | additive, named; layers only remove |
+| `filled` | logical N×1 | created by the gap stage; weight 0 in every fit |
 | `provenance` | struct array, append-only | one entry per stage |
 
-**Columns are selected by name through a product dictionary** (ACT1B:
-`lin_accl_x/y/z`; LRI1B: taken from the real header, V-3). No positional
-fallback: a missing name errors and lists what exists (v3 F5).
+Columns are selected by name through a product dictionary (ACT1B:
+`lin_accl_x/y/z`; LRI1B: from the real header, V-3). No positional fallback.
 
-**`preproc.Config`** — the single source of settings. Sections: `mask`,
-`qc`, `crn`, `fill`, `align`, `acc`, `lri`, `estimate`, `unc`, `drivers`,
-`run`. `Config(arc)` gives the preset for the measured product; unknown
-fields error; the resolved object is hashed (SHA-256) into provenance.
-Options whose default would be an assumption default to **empty** and the
-report says which value was used (R5).
+**`gracefoReading.preproc.Config`** — sections `mask`, `qc`, `crn`,
+`fill`, `align`, `lri`, `estimate`, `unc`, `drivers`, `run`; `Config(arc)`
+gives the preset for the measured product; unknown fields error; the
+resolved object is hashed into provenance. Options whose default would be an
+assumption default to empty (R5). `app.calibrate` takes it as `'Preproc'`
+and adds its own sections under NonGravForces' option conventions.
 
 ---
 
 ## 6. Pipeline
 
-### 6.1 Common skeleton (both chains)
+### 6.1 Instrument stages (gracefoReading, shared)
 
-| # | stage | function | what it guarantees |
+| # | stage | function | guarantee |
 |---|---|---|---|
-| 1 | mask | `preproc.mask` | qualflg layers via `decodeQualFlags` (file's own meanings); THR1B windows (pre/post margins justified by the CRN span); eclipse transitions from a driver series; CRN edges; user layer |
-| 2 | QC | `preproc.qc` | residual-based outliers, impulses (matched filter on the CRN impulse response, THR1B priors), jumps (reported, become parameters — never masked) |
-| 3 | align | `preproc.align`, `preproc.checkAlignment` | reference onto observation epochs; lag diagnostic ±60 s, warns > 1 s, **never shifts silently** (v3 F2) |
-| 4 | consistency | `preproc.crnKernel`, `preproc.crnApply` | exact ATBD kernel, normalised at f0 (DC gain 1.0004533 kept); chunked per file day with half-span overlap, bit-identical to unchunked; NaN edges, never reflection |
-| 5 | preflight gate | `preproc.observability` | refuses or downgrades unidentifiable parameters **before** the fit |
-| 6 | systematics | `acc.calibrate` / `lri.compareKbr` → `preproc.estimate` | pre-estimate or pre-eliminate (6.4) |
-| 7 | uncertainty | lsqvce whitened covariance, `preproc.bootstrap`, `preproc.crossval`, `acc.eivBound` | honest sigmas under coloured noise |
-| 8 | gaps | `preproc.fill` | policy from `Config.fill` (6.5) |
+| 1 | mask | `preproc.mask` | qualflg layers via `decodeQualFlags`; THR1B windows (margins justified by the CRN span); eclipse transitions from a driver series; CRN edges; user layer |
+| 2 | QC | `preproc.qc` | residual-based outliers, impulses (matched filter on the CRN impulse response, THR1B priors), jumps (reported, become parameters, never masked) |
+| 3 | align | `preproc.align`, `preproc.checkAlignment` | reference onto observation epochs; lag diagnostic ±60 s, warns > 1 s, never shifts silently (v3 F2) |
+| 4 | consistency | `preproc.crnKernel`, `preproc.crnApply` | exact ATBD kernel, normalised at f0, DC gain 1.0004533 kept; chunked per file day with half-span overlap, bit-identical to unchunked; NaN edges |
+| 5 | gate | `preproc.observability` | refuses or downgrades unidentifiable parameters before any fit |
+| 6 | estimate | `preproc.estimate` | the lsqvce bridge (6.4) |
+| 7 | uncertainty | lsqvce whitened covariance, `preproc.bootstrap`, `preproc.crossval` | honest sigmas under coloured noise |
+| 8 | gaps | `preproc.fill` | 6.5 |
 | 9 | correlation | `preproc.drivers`, `preproc.correlate` | section 7 |
-| 10 | output | `res`, `acc.Calibration.save`, `writeGroopsInstrument` | GROOPS export inherits O-2 (writer unverified) |
 
-### 6.2 ACC chain (`+acc`)
+### 6.2 ACC calibration (NonGravForces `app`)
 
-Observation model per axis i, after masking and with H the CRN kernel:
+Per axis i, H the CRN kernel from `preproc.crnKernel`:
 
   y_i(t) = H∗b_i(t) + Σ_j S_ij·(H∗a_j)(t) [+ K2_i·(H∗a_i)², demeaned] [+ 1/rev] [+ Σ jumps] + e_i(t),  e coloured.
 
 - Bias basis `constant | linear | hat | pspline`, filtered by H like every
-  deterministic column (v2 insight: `[H·B, H·a]`); knot spacing below the
-  kernel span warns.
-- Scale `diag | full | mask`. **Cross-track scale fixed by default**
-  (low sensitivity); `full` S gated by the model-axis VIF (v3 I.5-3).
-- **Refused combination**: per-revolution scale together with 1/rev empirical
-  terms (measured anti-correlation r ≈ −0.7).
-- Time-varying s(t) only with its pointwise σ band and an `isDriftSignificant`
-  flag (v3 I.5-1).
-- Every scale is reported with the errors-in-variables attenuation bound
-  (v3 D4) — a bound, not a correction.
-- Satellite D ACT1B is a transplant product: its "calibration" measures the
-  transplant, and the report says so (V-5).
-- `acc.Calibration`: apply / invert (with the EIV caveat) / summaryTable /
-  versioned save and load.
+  deterministic column; knot spacing below the kernel span warns.
+- Scale `diag | full | mask`; cross-track scale fixed by default; full S
+  gated by the model-axis VIF (v3 I.5-3).
+- **Refused combination:** per-revolution scale with 1/rev empirical terms
+  (measured r ≈ −0.7).
+- Time-varying s(t) only with its pointwise σ band and an
+  `isDriftSignificant` flag (v3 I.5-1).
+- Every scale carries the errors-in-variables attenuation bound (v3 D4).
+- Satellite D ACT1B is a transplant product; its report says so (V-5).
+- Attribution: per-revolution parameters regressed on per-effect a priori
+  amplitudes, space weather, β′, argument of latitude, through
+  `preproc.correlate`; VIF > 10 → verdict `unresolved`.
 
-### 6.3 LRI chain (`+lri`)
+### 6.3 LRI chain (gracefoReading `+lri`)
 
 - `lri.observables`: range, range-rate, range-acceleration with the
-  correction columns the **real header** declares (light-time, antenna
-  offset — names, signs and presence from `LRI1B_2020-01-01_Y_04`, V-3).
+  correction columns the real header declares (V-3).
 - `lri.detectPhaseJumps`: a range step is a CRN-shaped doublet in
-  range-acceleration; matched-filter detection through the same `preproc.qc`
-  machinery with the CRN derivative kernel as template.
+  range-acceleration; detected through `preproc.qc` with the CRN derivative
+  kernel as template.
 - `lri.compareKbr`: KBR (5 s) and LRI (2 s) on common epochs with
-  CRN-consistent filtering (presets V-2); estimates through
-  `preproc.estimate`: time-tag offset (bounded, reported), LRI/KBR scale
-  factor, bias/drift of the difference; residual difference is the product.
+  CRN-consistent filtering (V-2); time-tag offset (bounded, reported),
+  LRI/KBR scale factor, bias/drift of the difference, through
+  `preproc.estimate`.
 - `lri.spectrum`: ASD of LRI, KBR and their difference (gap-aware).
-- Residuals against a reference orbit or gravity field are **out of scope**
-  (Q4, proposal in force): they need orbit integration and a background field.
+- Residuals against a reference orbit or gravity field: out of scope (Q4).
 
 ### 6.4 Pre-estimation versus pre-elimination (`Config.estimate.mode`)
 
-- `"preestimate"`: nuisance parameters are estimated, applied to the data,
-  reported with covariance. `res.arc` holds corrected data.
-- `"preeliminate"`: the nuisance columns are **not** subtracted; they are
-  handed on as lsqvce *local* parameters (`localParams`, scope `arc`/`day`)
-  so the downstream adjustment reduces them by Schur complement under its own
-  stochastic model. `res` carries the nuisance design, not an estimate.
-- Both run through `preproc.estimate`, the only caller of `lsqvce.fit`.
-  Regularisation is declared as lsqvce priors; its weight comes from the
-  variance-component estimate (REML-type) or blocked CV — plain GCV is not
+- `"preestimate"`: nuisance parameters estimated, applied, reported with
+  covariance; `res.arc` holds corrected data.
+- `"preeliminate"`: nuisance columns are handed on as lsqvce local
+  parameters (scope `arc`/`day`) so the downstream adjustment reduces them by
+  Schur complement under its own stochastic model.
+- Regularisation is declared as lsqvce priors; its weight comes from the
+  variance-component estimate (REML-type) or blocked CV. Plain GCV is not
   offered (v3 D2).
 
-### 6.5 Gaps (`Config.fill`) — **decided (Q3)**
+### 6.5 Gaps (`Config.fill`)
 
-| method | fills | proposed use |
+| method | fills | use |
 |---|---|---|
-| `none` (**default**) | nothing; gaps are reported (`findGaps`), arcs split there | estimation, and every run that does not ask |
-| `collocation` (on request) | least-squares prediction with the **fitted** noise covariance (lsqvce model), gaps ≤ `maxGap` only | consumers needing continuity |
-| `reference` (on explicit request) | calibrated reference (ACC: S·H∗a + b; LRI: aligned KBR) + collocated residual | continuity across gaps longer than collocation can bridge |
+| `none` (**default**) | nothing; gaps reported (`findGaps`), arcs split there | estimation, and every run that does not ask |
+| `collocation` (on request) | prediction with the fitted noise covariance, gaps ≤ `maxGap` | consumers needing continuity |
+| `reference` (explicit request) | calibrated reference + collocated residual | continuity beyond what collocation bridges |
 
-`maxGap` has **no default** (R5): `collocation` or `reference` without it
-refuses with `gracefoReading:preproc:fill:maxGapMissing`. Gaps longer than
-`maxGap` stay unfilled and are reported, never silently bridged.
-
-Filled samples are always in `arc.filled`, carry weight 0 in every fit, and
-are counted in the report. A filled sample never re-enters an estimate: model-
-aided filling imprints the model into the data.
+`maxGap` has no default: a fill without it refuses
+(`gracefoReading:preproc:fill:maxGapMissing`). Filled samples are in
+`arc.filled`, weigh 0 in every fit, and never re-enter an estimate.
 
 ---
 
 ## 7. Correlation analysis (`preproc.drivers`, `preproc.correlate`)
 
-**Drivers** on the arc epochs, computed once and shared by both chains:
-β′ angle and argument of latitude (GNV1B via L0 + `referenceSystem`
-ITRS→GCRS + Sun), eclipse factor and space weather (data, Q1), thruster
-counts (THR1B), LRI/KBR SNR, reference-force constituents when supplied.
+**Drivers** on the arc epochs, computed once, shared by LRI and ACC: β′ and
+argument of latitude (orbit `Arc` in the celestial frame + Sun from
+referenceSystem), eclipse factor and space weather (data), THR1B counts,
+LRI/KBR SNR, per-effect a priori amplitudes when supplied.
 
-**Methods**, each with significance that respects autocorrelation:
-- lagged correlation of pre-whitened series (lag bound stated);
-- per-revolution parameters (gated windows, NaN with reason when the gate
-  fails) regressed on drivers, VIF > 10 → verdict `unresolved`;
-- partial correlation, to separate β′ from eclipse fraction;
-- **binned maps** residual(β′, u) — the classical view in which
-  β′-dependent systematics become visible;
-- effective sample size from the residual ACF, block-bootstrap CIs; naive
-  sigmas are known to be 5–14× too small here.
+**Methods**, with significance that respects autocorrelation: lagged
+correlation of pre-whitened series; regression of gated per-revolution
+parameters on drivers with a VIF gate; partial correlation (β′ versus
+eclipse fraction); binned maps residual(β′, u); effective sample size from
+the residual ACF and block-bootstrap CIs (naive sigmas are 5–14× too small
+here).
 
 ---
 
@@ -301,77 +287,83 @@ counts (THR1B), LRI/KBR SNR, reference-force constituents when supplied.
 | observability gate before the fit; demean regressors | corr(bias, scale) = −1 on quiet arcs (v2) |
 | never co-estimate per-rev scale and 1/rev terms | r ≈ −0.7 (v2) |
 | block bootstrap for sigmas | naive 5–14× optimistic (v2) |
-| int64 gpsns; no double for GPS time | 2020 gpsns ≈ 6.3e17 > 2^53 (repo decision 2026-08-14) |
-| qualflg meanings from the file header | O-1 lesson: invented formats fail on real files |
-| deterministic opt-in parallelism; RNG substream per replicate, seed per stage name | results independent of worker count and of stage insertion |
+| int64 gpsns, never double GPS time | 2020 gpsns ≈ 6.3e17 > 2^53 |
+| qualflg meanings from the file header | O-1: invented formats fail on real files |
+| deterministic opt-in parallelism; RNG substream per replicate, seed per stage name | results independent of worker count and stage insertion |
 
-GRACE-FO CRN parameters are the GRACE ATBD ones and are **unverified** for
+GRACE-FO CRN parameters are the GRACE ATBD ones and are unverified for
 GRACE-FO (V-1): `crnKernel` warns until a named constant cites the handbook.
 
 ---
 
 ## 9. Validation
 
-**Test categories** for every new public unit (tags):
-`contract`, `reference`, `precision`, `speed` (ratio budget), `robustness`,
-`vectorisation`, `metamorphic`; an exemption row states why a category is
-impossible, never why it is inconvenient. `contract` is never exempt.
-Predict per-class counts as passed + failed + incomplete = total before
-every run (HANDOVER A).
+Every new public unit carries the tags `contract`, `reference`, `precision`,
+`speed` (ratio budget), `robustness`, `vectorisation`, `metamorphic`, or an
+exemption stating why a category is impossible. Each repository keeps its
+own runner and category audit (NonGravForces `auditTestCategories`,
+gracefoReading from P-00). Counts are predicted as passed + failed +
+incomplete = total before every run.
 
-**Oracle register** (nothing built here checks itself):
-
-| id | oracle | checks |
+| id | oracle (nothing checks itself) | checks |
 |---|---|---|
-| ORC-1 | GRACE L1B ATBD App. B via Python port `refval/crn_atbd.py` (from v2 zip) | kernel taps, DC gain, derivatives |
-| ORC-2 | v2 keystone numbers regenerated in Python (not MATLAB) | 0.49, +453 ppm, 5–7× inflation, lag-1 ACF > 0.8 |
-| ORC-3 | real 2020-01-01 ACT1B/THR1B/GNV1B (C), KBR1B, LRI1B in `READING_DATA_POOL` | dictionaries, masks, end-to-end smoke |
-| ORC-4 | ITSG `nonConservativeForces` 2020-01-01 (bundled, trimmed) | independent reference series (nature: V-4) |
-| ORC-5 | analytic circular orbit (Python) | β′, u, eclipse entry/exit |
+| ORC-1 | GRACE L1B ATBD App. B via Python `refval/crn_atbd.py` (v2 zip) | kernel taps, DC gain, derivatives |
+| ORC-2 | v2 keystone numbers regenerated in Python | 0.49, +453 ppm, 5–7× inflation, lag-1 ACF > 0.8 |
+| ORC-3 | real 2020-01-01 ACT1B/THR1B/GNV1B/SCA1B (C), KBR1B, LRI1B | dictionaries, masks, end-to-end smoke |
+| ORC-4 | ITSG `nonConservativeForces` 2020-01-01 (bundled, trimmed) | independent reference series (V-4) |
+| ORC-5 | analytic circular orbit (Python) | β′, u |
 | ORC-6 | numpy least squares on white noise | the lsqvce bridge equals the textbook solution |
-| ORC-7 | synthetic truth generators `acc.syntheticPair`, `lri.syntheticPair` with planted S, b(t), K2, jumps, thrusters, gaps, phase jumps | recovery and flagging, fixed seeds |
+| ORC-7 | truth generators (ACC in NonGravForces, LRI in gracefoReading), fixed seeds | recovery and flagging of planted parameters and defects |
 
-**Verification items** (answered from documents or real bytes, never from memory):
-
-| id | item | blocks |
+| id | verification item (from documents or real bytes, never memory) | blocks |
 |---|---|---|
 | V-1 | GRACE-FO ACC CRN parameters vs JPL D-56935 | removal of the `crnKernel` warning |
-| V-2 | KBR1B and LRI1B CRN parameters | P-11 |
-| V-3 | LRI1B correction columns, signs, units from the real header | P-11 |
-| V-4 | ITSG `nonConservativeForces`: model or calibrated measurement? CRN-filtered? | ORC-4 use |
-| V-5 | ACT1B satellite D transplant statement in the header | wording of the D report |
-| V-6 | lsqvce 6.1: local parameters + priors + ARMA/PSD + robust in one `fit` call, read from source | P-05 (NonGravForces B.4: that surface was misdescribed twice) |
+| V-2 | KBR1B and LRI1B CRN parameters | P-09 |
+| V-3 | LRI1B correction columns, signs, units from the real header | P-09 |
+| V-4 | ITSG `nonConservativeForces`: model or calibrated measurement? CRN-filtered? | ORC-4 |
+| V-5 | ACT1B satellite D transplant statement in the header | N-02 report wording |
+| V-6 | lsqvce 6.1: local parameters + priors + ARMA/PSD + robust in one `fit`, read from source | P-05 |
 
 ---
 
-## 10. Work packages (Claude Code), dependency order
+## 10. Work packages, dependency order
 
-Each WP: frozen scope written into HANDOVER first, one branch, draft PR at
-once, help block (repo template) + tests (all tags) + regenerated HTML in the
-same change, version bumped once at batch end (1.0.2 → 1.1.0, additive).
+Each WP: frozen scope in the owning repository's HANDOVER first, one branch,
+draft PR at once, help block + tests + regenerated documentation in the same
+change. gracefoReading 1.0.2 → 1.1.0; NonGravForces 0.12.x → 0.13.0.
+
+**gracefoReading (P-)**
 
 | WP | content | replaces v3 | needs |
 |---|---|---|---|
-| P-00 | layering test; optional-dependency resolution + `depMissing`; deterministic-parallel helper (internal); CI checks out referenceSystem + lsqvce; `docsrc` and `auditHelp.py` extended to sub-packages; test-tag convention. **Workflow change, own PR** | WP-00, WP-05 | — |
-| P-01 | `Arc` | WP-01 (no time code) | P-00 |
-| P-02 | `crnKernel`, `crnApply`, `acc.syntheticPair` (pulled forward) | WP-10, WP-21 | P-01 |
-| P-03 | `mask`, `qc` (port of NonGravForces.qc if Q1 = A) | WP-06 | P-01, P-02 |
-| P-04 | `align`, `checkAlignment` | WP-02 part, WP-11 part | P-01, P-02 |
-| P-05 | `estimate` (lsqvce bridge), `observability` | WP-07, WP-09, WP-12 | P-01, V-6 |
-| P-06 | `acc.design`, `acc.calibrate`, `acc.Calibration` | WP-08, WP-13, WP-18 | P-02..P-05 |
-| P-07 | `acc.timeVarying`, `acc.compare`, `bootstrap`, `crossval`, `acc.eivBound` | WP-14, WP-15 | P-06 |
-| P-08 | `fill` | — (new) | P-05 |
-| P-09 | `drivers`, `correlate`, `acc.perRev`, `acc.attribute`, `acc.decomposeScale` | WP-16, WP-17 | P-05 |
-| P-10 | `Config`, `preprocess`, ACC integration test (files on disk → planted truth) | WP-19 | P-01..P-09 |
-| P-11 | `lri.observables`, `lri.detectPhaseJumps`, `lri.compareKbr`, `lri.spectrum`, `lri.syntheticPair`, LRI integration test | — (new) | P-10, V-2, V-3, Q4 |
-| P-12 | `preproc.report` (figures, HTML summary) | WP-20 | P-10 |
-| P-13 | NonGravForces side: forward `qc` / `app.calibrate` to here, then delete (in that repo); update its B.4 and dependency table | — | P-10 |
-| P-14 | V-1 GRACE-FO CRN verification | WP-24 | handbook |
+| P-00 | layering test, optional-dependency resolution, deterministic-parallel helper, CI checkout of referenceSystem + lsqvce, `docsrc`/`auditHelp.py` for sub-packages, test tags. **Workflow change, own PR** | WP-00, WP-05 | — |
+| P-01 | `Arc` | WP-01 | P-00 |
+| P-02 | `crnKernel`, `crnApply` | WP-10 | P-01 |
+| P-03 | `mask`, `qc` (port of NonGravForces.qc 0.12.0) | WP-06 | P-02 |
+| P-04 | `align`, `checkAlignment` | WP-02 part, WP-11 part | P-02 |
+| P-05 | `estimate`, `observability`, `bootstrap`, `crossval` | WP-07, WP-09, WP-12, WP-15 part | P-01, V-6 |
+| P-06 | `fill` | — | P-05 |
+| P-07 | `drivers`, `correlate` | WP-16 part, WP-17 part | P-05 |
+| P-08 | `Config`, `preprocess`, integration test (real ACT1B vs ITSG reference; synthetic) | WP-19 part | P-01..P-07 |
+| P-09 | `lri.observables`, `detectPhaseJumps`, `compareKbr`, `spectrum`, LRI truth generator, integration test | — | P-08, V-2, V-3 |
+| P-10 | `preproc.report` (instrument figures, HTML summary) | WP-20 part | P-08 |
+| P-11 | V-1 CRN verification | WP-24 | handbook |
 
-Retired without replacement: v3 WP-02 `toGps/fromGps/leapSeconds`
-(referenceSystem), WP-03/04 readers (L0), WP-22 benchmark harness (speed
-ratios live in the tests), WP-23 (the existing `docsrc` pipeline builds all
-documentation from help blocks), WP-25 `fromSca1b` (referenceSystem +
+**NonGravForces (N-)** — recorded there as O-45
+
+| WP | content | replaces v3 | needs |
+|---|---|---|---|
+| N-01 | `qc` forwards to `gracefoReading.preproc.qc`, then is deleted; dependency table gracefoReading ≥ 1.1 | — | P-03 released |
+| N-02 | `app.calibrate` upgraded: `Arc` input, reference `Model` or `Arc`, v3 design (6.2), CRN-consistent via `preproc.crnKernel`, estimation via `preproc.estimate` (own QR retired), gates, EIV bound, `app.Calibration`, ACC truth generator, integration test | WP-08, WP-13, WP-18, WP-21 | P-08 released |
+| N-03 | time-varying scale, model comparison, per-revolution, attribution with per-effect a priori, `decomposeScale` | WP-14, WP-16 part, WP-17 part | N-02, P-07 |
+| N-04 | `sensor.Electrostatic`: default kernel from `preproc.crnKernel` (explicit kernel still accepted) | — | P-02 released |
+| N-05 | calibration figures and report | WP-20 part | N-03 |
+| N-06 | records: A.2 rule and dependency table, B.4 (lsqvce reached only through gracefoReading) | — | with N-02 |
+
+Retired without replacement: v3 WP-02 time conversions (referenceSystem),
+WP-03/04 readers (gracefoReading L0; space weather is `NonGravForces.io`),
+WP-22 benchmark harness (speed ratios live in the tests), WP-23 (each
+repository's documentation pipeline), WP-25 `fromSca1b` (referenceSystem +
 `NonGravForces.geom.AttitudeProvider`).
 
 ---
@@ -380,29 +372,29 @@ documentation from help blocks), WP-25 `fromSca1b` (referenceSystem +
 
 | id | question | status |
 |---|---|---|
-| Q1 | Dependency direction to NonGravForces (3.2) | **decided 2026-09-18: A** — acyclic; NonGravForces outputs enter as data; its `qc` and `app.calibrate` move here |
-| Q2 | Estimator core | **decided 2026-09-18: `lsqvce.fit`** — NonGravForces B.4 named the re-entry condition itself; coloured-noise GLS and multi-arc pre-elimination meet it. V-6 still gates P-05 |
-| Q3 | Gap filling default | **decided 2026-09-18: `none`**; `collocation` ≤ `maxGap` on request; `maxGap` has no default (6.5) |
-| Q4 | LRI analysis beyond L1B-internal and KBR comparison? | open — proposal in force until overridden: no; LGD and orbit residuals stay downstream. Gates P-11 |
-| Q5 | Help footer: repo rule (Author line without model, dates only) vs "time, date, Claude version" | **decided 2026-09-18: keep the repo rule** (`HANDOVER.md` D; enforced by `auditHelp.py`). Model and time go in commit messages and PR bodies |
-| Q6 | Classic GRACE in v1.1? | open — proposal in force until overridden: no; after O-1 |
+| Q1 | Dependency direction | **decided 2026-09-18: one-way**, referenceSystem ← gracefoReading ← NonGravForces |
+| Q2 | Estimator core | **decided 2026-09-18: `lsqvce.fit`**, reached only through `gracefoReading.preproc.estimate` (Rev 0.4: the bridge stays in gracefoReading because the LRI chain estimates too). V-6 gates P-05 |
+| Q3 | Gap filling default | **decided 2026-09-18: `none`**; `collocation` ≤ `maxGap` on request; `maxGap` has no default |
+| Q4 | LRI analysis beyond L1B-internal and KBR comparison? | open — proposal in force: no; LGD and orbit residuals stay downstream. Gates P-09 |
+| Q5 | Help footer in gracefoReading | **decided 2026-09-18: keep the repository rule**; model and time in commits and PRs. NonGravForces units follow NonGravForces' own template |
+| Q6 | Classic GRACE in 1.1? | open — proposal in force: no; after O-1 |
+| Q7 | Where does ACC calibration live? | **decided 2026-09-18: NonGravForces `app`**, upgraded in place; instrument stages and LRI in gracefoReading; only `qc` moves (down). Supersedes Rev 0.2's "calibrate moves to gracefoReading" |
 
 ---
 
 ## 12. What a next session would be wrong for not reading
 
-1. This is a **draft**; Q1–Q3 and Q5 are decided, P-00 may start; Q4 gates
-   P-11, Q6 gates classic-GRACE work. Do not start from the v3
-   handover's Part IV prompts: five of its packages re-implement capabilities
-   that have an owner (section 2).
-2. `NonGravForces` already ships `app.calibrate` and `qc.screen`. Building a
-   third calibration or QC would repeat v2's two-orchestrator drift (v3 F4)
-   across repositories.
-3. The legacy zip is **v2.4.2**, not the v2.5.0 the v3 handover reviewed.
-4. The CRN kernel is needed by ACC, KBR, LRI and NonGravForces; it is owned
-   here and nowhere else.
-5. L0 must stay dependency-free and its contracts unchanged: NonGravForces
-   calls `readL1bMulti` and relies on its `aux` fields (NonGravForces B.2).
-   O-11 (`readL1bMulti` rejects `findL1bFiles`' column) is hit by the very
-   first line of section 4 and should be fixed in P-00's neighbourhood,
-   in its own PR.
+1. Q7 reversed Rev 0.2/0.3: calibration is **not** moving to gracefoReading.
+   `app.calibrate` is upgraded where it is; only `qc` moves, down.
+2. Do not implement from the v3 handover's Part IV prompts; section 10 maps
+   each of them, and five re-implement capabilities that have an owner.
+3. NonGravForces must not call lsqvce itself: one bridge
+   (`preproc.estimate`), or two estimator glues drift apart.
+4. `preproc.drivers` takes a celestial-frame orbit `Arc`; it never rotates
+   GNV1B (that is `NonGravForces.io.readGNV1B`'s job, and gracefoReading
+   cannot call it).
+5. The legacy zip is v2.4.2, not the v2.5.0 the v3 handover reviewed.
+6. L0 must stay dependency-free and its contracts unchanged; NonGravForces
+   relies on `readL1bMulti`'s `aux` fields. O-11 (`readL1bMulti` rejects
+   `findL1bFiles`' column) breaks the first line of section 4; fix it in its
+   own PR near P-00.

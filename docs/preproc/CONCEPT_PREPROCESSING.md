@@ -1,12 +1,13 @@
 # CONCEPT — Preprocessing layer of gracefoReading (ACC calibration, LRI)
 
-**Revision 0.1 (DRAFT for owner review) · 2026-09-18 14:40 UTC · written with Claude Opus 5 (Anthropic)**
+**Revision 0.2 (DRAFT, Q1–Q3 decided) · 2026-09-18 · written with Claude Opus 5 (Anthropic)**
 
 This file is the **single point of truth for the design** of the
 preprocessing layer. `HANDOVER.md` stays the single point of truth for
 status, obligations and the decision record, and points here. Nothing in
-this file is implemented yet. Sections marked **OPEN** block the work
-packages named in them until the owner has answered (section 11).
+this file is implemented yet. Decisions still open (section 11) block the
+work packages named there until the owner has answered.
+Rev 0.2: Q1 = A, Q2 = lsqvce, Q3 = no fill by default (owner, 2026-09-18).
 
 Read at: gracefoReading `a18e9ad` (v1.0.2) · referenceSystem `311e060`
 (2.1.244) · NonGravForces `3cc0123` (0.12.0) · lsqvce `ac981cd` (6.1).
@@ -30,7 +31,7 @@ two have drifted and duplicate each other.
 | ACC1B/ACT1B: masking, QC, CRN consistency, bias/scale calibration, gaps, attribution | reading (L0 of this repo, unchanged) |
 | LRI1B (KBR1B as reference): masking, QC, phase jumps, KBR↔LRI comparison, gaps, spectra, attribution | force models, environment (`NonGravForces`) |
 | shared: data container, masks, CRN kernel, gap policy, drivers, correlation, estimation bridge | time scales, frames, ephemerides (`referenceSystem`) |
-| | least-squares engine (`lsqvce`, OPEN Q2) · orbit/gravity estimation, LGD, mascons |
+| | least-squares engine (`lsqvce`, Q2) · orbit/gravity estimation, LGD, mascons |
 
 GRACE-FO first. Classic GRACE ACC1B/KBR1B is blocked by O-1 (layouts
 unvalidated) and enters only after O-1 is discharged.
@@ -51,12 +52,12 @@ toolbox and re-implements five of these; those parts are retired (section 10).
 | int64 GPS-ns epochs | `readL1b 'TimeFormat' "gpsns"` (`internal/formatEpoch`) | `Arc` accepts gpsns only; no own conversion |
 | time scales, leap seconds | `referenceSystem.convertTimeScale`, `leapSecondTable` | v3 `+time` toGps/fromGps/leapSeconds **retired** |
 | rotations, quaternions, SLERP, Sun, ITRS→GCRS | `referenceSystem` (`rotationItrsToGcrs`, `interpolateQuaternions`, `geocentricBodyState`, `rotationGcrsToRsw`) | β′, argument of latitude computed from these (no owner yet → owned here, `preproc.drivers`) |
-| modelled non-gravitational acceleration | `NonGravForces.Model` · ITSG `nonConservativeForces` · any GROOPS file | enters **as data** (an `Arc`), never as a call (OPEN Q1) |
-| eclipse factor, space weather | `NonGravForces.env.eclipseFactor`, `NonGravForces.io.spaceWeather` | enter **as data** (driver series) (OPEN Q1) |
+| modelled non-gravitational acceleration | `NonGravForces.Model` · ITSG `nonConservativeForces` · any GROOPS file | enters **as data** (an `Arc`), never as a call (Q1) |
+| eclipse factor, space weather | `NonGravForces.env.eclipseFactor`, `NonGravForces.io.spaceWeather` | enter **as data** (driver series) (Q1) |
 | exact ATBD CRN kernel + derivative kernels | **nobody** — `NonGravForces.sensor.Electrostatic` states "not implemented, supply the kernel" | **owned here** (`preproc.crnKernel`, port of v2 `crnFilter`); NonGravForces then consumes it |
-| residual QC: Hampel, impulses, jumps, event table | `NonGravForces.qc` 0.12.0 | OPEN Q1: moves here (instrument-level), NonGravForces forwards then deletes |
-| least-squares estimation (weights, robust, ARMA/PSD/VAR whitening, local-parameter pre-elimination, priors, VCE) | `lsqvce.fit` 6.1 | OPEN Q2: the one estimator; v3 `fit.solve` and `+noise` **retired** |
-| accelerometer calibration | `NonGravForces.app.calibrate` (diagonal WLS, own QR) | OPEN Q1/Q2: moves here as `acc.calibrate`; one calibration in the ecosystem |
+| residual QC: Hampel, impulses, jumps, event table | `NonGravForces.qc` 0.12.0 → **`gracefoReading.preproc.qc`** (Q1) | ported here (P-03); NonGravForces forwards for one release, then deletes (P-13) |
+| least-squares estimation (weights, robust, ARMA/PSD/VAR whitening, local-parameter pre-elimination, priors, VCE) | `lsqvce.fit` 6.1 (Q2) | the one estimator, called only from `preproc.estimate`; v3 `fit.solve` and `+noise` **retired** |
+| accelerometer calibration | `NonGravForces.app.calibrate` → **`gracefoReading.acc.calibrate`** (Q1, Q2) | one calibration in the ecosystem; NonGravForces forwards, then deletes (P-13) |
 | processing settings | `gracefoReading.preproc.Config` (one resolved, hashed object) | every stage reads its section; the result carries it |
 
 ---
@@ -82,14 +83,14 @@ L0  gracefoReading.read*/find*/decode*/…          existing reader, UNCHANGED, 
 - A layering test (as in referenceSystem) fails any upward call and any
   call to `lsqvce`/`referenceSystem` outside the two named files.
 
-### 3.2 Dependency graph between repositories — **OPEN Q1**
+### 3.2 Dependency graph between repositories — **decided: A (Q1)**
 
 NonGravForces already depends on gracefoReading. If the new layer *calls*
 NonGravForces, the two repositories depend on each other.
 
 | option | graph | cost |
 |---|---|---|
-| **A (proposed)** | referenceSystem ← gracefoReading ← NonGravForces; NonGravForces outputs (model, eclipse, space weather) enter as data | NonGravForces `qc` and `app.calibrate` move here (instrument level) and are forwarded there for one release, then deleted — a change in the NonGravForces repo |
+| **A (decided)** | referenceSystem ← gracefoReading ← NonGravForces; NonGravForces outputs (model, eclipse, space weather) enter as data | NonGravForces `qc` and `app.calibrate` move here (instrument level) and are forwarded there for one release, then deleted — a change in the NonGravForces repo |
 | B | preproc calls NonGravForces; rule: NonGravForces may call only gracefoReading L0 | no code moves, but each repo's CI must check out the other's `main`; a breaking change needs coordinated PRs in both; neither toolbox installs alone |
 
 Why A: gracefoReading is the instrument-data layer, NonGravForces the physics
@@ -97,6 +98,19 @@ layer on top. QC on L1B residuals and calibration of an L1B instrument are
 instrument-level; the CRN kernel they both need is owned here anyway. The
 calibration must also accept a reference that did *not* come from
 NonGravForces (ITSG, GROOPS), so taking it as data is required regardless.
+
+Resulting graph, checked 2026-09-18 by searching every `.m` file of lsqvce
+`ac981cd` and referenceSystem `311e060` for calls into gracefoReading or
+NonGravForces (none found): **acyclic**.
+
+```
+referenceSystem <-- gracefoReading (L2 drivers)  <-- NonGravForces
+lsqvce          <-- gracefoReading (L2 estimate) <-- (transitively, after P-13)
+```
+
+Consequence for NonGravForces: after P-13 it reaches lsqvce through
+`gracefoReading.acc.calibrate`; its B.4 row ("lsqvce not a dependency")
+stays true for its own code and must say so when P-13 lands.
 
 ---
 
@@ -225,7 +239,7 @@ Observation model per axis i, after masking and with H the CRN kernel:
   factor, bias/drift of the difference; residual difference is the product.
 - `lri.spectrum`: ASD of LRI, KBR and their difference (gap-aware).
 - Residuals against a reference orbit or gravity field are **out of scope**
-  (OPEN Q4): they need orbit integration and a background field.
+  (Q4, proposal in force): they need orbit integration and a background field.
 
 ### 6.4 Pre-estimation versus pre-elimination (`Config.estimate.mode`)
 
@@ -240,13 +254,17 @@ Observation model per axis i, after masking and with H the CRN kernel:
   variance-component estimate (REML-type) or blocked CV — plain GCV is not
   offered (v3 D2).
 
-### 6.5 Gaps (`Config.fill`) — **OPEN Q3**
+### 6.5 Gaps (`Config.fill`) — **decided (Q3)**
 
 | method | fills | proposed use |
 |---|---|---|
-| `none` (default) | nothing; arcs split at gaps > `maxGap` | estimation |
-| `collocation` | least-squares prediction with the **fitted** noise covariance (lsqvce model) | short gaps, ≤ `maxGap` |
-| `reference` | calibrated reference (ACC: S·H∗a + b; LRI: aligned KBR) + collocated residual | consumers needing continuity |
+| `none` (**default**) | nothing; gaps are reported (`findGaps`), arcs split there | estimation, and every run that does not ask |
+| `collocation` (on request) | least-squares prediction with the **fitted** noise covariance (lsqvce model), gaps ≤ `maxGap` only | consumers needing continuity |
+| `reference` (on explicit request) | calibrated reference (ACC: S·H∗a + b; LRI: aligned KBR) + collocated residual | continuity across gaps longer than collocation can bridge |
+
+`maxGap` has **no default** (R5): `collocation` or `reference` without it
+refuses with `gracefoReading:preproc:fill:maxGapMissing`. Gaps longer than
+`maxGap` stay unfilled and are reported, never silently bridged.
 
 Filled samples are always in `arc.filled`, carry weight 0 in every fit, and
 are counted in the report. A filled sample never re-enters an estimate: model-
@@ -333,7 +351,7 @@ same change, version bumped once at batch end (1.0.2 → 1.1.0, additive).
 
 | WP | content | replaces v3 | needs |
 |---|---|---|---|
-| P-00 | layering test; optional-dependency resolution + `depMissing`; deterministic-parallel helper (internal); CI checks out referenceSystem + lsqvce; `docsrc` and `auditHelp.py` extended to sub-packages; test-tag convention. **Workflow change, own PR** | WP-00, WP-05 | Q1, Q2, Q5 |
+| P-00 | layering test; optional-dependency resolution + `depMissing`; deterministic-parallel helper (internal); CI checks out referenceSystem + lsqvce; `docsrc` and `auditHelp.py` extended to sub-packages; test-tag convention. **Workflow change, own PR** | WP-00, WP-05 | Q5 |
 | P-01 | `Arc` | WP-01 (no time code) | P-00 |
 | P-02 | `crnKernel`, `crnApply`, `acc.syntheticPair` (pulled forward) | WP-10, WP-21 | P-01 |
 | P-03 | `mask`, `qc` (port of NonGravForces.qc if Q1 = A) | WP-06 | P-01, P-02 |
@@ -341,12 +359,12 @@ same change, version bumped once at batch end (1.0.2 → 1.1.0, additive).
 | P-05 | `estimate` (lsqvce bridge), `observability` | WP-07, WP-09, WP-12 | P-01, V-6 |
 | P-06 | `acc.design`, `acc.calibrate`, `acc.Calibration` | WP-08, WP-13, WP-18 | P-02..P-05 |
 | P-07 | `acc.timeVarying`, `acc.compare`, `bootstrap`, `crossval`, `acc.eivBound` | WP-14, WP-15 | P-06 |
-| P-08 | `fill` | — (new) | P-05, Q3 |
+| P-08 | `fill` | — (new) | P-05 |
 | P-09 | `drivers`, `correlate`, `acc.perRev`, `acc.attribute`, `acc.decomposeScale` | WP-16, WP-17 | P-05 |
 | P-10 | `Config`, `preprocess`, ACC integration test (files on disk → planted truth) | WP-19 | P-01..P-09 |
 | P-11 | `lri.observables`, `lri.detectPhaseJumps`, `lri.compareKbr`, `lri.spectrum`, `lri.syntheticPair`, LRI integration test | — (new) | P-10, V-2, V-3, Q4 |
 | P-12 | `preproc.report` (figures, HTML summary) | WP-20 | P-10 |
-| P-13 | NonGravForces side: forward `qc` / `app.calibrate` to here, then delete (in that repo) | — | P-10, Q1 = A |
+| P-13 | NonGravForces side: forward `qc` / `app.calibrate` to here, then delete (in that repo); update its B.4 and dependency table | — | P-10 |
 | P-14 | V-1 GRACE-FO CRN verification | WP-24 | handbook |
 
 Retired without replacement: v3 WP-02 `toGps/fromGps/leapSeconds`
@@ -357,22 +375,23 @@ documentation from help blocks), WP-25 `fromSca1b` (referenceSystem +
 
 ---
 
-## 11. Open decisions — owner answers before P-00
+## 11. Decisions
 
-| id | question | proposal |
+| id | question | status |
 |---|---|---|
-| Q1 | Dependency direction to NonGravForces (3.2) | A: acyclic, NonGravForces outputs as data, its `qc` and `app.calibrate` move here |
-| Q2 | Estimator core | `lsqvce.fit`. NonGravForces B.4 removed lsqvce as "overkill" for a diagonal WLS and named the re-entry condition itself; coloured-noise GLS and multi-arc pre-elimination meet it |
-| Q3 | Gap filling: consumer and `maxGap`; model-aided fill acceptable? | default `none`; `collocation` ≤ `maxGap`; `reference` only on request; never back into an estimate |
-| Q4 | LRI analysis beyond L1B-internal and KBR comparison? | no; LGD and orbit residuals stay downstream |
-| Q5 | Help footer: repo rule (Author line without model, dates only) vs "time, date, Claude version" | keep the repo rule; record model and time in commit and PR |
-| Q6 | Classic GRACE in v1.1? | no; after O-1 |
+| Q1 | Dependency direction to NonGravForces (3.2) | **decided 2026-09-18: A** — acyclic; NonGravForces outputs enter as data; its `qc` and `app.calibrate` move here |
+| Q2 | Estimator core | **decided 2026-09-18: `lsqvce.fit`** — NonGravForces B.4 named the re-entry condition itself; coloured-noise GLS and multi-arc pre-elimination meet it. V-6 still gates P-05 |
+| Q3 | Gap filling default | **decided 2026-09-18: `none`**; `collocation` ≤ `maxGap` on request; `maxGap` has no default (6.5) |
+| Q4 | LRI analysis beyond L1B-internal and KBR comparison? | open — proposal in force until overridden: no; LGD and orbit residuals stay downstream. Gates P-11 |
+| Q5 | Help footer: repo rule (Author line without model, dates only) vs "time, date, Claude version" | open — proposal in force until overridden: keep the repo rule; model and time go in commit and PR. **Gates P-00** (overriding it changes `auditHelp.py`) |
+| Q6 | Classic GRACE in v1.1? | open — proposal in force until overridden: no; after O-1 |
 
 ---
 
 ## 12. What a next session would be wrong for not reading
 
-1. This is a **draft**; section 11 gates P-00. Do not start from the v3
+1. This is a **draft**; Q1–Q3 are decided, Q5 gates P-00, Q4 gates P-11,
+   Q6 gates classic-GRACE work. Do not start from the v3
    handover's Part IV prompts: five of its packages re-implement capabilities
    that have an owner (section 2).
 2. `NonGravForces` already ships `app.calibrate` and `qc.screen`. Building a

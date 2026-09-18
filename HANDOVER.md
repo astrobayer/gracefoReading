@@ -9,10 +9,10 @@ before any code, and do not start from memory of a previous session.
 `README.md` is the user-facing description (what the toolbox does, how to
 install it). This file is the developer record: status, decisions,
 obligations, and what a next session would be wrong for not reading.
-`docs/timeSeriesPreparation/CONCEPT.md` is the design of a pipeline that
-spans six toolboxes; it is hosted here only until the new
-timeSeriesPreparation repository exists, and this toolbox gains no code from it. Facts live
-in one of the three, never in two.
+The design of the preprocessing pipeline built on this reader lives in
+`astrobayer/timeSeriesPreparation`: `docs/CONCEPT.md` (decisions in its
+section 11) and `docs/GUIDE.md` (order of work and procedures). This toolbox
+gains no preprocessing code from it. Facts live in one place, never in two.
 
 ---
 
@@ -174,7 +174,6 @@ outside this table claims to be one.
 | O-6 | **RL05+ header conventions are unknown.** If PO.DAAC changes them, extend `internal/parseHeaderVariables.m` and add the new files to `tests/realdata/` | owner | when RL05 appears |
 | O-11 | **`readL1bMulti` cannot take what `findL1bFiles` returns.** Its `arguments` block declares `fileNames (1,:) string` while `findL1bFiles` returns a `[K x 1]` column, so the two-line workflow printed in both help blocks raises a size-validation error for K > 1. Found while building the ITSG pair, which is declared unsized and normalised instead. Not fixed here: it is an L1B change and this branch is issue #11 | owner | next time `readL1bMulti` is touched, or sooner if a user hits it |
 | O-10 | **`neutralDensity` is not in the product table.** The ITSG server publishes it and the README gives two different column layouts for releases 1.0 and 1.5/2.0, but no real file was read, so no entry was written. It parses as a generic GROOPS file and warns `productNotRecognised`. Writing the entry from the README alone is the mistake O-1 records | owner | when a real neutralDensity file exists |
-| O-13 | **Hosted design, no code here.** `docs/timeSeriesPreparation/` holds `CONCEPT.md` (Rev 0.11, draft; decisions in its section 11) and `GUIDE.md` (the order of work and every procedure); both move to the timeSeriesPreparation repository at X-00a (GUIDE Stage A3). This repository's items are G-01 #16, G-02 #17, G-03 #18, G-04 #19, G-05 #20, G-06 #21. PR #15 is not ready to merge (owner, 2026-09-18); GUIDE A3 step 6 says how it becomes mergeable | owner | X-00a |
 | O-7 | **Line-wise regexp tokenisation has headroom.** An 86400-line day file parses acceptably, but a typed `textscan` fast path exists for fixed-layout products. Profile in MATLAB before optimising — no speed claim has been measured | — | if a day file becomes a bottleneck |
 
 Closed: **O-12 of `NonGravForces`** (issue #6, `readL1bMulti` raised
@@ -218,7 +217,8 @@ The half of it that remains is O-2's writer side, not this.
 | 2026-09-14 | The frame and time system are recorded with their provenance, never inferred from the file name alone | measured: no frame or time-system string appears anywhere in the files. The product README supplies both, keyed on the product, and the product comes from the name — so `aux.frameSource`, `aux.timeSystemSource` and `aux.productSource` say how each answer was reached, and an unrecognised product gets no frame at all |
 | 2026-09-14 | `readItsgProductMulti` checks the product first and does not check the frame at all | the frame is derived from the product and `'Frame'` is forwarded to every file, so equal products already mean equal frames. A frame check could never fire, and a documented identifier that cannot be raised is a promise the function cannot keep — the same standard `auditHelp.py` enforces in the other direction |
 | 2026-09-14 | `readItsgProductMulti` declares `fileNames` unsized and normalises it, rather than copying `readL1bMulti`'s `(1,:)` | `findItsgFiles` returns a `[K x 1]` column, exactly as `findL1bFiles` does. Copying the declaration would have reproduced O-11, where the documented two-line workflow fails for more than one file |
-| 2026-09-18 | The preprocessing concept `docs/timeSeriesPreparation/CONCEPT.md` is the design authority for preprocessing, accelerometer calibration and LRI/KBR processing across the ecosystem; its section 11 holds the decisions (Q1–Q15) and is not restated here. **Consequence for this repository:** no preprocessing code; two reader obligations, G-01 (= O-11) and G-02 (= O-1, scheduled by Q6); the concept folder leaves at X-00a | owner |
+| 2026-09-18 | The preprocessing concept is the design authority for preprocessing, accelerometer calibration and LRI/KBR processing across the ecosystem. It was drafted here on branch `claude/preproc-concept` and moved to `astrobayer/timeSeriesPreparation` `docs/` at X-00a (timeSeriesPreparation#2); decisions Q1–Q16 are in its section 11 and not restated here. **Consequence for this repository:** no preprocessing code; reader obligations G-01 #16 (= O-11), G-02 #17 (= O-1), G-03 #18 (= O-7), G-04 #19, G-05 #20, G-06 #21 | owner |
+| 2026-09-18 | PR #15 is merged with **Squash and merge**, an exception to the merge-commit rule, and branch `claude/preproc-concept` is **kept** | a merge commit would carry the branch's 2.7 MB input zips and every concept draft into `main`'s history, which the concept (Q14 item 5) rules out; the kept branch is the archive of the concept's history before X-00a, cited from timeSeriesPreparation |
 | 2026-09-14 | The `'TimeFormat'` mapping moved to `internal/formatEpoch`, called by both readers | the datetime epoch formula was about to exist in two files. That is the 2026-09-06 failure mode exactly, and a divergence would shift every epoch of one reader with nothing visible to say so |
 
 ---
@@ -257,9 +257,8 @@ The half of it that remains is O-2's writer side, not this.
    `testRealData` needs `READING_DATA_POOL`; the full suite needs MATLAB.
    A session with neither can still run all three static gates, and
    should say so rather than reporting "green".
-8. **gracefoReading gains no preprocessing code from the concept;** its
-   only items are G-01 (O-11) and G-02 (O-1, now scheduled).
-   `docs/timeSeriesPreparation/` hosts the design of timeSeriesPreparation,
-   the NonGravForces calibration and rangingPreparation until X-00 moves
-   it at X-00a (O-13). Decisions live in the concept's section 11 only.
-   Never unpack the input zips inside the repository.
+8. **gracefoReading gains no preprocessing code from the concept.** Its
+   items are G-01 … G-06 (issues #16–#21). The design, the order of work and
+   the procedures live in `astrobayer/timeSeriesPreparation` (`docs/CONCEPT.md`,
+   `docs/GUIDE.md`). Branch `claude/preproc-concept` is the archive of the
+   concept's history before the move: do not delete it.

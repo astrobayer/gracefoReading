@@ -1,6 +1,6 @@
 # CONCEPT — GRACE-FO time-series preparation, accelerometer calibration, LRI/KBR processing
 
-**Revision 0.7 (DRAFT) · 2026-09-18 · written with Claude Opus 5 (Anthropic)**
+**Revision 0.8 (DRAFT) · 2026-09-18 · written with Claude Opus 5 (Anthropic)**
 
 This file is the **single point of truth for the design** of one pipeline
 spanning six toolboxes. Each repository's HANDOVER stays the single point of
@@ -11,7 +11,8 @@ Nothing in this file is implemented yet.
 
 **Hosting.** This file lives in gracefoReading only until the
 timeSeriesPreparation repository exists. X-00 moves this folder there and
-leaves a pointer behind. gracefoReading itself gains **no code**.
+leaves a pointer behind. gracefoReading gains **no preprocessing code**; its
+only items are two reader obligations, G-01 (its O-11) and G-02 (its O-1).
 
 **History**
 
@@ -24,7 +25,8 @@ leaves a pointer behind. gracefoReading itself gains **no code**.
 | 0.4a | Q8, Q9 |
 | 0.5 | Q10: shared preparation toolbox |
 | 0.6 | preparation toolbox named timeSeriesPreparation; sigtools v1.3.1 becomes part of it; global order (section 10) |
-| **0.7** | **Q11: LRI/KBR toolbox named rangingPreparation; Q12: sigtools and lsqvce kernels both kept, with a mechanical agreement test** |
+| 0.7 | Q11: LRI/KBR toolbox named rangingPreparation; Q12: sigtools and lsqvce kernels both kept, with a mechanical agreement test |
+| **0.8** | **Q4: no orbit integration and no LGD; Q6: classic GRACE is supported as well, with real files supplied by the owner when the work starts** |
 
 **Read at**
 
@@ -55,14 +57,19 @@ above what they use.
 | toolbox | domain | new in this concept |
 |---|---|---|
 | referenceSystem | time, frames, ephemerides, orbit geometry | `orbitSunGeometry`: β′ and argument of latitude (#25) |
-| gracefoReading | reading L1B, ITSG and GROOPS files | **nothing** (pure reader) |
+| gracefoReading | reading L1B, ITSG and GROOPS files | no preprocessing code; G-01 (O-11) and G-02 (O-1: classic layouts validated on real files) |
 | **timeSeriesPreparation** (new) | physics-free time-series preparation and analysis | sigtools v1.3.1 (spectra, ARMA/SARIMA models, synthesis, diagnostics); the `Arc` container, CRN kernel, masks, QC, alignment, gaps, observability, bootstrap, blocked CV, correlation; entry point `run` |
 | NonGravForces | forces, environment, the ACC calibration application | `app.calibrate` upgraded in place; `qc` leaves for timeSeriesPreparation |
 | **rangingPreparation** (new) | LRI/KBR processing and analysis | observables, phase jumps, KBR↔LRI comparison, spectra; entry point `process` |
 | lsqvce | least squares | nothing; the one estimator, called by the applications |
 
-Out of scope: orbit and gravity estimation, LGD, mascons. GRACE-FO comes
-first; classic GRACE is blocked by gracefoReading O-1.
+**Out of scope (Q4):** orbit integration, orbit and gravity estimation, LGD,
+mascons.
+
+**Missions (Q6):** GRACE-FO (C/D) and classic GRACE (A/B). Classic data
+need gracefoReading O-1 discharged first (G-02); the owner supplies real
+files when that work starts. Everything is mission-aware from its first WP,
+so adding classic GRACE only adds dictionary entries and presets.
 
 ---
 
@@ -198,7 +205,7 @@ refuses anything but int64 gpsns time (`timeSeriesPreparation:Arc:timeFormat`).
 | `t` | int64 N×1, strictly increasing | reader, gpsns |
 | `obs` | double N×M | reader |
 | `names`, `units` | string 1×M | file header |
-| `product`, `satellite`, `frame`, `frameSource` | string | `aux`. A frame not stated by the file or an explicit option stays `""`, and a stage needing it refuses (v3 F5) |
+| `mission`, `product`, `satellite`, `frame`, `frameSource` | string | `aux`. A frame not stated by the file or an explicit option stays `""`, and a stage needing it refuses (v3 F5) |
 | `weights` | double N×1 in [0,1] | `min` over layers; fits scale rows by √w |
 | `layers` | struct of N×1 logical, true = remove | additive and named; a layer can only remove |
 | `filled` | logical N×1 | set by `fill`; weight 0 in every fit |
@@ -256,6 +263,9 @@ are estimated by `lsqvce.fit`.
   bound (v3 D4).
 - **Satellite D:** ACT1B is a transplant product (V-5), and the report says
   so.
+- **Classic GRACE:** needs a GRACE macro model in NonGravForces (N-07, V-9).
+  Accelerometer thermal behaviour over the mission may need a temperature
+  driver or a bias model; V-10 establishes the facts first.
 - **Attribution:** per-revolution parameters are regressed on per-effect
   a priori amplitudes, space weather, β′ and u; a VIF above 10 gives the
   verdict `unresolved`.
@@ -272,7 +282,10 @@ are estimated by `lsqvce.fit`.
   bias/drift of the difference through `lsqvce.fit`.
 - `spectrum`: `spectral.plotPowerSpectrum` (Welch, or Lomb-Scargle for
   gapped data) and `spectral.allanVariance` on LRI, KBR and their difference.
-- Residuals against a reference orbit or gravity field are out of scope (Q4).
+- **Classic GRACE:** KBR only. `observables`, phase jumps, spectra and
+  correlation apply; `compareKbr` does not.
+- **Out of scope (Q4):** orbit integration and LGD. Residuals against a
+  reference orbit or gravity field are not formed here.
 
 ### 6.4 Pre-estimation versus pre-elimination (application option)
 
@@ -332,6 +345,9 @@ are estimated by `lsqvce.fit`.
 
 GRACE-FO CRN parameters are the GRACE ATBD ones and are unverified for
 GRACE-FO (V-1). `crnKernel` warns until a named constant cites the handbook.
+For classic GRACE the ATBD is the mission's own document, so the warning
+does not apply there; its numbers are still checked against the ATBD by
+ORC-1.
 
 ---
 
@@ -358,6 +374,7 @@ passed + failed + incomplete = total before every run.
 | ORC-6 | numpy least squares on white noise | each application's lsqvce declaration equals the textbook solution |
 | ORC-7 | truth generators with noise from `spectral.synthTimeSeries`, fixed seeds | recovery and flagging of planted parameters and defects |
 | ORC-8 | sigtools' NumPy/SciPy re-derivations (per its HANDOFF §3) and its imported suite | the moved numerics are unchanged |
+| ORC-9 | real classic GRACE files (A/B), one per product, supplied by the owner at G-02 | classic layouts, qualflg, dictionaries, presets |
 
 | id | verification item (from documents or real bytes, never memory) | blocks |
 |---|---|---|
@@ -368,6 +385,9 @@ passed + failed + incomplete = total before every run.
 | V-5 | the ACT1B satellite-D transplant statement in the header | N-02 report wording |
 | V-6 | lsqvce 6.1: local parameters + priors + ARMA/PSD + robust in one `fit` call, read from source | N-02, L-03 |
 | V-7 | sigtools: does the gap-aware Kalman filter smooth (interpolate) or only filter/forecast? If only the latter, `fill` adds a fixed-interval smoother on the same state space | X-08 |
+| V-8 | classic GRACE: column layouts, `qualflg` format (bit string or decimal) and flag meanings, from real files (gracefoReading O-1) | G-02, X-13 |
+| V-9 | GRACE macro model (plates, areas, optical properties, mass), from the GRACE product specification; the document must be supplied, not recalled | N-07 |
+| V-10 | classic GRACE accelerometer thermal-control history, and which housekeeping product carries the accelerometer temperature | N-08 bias model and drivers |
 
 ---
 
@@ -383,6 +403,7 @@ repository has one open PR at a time.
 | repo | WP | content | replaces v3 | needs |
 |---|---|---|---|---|
 | gracefoReading | G-01 | O-11: `readL1bMulti` accepts `findL1bFiles`' column | — | — |
+| gracefoReading | G-02 | O-1 discharge: classic layouts confirmed or corrected against real files, `classicExperimental` warning removed, files added to `tests/realdata/` | — | owner supplies files (V-8) |
 | referenceSystem | R-01 | `orbitSunGeometry` (#25) | WP-16 part | — |
 | lsqvce | V-6 | read-only: confirm the surface N-02 and L-03 declare against | — | — |
 | timeSeriesPreparation | X-00 | repository, CI (ci-actions probe), documentation pipeline, test tags, layering test, optional-gracefoReading resolution; move this folder here | WP-00, WP-05 | — |
@@ -398,18 +419,22 @@ repository has one open PR at a time.
 | timeSeriesPreparation | X-10 | `run`, full `Config`, integration test (real ACT1B against the ITSG reference; synthetic) → **release 1.0** | WP-19 part | X-03..X-09 |
 | timeSeriesPreparation | X-11 | `report` | WP-20 part | X-10 |
 | timeSeriesPreparation | X-12 | V-1 CRN verification | WP-24 | handbook |
+| timeSeriesPreparation | X-13 | classic GRACE: dictionaries, masks (`qualflg` per V-8), `Config` presets, classic fixtures in the integration test | — | G-02, X-10 |
 | NonGravForces | N-04 | `sensor.Electrostatic` takes its default kernel from `crnKernel` | — | release 0.1 |
 | NonGravForces | N-01 | `qc` forwards to timeSeriesPreparation, then is deleted | — | release 0.2 |
 | NonGravForces | N-02 | `app.calibrate` upgraded (6.2), estimation via `lsqvce.fit`, `app.Calibration`, truth generator, integration test | WP-08, WP-09, WP-13, WP-18, WP-21 | release 1.0, V-6 |
 | NonGravForces | N-03 | time-varying scale, model comparison, per-revolution, attribution | WP-14, WP-16 part, WP-17 part | N-02, R-01 |
 | NonGravForces | N-05 | calibration figures | WP-20 part | N-03 |
 | NonGravForces | N-06 | records: A.2 rule, dependency table, B.4 | — | with N-02 |
+| NonGravForces | N-07 | `geom.grace` macro model (GRACE-A/B) | — | V-9 |
+| NonGravForces | N-08 | classic calibration: presets, thermal handling (V-10), integration test on real A/B data | — | N-02, N-07, X-13, V-10 |
 | rangingPreparation | L-00 | repository, as X-00 | — | X-00 |
 | rangingPreparation | L-01 | `observables` | — | L-00, V-3 |
 | rangingPreparation | L-04 | `spectrum` (on `+spectral`) | — | L-01, X-02 |
 | rangingPreparation | L-02 | `detectPhaseJumps` | — | L-01, release 0.2 |
 | rangingPreparation | L-03 | `compareKbr` | — | L-02, X-06, V-2, V-6 |
 | rangingPreparation | L-05 | `process`, truth generator, integration test, report | — | L-01..L-04, release 1.0, R-01 |
+| rangingPreparation | L-06 | classic GRACE KBR: dictionary, presets, integration test | — | L-05, X-13 |
 
 ### 10.2 Global order — why this sequence
 
@@ -456,6 +481,12 @@ Downstream work starts early, one PR at a time per repository:
 | NonGravForces | N-02 (+ N-06) → N-03 → N-05 |
 | rangingPreparation | L-03 → L-05 |
 
+**Classic GRACE track — starts when the owner supplies the files, parallel to
+Phases 2–3:** G-02 → X-13 → (N-07 → N-08) and L-06. G-02 can run as soon as
+the data exist, even during Phase 1, because it touches only the reader.
+Because every WP is mission-aware from the start, this track adds entries and
+never reworks the GRACE-FO path.
+
 **Phase 4 — X-11 reports, and X-12 whenever the handbook is available.**
 
 **Critical path:** X-00 → X-01 → X-02 → X-03 → X-04 → X-05 → X-06 → X-07 →
@@ -466,6 +497,8 @@ beside it.
 - V-2: KBR/LRI CRN parameters from the handbook;
 - V-6: whether lsqvce's surface matches what N-02 declares;
 - X-02's size: 26 files, about 5 000 lines.
+- Classic GRACE: layouts, the GRACE macro model and the thermal history
+  (V-8 to V-10) are all unverified until the files and documents arrive.
 
 ---
 
@@ -476,9 +509,9 @@ beside it.
 | Q1 | Dependency direction | **decided: one-way** (graph 3.1) |
 | Q2 | Estimator core | **decided: `lsqvce.fit`**, called directly by each application; timeSeriesPreparation contains no least-squares estimator |
 | Q3 | Default gap filling | **decided: `none`**; collocation up to `maxGap` on request; `maxGap` has no default |
-| Q4 | LRI analysis beyond L1B-internal checks and the KBR comparison? | open — proposal in force: no; LGD and orbit residuals stay downstream |
+| Q4 | LRI analysis beyond L1B-internal checks and the KBR comparison? | **decided 2026-09-18: no orbit integration and no LGD** in rangingPreparation |
 | Q5 | Help footer | **decided for gracefoReading: keep its rule.** New repositories: proposal in force — date, time and model in the footer, as referenceSystem does and as the owner's standing instruction asks |
-| Q6 | Classic GRACE? | open — proposal in force: no; after gracefoReading O-1 |
+| Q6 | Classic GRACE? | **decided 2026-09-18: supported as well**; the owner supplies real files when the work starts (G-02); classic WPs X-13, N-07, N-08, L-06 |
 | Q7 | Where does ACC calibration live? | **decided: NonGravForces `app`**, upgraded in place |
 | Q8 | Owner of β′ and argument of latitude | **decided: referenceSystem** (#25) |
 | Q9 | Where does LRI/KBR processing live? | **decided: a toolbox of its own** |
@@ -491,18 +524,20 @@ beside it.
 
 ## 12. What a next session would be wrong for not reading
 
-1. gracefoReading gains **no code** from this concept; G-01 (O-11) is its
-   own fix. This folder moves at X-00.
-2. The two draft PRs (gracefoReading #15, NonGravForces #57) are **not ready
+1. gracefoReading gains **no preprocessing code**; G-01 (O-11) and G-02
+   (O-1, classic layouts) are reader fixes. This folder moves at X-00.
+2. Classic GRACE is in scope (Q6), but nothing classic is built on the
+   unvalidated layouts: G-02 with real files comes first.
+3. The two draft PRs (gracefoReading #15, NonGravForces #57) are **not ready
    to merge**: the owner said so on 2026-09-18.
-3. sigtools moves **unchanged** first (X-01), then changes conventions (X-02)
+4. sigtools moves **unchanged** first (X-01), then changes conventions (X-02)
    with its own tests as the gate. Never mix the two.
-4. Calibration stays in NonGravForces. Only `qc` leaves NonGravForces, and it
+5. Calibration stays in NonGravForces. Only `qc` leaves NonGravForces, and it
    goes to timeSeriesPreparation.
-5. timeSeriesPreparation contains no least-squares estimator. The
+6. timeSeriesPreparation contains no least-squares estimator. The
    applications call `lsqvce.fit`.
-6. β′ and u belong to referenceSystem (#25). rangingPreparation does not depend on
+7. β′ and u belong to referenceSystem (#25). rangingPreparation does not depend on
    NonGravForces.
-7. Do not implement from the v3 handover's Part IV; section 10 maps every WP.
-8. The legacy AccelBiasScaleToolbox zip is v2.4.2, not the v2.5.0 that the
+8. Do not implement from the v3 handover's Part IV; section 10 maps every WP.
+9. The legacy AccelBiasScaleToolbox zip is v2.4.2, not the v2.5.0 that the
    v3 handover reviewed.

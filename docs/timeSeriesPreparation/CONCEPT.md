@@ -1,6 +1,6 @@
 # CONCEPT — GRACE-FO time-series preparation, accelerometer calibration, LRI/KBR processing
 
-**Revision 0.10 (DRAFT) · 2026-09-18 · written with Claude Opus 5 (Anthropic)**
+**Revision 0.11 (DRAFT) · 2026-09-18 · written with Claude Opus 5 (Anthropic)**
 
 This file is the **single point of truth for the design** of one pipeline
 spanning six toolboxes. Each repository's HANDOVER stays the single point of
@@ -29,7 +29,8 @@ only items are two reader obligations, G-01 (its O-11) and G-02 (its O-1).
 | 0.7 | Q11: LRI/KBR toolbox named rangingPreparation; Q12: sigtools and lsqvce kernels both kept, with a mechanical agreement test |
 | 0.8 | Q4: no orbit integration and no LGD; Q6: classic GRACE is supported as well, with real files supplied by the owner when the work starts |
 | 0.9 | Q14: improvements 1–9 adopted — gpsns epoch authority (R-02), campaign mode (X-15, N-09), stage cache (X-14), regression baseline (N-10), concept moved now (X-00a), decisions recorded once, shared static audit (C-01), downstream contracts (C-02), X-02 later in the order |
-| **0.10** | **Q15: improvements 11–20 adopted — output-epoch CRN, QC speed after an unchanged port, reading profiled, streaming accumulation, real-day defect catalogue, minimum-data gate, array conventions, data-handling rules, one help template and generator, executed documentation** |
+| 0.10 | Q15: improvements 11–20 adopted — output-epoch CRN, QC speed after an unchanged port, reading profiled, streaming accumulation, real-day defect catalogue, minimum-data gate, array conventions, data-handling rules, one help template and generator, executed documentation |
+| **0.11** | **Q16: the deep-research findings of 2026-09-18 are distributed to the repositories (W-1…W-15 → G-04…G-06, X-17, X-18, N-11, N-12, L-07…L-09; ORC-12, ORC-13; V-13…V-16); research answers to V-1…V-11 recorded as expected values (9.2); the global order and all procedures move to `GUIDE.md`** |
 
 **Read at**
 
@@ -81,6 +82,9 @@ so adding classic GRACE only adds dictionary entries and presets.
 | capability | authority | consequence |
 |---|---|---|
 | L1B / ITSG / GROOPS reading | gracefoReading | v3 `+io` **retired** |
+| official event lists: TN-01 sequence of events, TN-01a spacecraft events, CMC and KBR calibration manoeuvres | **gracefoReading** reads them (G-05) | timeSeriesPreparation turns them into mask layers and calibration windows (X-05); nothing is inferred that a list states |
+| hybrid transplant accelerometer data ACH1B (ACX/ACX2), used by the gravity release RL06.3 | gracefoReading reads it (G-04, generic reader, fixture-verified) | NonGravForces uses it as a calibration oracle (ORC-12) |
+| alternative attitude products (ITSG attitude, SCA+IMU fusion products) | gracefoReading reads them; `NonGravForces.geom.AttitudeProvider` serves them (N-12) | attitude quality propagates into KBR antenna offset (L-07) |
 | qualflg bit meanings | the file's own header, via `gracefoReading.decodeQualFlags` | v3 handbook bit table **retired** (O-1 lesson) |
 | gaps and segments | `gracefoReading.findGaps` | used by `fill` |
 | int64 GPS-ns epochs | `gracefoReading.readL1b 'TimeFormat' "gpsns"` | `Arc` accepts gpsns only |
@@ -267,11 +271,11 @@ no positional fallback.
 
 | # | stage | function | guarantee |
 |---|---|---|---|
-| 1 | mask | `mask` | qualflg layers via `decodeQualFlags`; THR1B windows (margins justified by the CRN span); eclipse transitions from a driver series; CRN edges; a user layer |
-| 2 | QC | `qc` | residual-based outliers; impulses (matched filter on the CRN impulse response, THR1B priors); jumps (reported and turned into parameters, never masked) |
+| 1 | mask | `mask` | qualflg layers via `decodeQualFlags`; THR1B windows (margins justified by the CRN span); eclipse transitions from a driver series; CRN edges; a user layer; **official event lists** (G-05) as layers and calibration windows |
+| 2 | QC | `qc` | residual-based outliers; impulses (matched filter on the CRN impulse response, THR1B priors); jumps (reported and turned into parameters, never masked); after X-16, a **labelled template bank** (twang, heater, magnetic-torquer and thruster spikes) with one mask layer per type (X-17) |
 | 3 | align | `align`, `checkAlignment` | reference moved onto the observation epochs; lag diagnostic over ±60 s that warns above 1 s and never shifts silently (v3 F2) |
 | 4 | consistency | `crnKernel`, `crnApply` | exact ATBD kernel normalised at f0, DC gain 1.0004533 kept; chunked per file day with half-span overlap, bit-identical to unchunked; NaN edges. **The convolution sum is evaluated only at the output epochs** (1 Hz for ACC1B from the 10 Hz grid): about 3.6e8 instead of 3.6e9 multiply-adds per day for 3 axes, pinned equal to full-rate convolution followed by sampling |
-| 5 | noise | `tsmodels`, `spectral` | residual noise model (AR/ARMA/SARIMA exact ML with gaps, or PSD → ARMA), Ljung-Box, Allan deviation; the model feeds `fill` and the applications' lsqvce covariance |
+| 5 | noise | `tsmodels`, `spectral` | residual noise model (AR/ARMA/SARIMA exact ML with gaps, or PSD → ARMA), Ljung-Box, Allan deviation; the model feeds `fill` and the applications' lsqvce covariance; a **reference noise-model library** (ACC 1/f, KBR CNR-limited, LRI design ASD) as priors and validation targets (W-12, X-07) |
 | 6 | gate | `observability` | metrics an application uses to refuse or downgrade unidentifiable parameters before its fit |
 | 7 | uncertainty | `bootstrap`, `crossval` | moving-block bootstrap with substreamed RNG; blocked CV |
 | 8 | gaps | `fill` | see 6.5 |
@@ -301,6 +305,12 @@ are estimated by `lsqvce.fit`.
 - **Classic GRACE:** needs a GRACE macro model in NonGravForces (N-07, V-9).
   Accelerometer thermal behaviour over the mission may need a temperature
   driver or a bias model; V-10 establishes the facts first.
+- **Temperature and magnetic torquers (N-11):** a temperature regressor in the
+  bias basis (housekeeping product per V-13), an optional temperature-dependent,
+  fully-populated scale matrix, and magnetic-torquer current as a regressor
+  (MAG1B via `io.readMAG1B`).
+- **Oracle (ORC-12):** calibrated ACT1B compared with the hybrid ACH1B
+  (ACX/ACX2) for the same days.
 - **Attribution:** per-revolution parameters are regressed on per-effect
   a priori amplitudes, space weather, β′ and u; a VIF above 10 gives the
   verdict `unresolved`.
@@ -319,6 +329,15 @@ are estimated by `lsqvce.fit`.
   gapped data) and `spectral.allanVariance` on LRI, KBR and their difference.
 - **Classic GRACE:** KBR only. `observables`, phase jumps, spectra and
   correlation apply; `compareKbr` does not.
+- **KBR antenna offset (L-07):** read the applied correction, recompute it from
+  attitude (alternative attitude via N-12) for QC, and flag multipath-affected
+  calibration-manoeuvre windows.
+- **Time tags (L-08):** KBR↔LRI time-tag offset co-estimated, optional
+  low-pass filtering of the clock offset.
+- **LRI scale (L-09):** continuous scale instead of daily steps, with a
+  thermal-coupling regressor (temperature source per V-14).
+- **Deglitching benchmark (ORC-13):** phase-jump detection compared with the
+  alternative LRI1B products (AEI, SYSU, HUST).
 - **Out of scope (Q4):** orbit integration and LGD. Residuals against a
   reference orbit or gravity field are not formed here.
 
@@ -457,6 +476,8 @@ passed + failed + incomplete = total before every run.
 | ORC-9 | real classic GRACE files (A/B), one per product, supplied by the owner at G-02 | classic layouts, qualflg, dictionaries, presets |
 | ORC-10 | regression baseline 2020-01, C and D, plus one classic month (6.6) | releases change no calibrated number beyond k × bootstrap sigma |
 | ORC-11 | **defect catalogue of real days** (V-12): thruster spikes, bias jumps, day-boundary duplicates and gaps, a satellite-D transplant period, an LRI phase jump, a KBR SNR drop, and classic cases after G-02 | every detector is tested on a real instance, not only on synthetic data |
+| ORC-12 | hybrid transplant ACH1B (ACX/ACX2) for the reference month | NonGravForces calibration against the SDS's own current accelerometer product |
+| ORC-13 | alternative LRI1B products (AEI V50, SYSU, HUST) | phase-jump detection and deglitching |
 
 | id | verification item (from documents or real bytes, never memory) | blocks |
 |---|---|---|
@@ -472,6 +493,10 @@ passed + failed + incomplete = total before every run.
 | V-10 | classic GRACE accelerometer thermal-control history, and which housekeeping product carries the accelerometer temperature | N-08 bias model and drivers |
 | V-11 | is there a published daily ACC bias/scale series (processing centre or science data system) usable as an external oracle? | ORC-10 external half |
 | V-12 | the defect catalogue: one real day per defect class, recorded as file, epoch range and expected verdict | X-05, L-02, N-02 tests |
+| V-13 | GRACE-FO accelerometer temperature housekeeping: product name and columns, from real files | N-11 |
+| V-14 | temperature source for LRI thermal coupling (zenith solar-array temperature), product and columns | L-09 |
+| V-15 | PO.DAAC/ISDC collection names, file naming and published checksums for every product in the data plan | G-06, GUIDE Stage B |
+| V-16 | ACH1B/ACX/ACX2 format and availability periods (ACX2 from 2023-01 in wide-pointing mode, gap 2023-03…06, per the research) | G-04, ORC-12 |
 
 **Fault injection (item 16).** Every new check is fault-injected in the
 round that adds it: it must fire on a broken input and stay silent on a
@@ -513,6 +538,29 @@ would be a second authority.
   at the top of the dependency graph, so no toolbox's CI needs a toolbox
   above it; each toolbox's getting-started page links to it.
 
+### 9.2 Research answers of 2026-09-18 — expected values, not yet facts
+
+The deep-research report of 2026-09-18 answered most verification items from
+primary sources. These answers are **expected values**: each V-item closes
+only when the number has been read from the registered document itself
+(GUIDE Stage C), per R3. They also reconcile with measured data where the
+repository has any: gracefoReading's real-data tests find **5 s** sampling
+for KBR1B (17 280 records per day) and **2 s** for LRI1B (43 200 records per
+day), matching the filter outputs below.
+
+| item | expected answer | source to confirm in |
+|---|---|---|
+| V-1 | GRACE-FO ACC CRN identical to GRACE: 7th-order self-convolution, 35 mHz bandwidth, 140.7 s span, 10 Hz → 1 Hz. NB = 5, the DC gain 1.0004533 and the normalisation at f0 are **not** stated in the documents; they are implementation choices to validate numerically | JPL D-27672 App. B; JPL D-56935 |
+| V-2 | KBR: 7th order, 100 mHz, 70.7 s span, output 0.2 Hz. LRI: Nc = 9, fc = 0.25 Hz, Nf = 747, input 9.664 Hz (9.664198 Hz on GRACE-D), output 0.5 Hz. **Three distinct presets** | JPL D-27672; JPL D-56935 §4.2.14; SYSU LRI1B documentation, Table 1 |
+| V-3 | LRI1B uses the KBR1B 16-column layout. Light-time correction additive; antenna-centre columns zero for LRI in RL04; no ionospheric correction for laser ranging; the "iono" slot carries a multiplicative scale; `Ka_B_SNR` carries the LRI–KBR time offset in ns | JPL D-56935 §3.3.2, §4.2.11, §4.2.14 — and the real header of LRI1B_2020-01-01_Y_04 |
+| V-4 | TU Graz ACT is calibrated/recovered accelerometer data; the operational `nonConservativeForces` file itself stays **unresolved** — verify from the file and its README | ITSG server README; Behzadpour et al. 2021 |
+| V-5 | GRACE-D uses the GRACE-C transplant from 2018-06-21; ACT exists for both satellites; hybrid ACH1B (ACX/ACX2) is used by RL06.3 | JPL D-103863; Bandikova et al. 2019; Harvey et al. 2022 |
+| V-8 | Classic formats per the GRACE L1B handbook; classic KBR1B `qualflg` bit 0 threshold 0.2 cycle | JPL D-22027 — and the real classic files (G-02) |
+| V-9 | GRACE macro model: Bettadpur (2012); exact document number **not found** | CSR / PO.DAAC; to be supplied |
+| V-10 | ACC thermal control permanently off from April 2011; GRACE-B accelerometer off 2016–2017, GRACE-A → B transplant | Tapley et al. 2015; Behzadpour et al. 2021 |
+| V-11 | external oracles: Klinger & Mayer-Gürr 2016 (daily bias/scale), Behzadpour et al. 2021, Harvey et al. 2022, Siemes et al. 2023 (density datasets with calibration) | the publications and their data sets |
+| release | GRACE-FO L1B RL04 is current; no L1B RL05 announced; the SDS reprocessed the accelerometer transplant (ACX → ACX2) for gravity RL06.3 (2024-11-07); RL07 in preparation | PO.DAAC release notes, GRACE-FO SDS newsletters |
+
 ---
 
 ## 10. Work packages and global order
@@ -529,6 +577,9 @@ repository has one open PR at a time.
 | gracefoReading | G-01 | O-11: `readL1bMulti` accepts `findL1bFiles`' column | — | — |
 | gracefoReading | G-03 | O-7 measured (item 13): parse time of one real ACT1B day and the extrapolated year; decide on the fixed-layout fast path from the number | — | G-01 |
 | gracefoReading | G-02 | O-1 discharge: classic layouts confirmed or corrected against real files, `classicExperimental` warning removed, files added to `tests/realdata/` | — | owner supplies files (V-8) |
+| gracefoReading | G-04 | ACH1B (ACX/ACX2), accelerometer housekeeping (V-13) and the LRI thermal-coupling temperature product (V-14): real fixtures, generic reader verified on each, `testRealData` rows | — | V-13, V-14, V-16 |
+| gracefoReading | G-05 | reader for the official event lists (TN-01 SOE, TN-01a SCE, CMC and KBR calibration manoeuvres), both missions; returns an event table with provenance | — | V-15 |
+| gracefoReading | G-06 | data-pool verification: every pool file checked against the source's published checksum or a recorded SHA-256 manifest | — | V-15 |
 | referenceSystem | R-01 | `orbitSunGeometry` (#25) | WP-16 part | — |
 | referenceSystem | R-02 | int64 GPS nanoseconds as an epoch representation (to and from), exact integer arithmetic | WP-02 part | — |
 | ci-actions | C-01 | shared static audit as a versioned action: help template, footer, error-identifier agreement, catalogue; per-repository configuration | — | — |
@@ -552,6 +603,8 @@ repository has one open PR at a time.
 | timeSeriesPreparation | X-12 | V-1 CRN verification | WP-24 | handbook |
 | timeSeriesPreparation | X-14 | stage cache (6.6) | — | X-10 |
 | timeSeriesPreparation | X-16 | QC speed (item 12): `hampel` on `movmedian` with an exact window MAD, jump detection's candidate bookkeeping vectorised (or a C layer); gated by equality to the X-05 port | — | X-05, X-14 |
+| timeSeriesPreparation | X-17 | QC template bank (twang, heater, magnetic torquer, thruster), one mask layer per type, tested on the defect catalogue | — | X-16, V-12 |
+| timeSeriesPreparation | X-18 | CF/ACDD NetCDF export with PROV-O provenance and DataCite fields; Arc schema version and migration | — | X-15 |
 | timeSeriesPreparation | X-15 | campaign mode of `run` (6.6), per-day storage and the per-campaign manifest (5.2) → **release 1.1** | WP-19 part (`runBatch`) | X-14, X-16, G-03 |
 | timeSeriesPreparation | X-13 | classic GRACE: dictionaries, masks (`qualflg` per V-8), `Config` presets, classic fixtures in the integration test | — | G-02, X-10 |
 | NonGravForces | N-04 | `sensor.Electrostatic` takes its default kernel from `crnKernel` | — | release 0.1 |
@@ -562,6 +615,8 @@ repository has one open PR at a time.
 | NonGravForces | N-06 | records: A.2 rule, dependency table, B.4 | — | with N-02 |
 | NonGravForces | N-09 | multi-arc calibration (6.6): per-arc biases pre-eliminated in lsqvce, common or per-arc scale | WP-19 part | N-03, release 1.1 |
 | NonGravForces | N-10 | regression baseline 2020-01 C/D (ORC-10), classic month after N-08 | — | N-09 |
+| NonGravForces | N-11 | temperature bias regressor, temperature-dependent full scale matrix, magnetic-torquer regressor | — | N-02, G-04, V-13 |
+| NonGravForces | N-12 | alternative attitude sources in `geom.AttitudeProvider` (ITSG, SCA+IMU fusion products) and an attitude-quality diagnostic | — | N-02 |
 | NonGravForces | N-07 | `geom.grace` macro model (GRACE-A/B) | — | V-9 |
 | NonGravForces | N-08 | classic calibration: presets, thermal handling (V-10), integration test on real A/B data | — | N-02, N-07, X-13, V-10 |
 | rangingPreparation | L-00 | repository, as X-00b | — | C-01 |
@@ -571,85 +626,16 @@ repository has one open PR at a time.
 | rangingPreparation | L-03 | `compareKbr` | — | L-02, X-06, V-2, V-6 |
 | rangingPreparation | L-05 | `process`, truth generator, integration test, report | — | L-01..L-04, release 1.0, R-01 |
 | rangingPreparation | L-06 | classic GRACE KBR: dictionary, presets, integration test | — | L-05, X-13 |
+| rangingPreparation | L-07 | KBR antenna-offset QC from attitude, multipath flag on calibration-manoeuvre windows | — | L-05, N-12, G-05 |
+| rangingPreparation | L-08 | KBR↔LRI time-tag co-estimation, optional clock-offset low-pass | — | L-03 |
+| rangingPreparation | L-09 | continuous LRI scale with thermal-coupling regressor; deglitching benchmark (ORC-13) | — | L-03, G-04, V-14 |
 
-### 10.2 Global order — why this sequence
+### 10.2 Global order and procedures
 
-**Principles.**
-1. Build from the bottom of the dependency graph upward.
-2. Settle facts that could change a design (V-items) before building on them.
-3. Ship small releases early, so downstream repositories can work in
-   parallel.
-4. Keep one open PR per repository.
-5. Shared infrastructure comes before the repositories that use it (C-01 before X-00b and L-00).
-
-**Phase 0 — decisions, reading and the move, no code (days).**
-- All decisions are taken (section 11).
-- X-00a: create the timeSeriesPreparation repository with documents only, and
-  move this folder there.
-- Read V-3 and V-5 from the pool's real headers, V-4 from the ITSG README,
-  and V-6 from the lsqvce source.
-- V-1 and V-2 need the handbooks. Establish whether they are available now,
-  because V-2 is the only item that can block rangingPreparation late.
-- V-12: pick the real days of the defect catalogue from the data pool.
-
-**Phase 1 — foundations, three repositories in parallel.**
-
-| repo | sequence |
-|---|---|
-| gracefoReading | G-01 → G-03 |
-| referenceSystem | R-01 → R-02 |
-| ci-actions | C-01 → C-03 → C-02 |
-| timeSeriesPreparation | X-00b → X-01 (after C-01) |
-
-- G-01, R-01 and R-02 are small, independent, and needed by everything later.
-- C-01 comes first in its row because both new repositories should start on
-  the shared audit rather than on copies.
-- The sigtools import comes first in the new repository because it tests the
-  fresh harness (CI, documentation, category audit) on 26 existing files
-  with an existing oracle before any new code is written.
-- **The conventions work X-02 moves to just before X-07 (item 9).** X-03 to
-  X-06 do not use sigtools, so releases 0.1 and 0.2 arrive two WPs earlier.
-  Nothing new is built against the sigtools API before X-02, because only
-  X-07 onwards use it.
-
-**Phase 2 — the critical path, in timeSeriesPreparation:**
-X-03 → X-04 (**0.1**) → X-05 (**0.2**) → X-06 → X-02 → X-07 → X-08 → X-09 → X-10 (**1.0**)
-→ X-14 → X-16 → X-15 (**1.1**).
-
-Downstream work starts early, one PR at a time per repository:
-- as soon as 0.1 is out: N-04, and L-00 → L-01 → L-04;
-- as soon as 0.2 is out: N-01, and L-02.
-
-**Phase 3 — applications, after 1.0.**
-
-| repo | sequence |
-|---|---|
-| NonGravForces | N-02 (+ N-06) → N-03 → N-09 (after 1.1) → N-10 → N-05 |
-| rangingPreparation | L-03 → L-05 |
-
-**Classic GRACE track — starts when the owner supplies the files, parallel to
-Phases 2–3:** G-02 → X-13 → (N-07 → N-08) and L-06. G-02 can run as soon as
-the data exist, even during Phase 1, because it touches only the reader.
-Because every WP is mission-aware from the start, this track adds entries and
-never reworks the GRACE-FO path.
-
-**Phase 4 — X-11 reports, C-04 the executed processing-chain page, and X-12 whenever the handbook is available.**
-
-**Critical path.**
-- To the first calibration: C-01 → X-00b → X-01 → X-03 → X-04 → X-05 → X-06
-  → X-02 → X-07 → X-08 → X-09 → X-10 → N-02, about thirteen WPs deep.
-- To a validated campaign calibration, add X-14 → X-16 → X-15 and N-03 → N-09 → N-10.
-- Everything else runs beside it.
-
-**Largest schedule risks:**
-- V-2: KBR/LRI CRN parameters from the handbook;
-- V-6: whether lsqvce's surface matches what N-02 declares;
-- X-02's size: 26 files, about 5 000 lines.
-- C-01 changes the gates of four existing repositories. Each switch is its
-  own PR there, and it must reproduce that repository's current audit
-  verdict before replacing it.
-- Classic GRACE: layouts, the GRACE macro model and the thermal history
-  (V-8 to V-10) are all unverified until the files and documents arrive.
+The order of work over all repositories, the preparation of repositories,
+data and references, and the procedure for every step (branch, audit, gate,
+PR, merge, tag, record) live in **`GUIDE.md`** in this folder. That file is
+their only authority; this section is not a copy of it.
 
 ---
 
@@ -672,35 +658,38 @@ never reworks the GRACE-FO path.
 | Q13 | Is sigtools included whole, or only the parts the pipeline uses? | **decided: included** (owner, 2026-09-18); proposal in force: whole, since nothing else owns it |
 | Q14 | Improvements 1–9 proposed 2026-09-18 | **decided 2026-09-18: all adopted** — R-02, X-15/N-09, X-14, N-10/ORC-10, X-00a, decisions recorded once, C-01, C-02, X-02 moved before X-07 |
 | Q15 | Improvements 11–20 proposed 2026-09-18 | **decided 2026-09-18: all adopted** — output-epoch CRN (X-04), unchanged QC port then X-16, G-03, streaming multi-arc (N-09), ORC-11/V-12, minimum-data gate and fault injection, 5.1, 5.2, 9.1 with C-03 and C-04 |
+| Q16 | Distribute the deep-research findings of 2026-09-18 | **decided 2026-09-18: yes** — W-1…W-15 mapped to G-04…G-06, X-17, X-18, N-11, N-12, L-07…L-09, ORC-12/13, V-13…V-16; the three CRN presets (V-1, V-2) are expected values until read from the documents |
 
 ---
 
 ## 12. What a next session would be wrong for not reading
 
-1. gracefoReading gains **no preprocessing code**; G-01 (O-11) and G-02
+1. **The order of work and every procedure are in `GUIDE.md`.** Follow it;
+   do not reconstruct them from this file.
+2. gracefoReading gains **no preprocessing code**; G-01 (O-11) and G-02
    (O-1, classic layouts) are reader fixes. This folder moves at X-00a, which
    comes first.
-2. **Decisions live in section 11 only.** A HANDOVER cites the Q-id and
+3. **Decisions live in section 11 only.** A HANDOVER cites the Q-id and
    states the consequence for its own repository; it never restates the
    decision.
-3. X-02 comes after X-06, not after X-01: do not "restore" the early
+4. X-02 comes after X-06, not after X-01: do not "restore" the early
    position.
-4. Ported code (sigtools, `qc`) moves unchanged first; speed and conventions
+5. Ported code (sigtools, `qc`) moves unchanged first; speed and conventions
    change in their own WPs (X-02, X-16), gated by equality to the port.
-5. The processing-chain page belongs to `ci-actions` (C-04), at the top of the
+6. The processing-chain page belongs to `ci-actions` (C-04), at the top of the
    graph, not to any toolbox.
-6. Classic GRACE is in scope (Q6), but nothing classic is built on the
+7. Classic GRACE is in scope (Q6), but nothing classic is built on the
    unvalidated layouts: G-02 with real files comes first.
-7. The two draft PRs (gracefoReading #15, NonGravForces #57) are **not ready
+8. The two draft PRs (gracefoReading #15, NonGravForces #57) are **not ready
    to merge**: the owner said so on 2026-09-18.
-8. sigtools moves **unchanged** first (X-01), then changes conventions (X-02)
+9. sigtools moves **unchanged** first (X-01), then changes conventions (X-02)
    with its own tests as the gate. Never mix the two.
-9. Calibration stays in NonGravForces. Only `qc` leaves NonGravForces, and it
+10. Calibration stays in NonGravForces. Only `qc` leaves NonGravForces, and it
    goes to timeSeriesPreparation.
-10. timeSeriesPreparation contains no least-squares estimator. The
+11. timeSeriesPreparation contains no least-squares estimator. The
    applications call `lsqvce.fit`.
-11. β′ and u belong to referenceSystem (#25). rangingPreparation does not depend on
+12. β′ and u belong to referenceSystem (#25). rangingPreparation does not depend on
    NonGravForces.
-12. Do not implement from the v3 handover's Part IV; section 10 maps every WP.
-13. The legacy AccelBiasScaleToolbox zip is v2.4.2, not the v2.5.0 that the
+13. Do not implement from the v3 handover's Part IV; section 10 maps every WP.
+14. The legacy AccelBiasScaleToolbox zip is v2.4.2, not the v2.5.0 that the
    v3 handover reviewed.

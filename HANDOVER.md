@@ -9,11 +9,10 @@ before any code, and do not start from memory of a previous session.
 `README.md` is the user-facing description (what the toolbox does, how to
 install it). This file is the developer record: status, decisions,
 obligations, and what a next session would be wrong for not reading.
-`docs/preproc/CONCEPT_PREPROCESSING.md` is the design of the planned
-instrument preprocessing layer (and of the accelerometer calibration it
-feeds in NonGravForces) and nothing else; its status
-and obligations are recorded here. Facts live in one of the three, never
-in two.
+`docs/preproc/CONCEPT_PREPROCESSING.md` is the design of a pipeline that
+spans five toolboxes; it is hosted here only until the new preprocessing
+repository exists, and this toolbox gains no code from it. Facts live
+in one of the three, never in two.
 
 ---
 
@@ -175,7 +174,7 @@ outside this table claims to be one.
 | O-6 | **RL05+ header conventions are unknown.** If PO.DAAC changes them, extend `internal/parseHeaderVariables.m` and add the new files to `tests/realdata/` | owner | when RL05 appears |
 | O-11 | **`readL1bMulti` cannot take what `findL1bFiles` returns.** Its `arguments` block declares `fileNames (1,:) string` while `findL1bFiles` returns a `[K x 1]` column, so the two-line workflow printed in both help blocks raises a size-validation error for K > 1. Found while building the ITSG pair, which is declared unsized and normalised instead. Not fixed here: it is an L1B change and this branch is issue #11 | owner | next time `readL1bMulti` is touched, or sooner if a user hits it |
 | O-10 | **`neutralDensity` is not in the product table.** The ITSG server publishes it and the README gives two different column layouts for releases 1.0 and 1.5/2.0, but no real file was read, so no entry was written. It parses as a generic GROOPS file and warns `productNotRecognised`. Writing the entry from the README alone is the mistake O-1 records | owner | when a real neutralDensity file exists |
-| O-13 | **Preprocessing layer: concept is a DRAFT; Q1–Q3, Q5, Q7–Q9 decided, Q4, Q6 and Q10 open.** `docs/preproc/CONCEPT_PREPROCESSING.md` Rev 0.4a, section 11: β′ goes to referenceSystem (#25), LRI/KBR becomes its own toolbox, and Q10 (where the shared physics-free stages live) **blocks P-00** until answered; Q4 gates P-09, Q6 gates classic-GRACE work. The calibration half lives in NonGravForces and is tracked there as its O-45 (N-01..N-06). Nothing of the layer is implemented; the v3 AccelCal handover in `docs/preproc/inputs/` is input, not authority | owner | P-00 |
+| O-13 | **Hosted design, no code here.** `docs/preproc/CONCEPT_PREPROCESSING.md` Rev 0.5 (draft) designs a shared preprocessing toolbox, the accelerometer calibration in NonGravForces (its O-45), an LRI/KBR toolbox and referenceSystem #25 (β′). gracefoReading stays a pure reader. The concept and `docs/preproc/inputs/` move to the preprocessing repository in its X-00, leaving a pointer here; Q11 (names of the two new toolboxes) gates that | owner | Q11 answered, then X-00 |
 | O-7 | **Line-wise regexp tokenisation has headroom.** An 86400-line day file parses acceptably, but a typed `textscan` fast path exists for fixed-layout products. Profile in MATLAB before optimising — no speed claim has been measured | — | if a day file becomes a bottleneck |
 
 Closed: **O-12 of `NonGravForces`** (issue #6, `readL1bMulti` raised
@@ -219,6 +218,7 @@ The half of it that remains is O-2's writer side, not this.
 | 2026-09-14 | The frame and time system are recorded with their provenance, never inferred from the file name alone | measured: no frame or time-system string appears anywhere in the files. The product README supplies both, keyed on the product, and the product comes from the name — so `aux.frameSource`, `aux.timeSystemSource` and `aux.productSource` say how each answer was reached, and an unrecognised product gets no frame at all |
 | 2026-09-14 | `readItsgProductMulti` checks the product first and does not check the frame at all | the frame is derived from the product and `'Frame'` is forwarded to every file, so equal products already mean equal frames. A frame check could never fire, and a documented identifier that cannot be raised is a promise the function cannot keep — the same standard `auditHelp.py` enforces in the other direction |
 | 2026-09-14 | `readItsgProductMulti` declares `fileNames` unsized and normalises it, rather than copying `readL1bMulti`'s `(1,:)` | `findItsgFiles` returns a `[K x 1]` column, exactly as `findL1bFiles` does. Copying the declaration would have reproduced O-11, where the documented two-line workflow fails for more than one file |
+| 2026-09-18 | Concept Q8–Q10 (Rev 0.5): β′ and argument of latitude go to referenceSystem (#25); LRI/KBR becomes a toolbox of its own; `Arc`, CRN kernel, masks, QC, gaps and correlation go to a new shared preprocessing toolbox below NonGravForces and the LRI/KBR toolbox. **gracefoReading gains no code; this supersedes every earlier 2026-09-18 row that placed a preprocessing layer (P-00 … P-14) in this repository** | owner. Each capability sits with the toolbox whose domain it is; the reader stays dependency-free and is not re-released for every preprocessing change, and the LRI/KBR toolbox does not have to install a force model to get its QC |
 | 2026-09-18 | Concept Q7 (Rev 0.4): the accelerometer calibration application lives in `NonGravForces.app`, where `app.calibrate` is upgraded in place; this repository gets the physics-free instrument stages (`Arc`, CRN kernel, masks, QC, alignment, gaps, estimation bridge, drivers, correlation) and the LRI chain. Only `NonGravForces.qc` moves, down to here. **Supersedes the Q1 row's "`app.calibrate` moves here (P-06)"**; the lsqvce bridge stays here because the LRI chain estimates too | owner, after asking why the dependency points NonGravForces → gracefoReading: a force model needs orbit, attitude and mass, so NonGravForces reads through this toolbox; calibration needs data and the force model and therefore sits above both. Calibrating inside NonGravForces also gives the per-effect a priori (`Model.budget`) that constituent attribution needs |
 | 2026-09-18 | Concept Q5: new preprocessing functions keep this repository's help footer (`Toolbox:` / `Created:` / `Updated:` / `Author:`, dates only, no model name); model and time are recorded in commits and PRs | owner. One authorship rule for the whole repository, already enforced by `auditHelp.py`; a second rule for new files would split the audit |
 | 2026-09-18 | Concept Q1 = A: dependencies stay one-way, referenceSystem ← gracefoReading ← NonGravForces; NonGravForces outputs (model, eclipse, space weather) enter as data; `NonGravForces.qc` and `app.calibrate` move here (P-03, P-06) and are forwarded, then deleted there (P-13). Q2: `lsqvce.fit` is the one estimator, called only from `preproc.estimate`. Q3: no gap filling by default; `maxGap` has no default | owner, answering concept section 11. A two-way dependency would make neither toolbox installable or testable alone; the calibration must accept non-NonGravForces references (ITSG, GROOPS) anyway. lsqvce and referenceSystem were searched and call neither toolbox, so the graph is acyclic |
@@ -261,8 +261,8 @@ The half of it that remains is O-2's writer side, not this.
    `testRealData` needs `READING_DATA_POOL`; the full suite needs MATLAB.
    A session with neither can still run all three static gates, and
    should say so rather than reporting "green".
-8. **A preprocessing layer is designed, not built.** Read
-   `docs/preproc/CONCEPT_PREPROCESSING.md` before touching anything named
-   ACC calibration, LRI, CRN, masks or gaps, and O-13 before starting P-00.
-   The legacy toolbox zip there is v2.4.2; never unpack it inside the
-   repository (40 foreign `.m` files would reach both static gates).
+8. **gracefoReading gains no code from the preprocessing concept.**
+   `docs/preproc/` hosts the design of a separate preprocessing toolbox,
+   the NonGravForces calibration and an LRI/KBR toolbox until X-00 moves
+   it (O-13). Earlier 2026-09-18 rows in F that name P-00 … P-14 here are
+   superseded. Never unpack the legacy zip inside the repository.

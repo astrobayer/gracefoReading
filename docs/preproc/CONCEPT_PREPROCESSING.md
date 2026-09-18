@@ -2,6 +2,12 @@
 
 **Revision 0.4 (DRAFT) · 2026-09-18 · written with Claude Opus 5 (Anthropic)**
 
+> **Rev 0.4a — sections 1–10 are partly superseded and will be restructured once Q10 is answered.**
+> Q8: β′ and argument of latitude are owned by referenceSystem (astrobayer/referenceSystem#25), not by
+> `preproc.drivers`. Q9: LRI/KBR becomes a toolbox of its own, not a chain inside gracefoReading.
+> Open Q10: where the shared physics-free stages live (Arc, CRN kernel, masks, QC, gaps, correlation) —
+> this also decides whether NonGravForces O-45 N-01 (`qc` moves) stands.
+
 This file is the **single point of truth for the design** of two pieces of
 work that share one pipeline: the instrument-level preprocessing layer of
 `gracefoReading` (masks, QC, CRN, gaps, correlation, the LRI chain) and the
@@ -379,6 +385,9 @@ repository's documentation pipeline), WP-25 `fromSca1b` (referenceSystem +
 | Q5 | Help footer in gracefoReading | **decided 2026-09-18: keep the repository rule**; model and time in commits and PRs. NonGravForces units follow NonGravForces' own template |
 | Q6 | Classic GRACE in 1.1? | open — proposal in force: no; after O-1 |
 | Q7 | Where does ACC calibration live? | **decided 2026-09-18: NonGravForces `app`**, upgraded in place; instrument stages and LRI in gracefoReading; only `qc` moves (down). Supersedes Rev 0.2's "calibrate moves to gracefoReading" |
+| Q8 | Owner of β′ and argument of latitude | **decided 2026-09-18: referenceSystem** (L5, issue astrobayer/referenceSystem#25); consumers pass the result as driver data |
+| Q9 | Where does LRI/KBR processing live? | **decided 2026-09-18: a toolbox of its own**; supersedes section 6.3's `+lri` package in gracefoReading |
+| Q10 | Where do the shared physics-free stages live (Arc, CRN kernel, masks, QC, gaps, correlation), now that LRI is separate? | open — options and recommendation in the owner conversation of 2026-09-18; decides N-01 |
 
 ---
 

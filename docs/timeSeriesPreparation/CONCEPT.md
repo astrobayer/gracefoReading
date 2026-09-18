@@ -1,6 +1,6 @@
 # CONCEPT — GRACE-FO time-series preparation, accelerometer calibration, LRI/KBR processing
 
-**Revision 0.6 (DRAFT) · 2026-09-18 · written with Claude Opus 5 (Anthropic)**
+**Revision 0.7 (DRAFT) · 2026-09-18 · written with Claude Opus 5 (Anthropic)**
 
 This file is the **single point of truth for the design** of one pipeline
 spanning six toolboxes. Each repository's HANDOVER stays the single point of
@@ -23,7 +23,8 @@ leaves a pointer behind. gracefoReading itself gains **no code**.
 | 0.4 | Q7: ACC calibration in NonGravForces |
 | 0.4a | Q8, Q9 |
 | 0.5 | Q10: shared preparation toolbox |
-| **0.6** | **preparation toolbox named timeSeriesPreparation; sigtools v1.3.1 becomes part of it; global order (section 10)** |
+| 0.6 | preparation toolbox named timeSeriesPreparation; sigtools v1.3.1 becomes part of it; global order (section 10) |
+| **0.7** | **Q11: LRI/KBR toolbox named rangingPreparation; Q12: sigtools and lsqvce kernels both kept, with a mechanical agreement test** |
 
 **Read at**
 
@@ -49,7 +50,7 @@ GRACE-FO Level-1B series are not usable as delivered:
   visible by correlation analysis.
 
 **Each capability sits with the toolbox whose domain it is. Applications sit
-above what they use.** The working name `ranging` stands until Q11.
+above what they use.
 
 | toolbox | domain | new in this concept |
 |---|---|---|
@@ -57,7 +58,7 @@ above what they use.** The working name `ranging` stands until Q11.
 | gracefoReading | reading L1B, ITSG and GROOPS files | **nothing** (pure reader) |
 | **timeSeriesPreparation** (new) | physics-free time-series preparation and analysis | sigtools v1.3.1 (spectra, ARMA/SARIMA models, synthesis, diagnostics); the `Arc` container, CRN kernel, masks, QC, alignment, gaps, observability, bootstrap, blocked CV, correlation; entry point `run` |
 | NonGravForces | forces, environment, the ACC calibration application | `app.calibrate` upgraded in place; `qc` leaves for timeSeriesPreparation |
-| **ranging** (new) | LRI/KBR processing and analysis | observables, phase jumps, KBR↔LRI comparison, spectra; entry point `process` |
+| **rangingPreparation** (new) | LRI/KBR processing and analysis | observables, phase jumps, KBR↔LRI comparison, spectra; entry point `process` |
 | lsqvce | least squares | nothing; the one estimator, called by the applications |
 
 Out of scope: orbit and gravity estimation, LGD, mascons. GRACE-FO comes
@@ -79,7 +80,7 @@ first; classic GRACE is blocked by gracefoReading O-1.
 | modelled non-gravitational acceleration, per effect | `NonGravForces.Model` (`series`, `budget`) | used inside `app.calibrate`; external references enter as an `Arc` |
 | eclipse factor, space weather | `NonGravForces.env.eclipseFactor`, `io.spaceWeather` | driver data outside NonGravForces |
 | spectra (Welch, Lomb-Scargle), Allan deviation, PSD↔ACV, ARMA↔PSD, ARMA ACV, noise synthesis, ARIMA/SARIMA exact ML with gaps, ACF/PACF (gap-aware), Ljung-Box, residual diagnostics | **timeSeriesPreparation** (from sigtools v1.3.1) | v3 `+noise`, `lombScarglePSD` and the synthetic-noise parts of `syntheticPair` **retired**; overlap with lsqvce kernels is Q12 |
-| exact ATBD CRN kernel and its derivative kernels, presets for ACC, KBR and LRI | **timeSeriesPreparation** `crnKernel` (port of v2 `crnFilter`) | consumed by NonGravForces and ranging |
+| exact ATBD CRN kernel and its derivative kernels, presets for ACC, KBR and LRI | **timeSeriesPreparation** `crnKernel` (port of v2 `crnFilter`) | consumed by NonGravForces and rangingPreparation |
 | residual QC: Hampel, impulses, jumps, event table | `NonGravForces.qc` 0.12.0 → **timeSeriesPreparation** `qc` | ported; NonGravForces forwards for one release, then deletes (N-01) |
 | least-squares estimation | **`lsqvce.fit`**, called by each application for its own problem | `app.calibrate`'s own QR solver **retired**; v3 `fit.solve` **retired**; timeSeriesPreparation contains no least-squares estimator |
 | instrument settings | timeSeriesPreparation `Config` | embedded in each application's options and hashed with them |
@@ -91,17 +92,17 @@ first; classic GRACE is blocked by gracefoReading O-1.
 ### 3.1 Dependency graph (acyclic)
 
 ```
-referenceSystem  <-----------------------------------------------+------------+
-gracefoReading   <-- timeSeriesPreparation <-- NonGravForces ----+ (+ lsqvce) |
-      ^   (optional)            ^                                             |
-      +-------------------------+-------------- ranging ----------------------+ (+ lsqvce)
+referenceSystem  <------------------------------------------+---------------+
+gracefoReading   <-- timeSeriesPreparation <-- NonGravForces-+  (+ lsqvce)   |
+      ^   (optional)         ^                                              |
+      +----------------------+------------ rangingPreparation --------------+  (+ lsqvce)
 ```
 
 | toolbox | depends on |
 |---|---|
 | timeSeriesPreparation | gracefoReading, **optional**. Only the L1B-specific functions call it (qualflg masks, gap segments); these error at the point of use with `timeSeriesPreparation:<fn>:depMissing`. The sigtools half runs in base MATLAB |
 | NonGravForces | referenceSystem, gracefoReading, timeSeriesPreparation, lsqvce; gjToolbox optional |
-| ranging | referenceSystem, gracefoReading, timeSeriesPreparation, lsqvce |
+| rangingPreparation | referenceSystem, gracefoReading, timeSeriesPreparation, lsqvce |
 
 Checked 2026-09-18:
 - no `.m` file of lsqvce `ac981cd` or referenceSystem `311e060` calls
@@ -109,7 +110,7 @@ Checked 2026-09-18:
 - no repository calls a sigtools function today, so namespacing sigtools
   breaks nothing in the ecosystem.
 
-ranging does not depend on NonGravForces.
+rangingPreparation does not depend on NonGravForces.
 
 ### 3.2 timeSeriesPreparation packages and layers
 
@@ -170,11 +171,11 @@ res = NonGravForces.app.calibrate(acc, itsgArc);                           % ext
 - The instrument stages run through `timeSeriesPreparation.run`, so there is
   one code path (v3 F4).
 
-**LRI/KBR — ranging**:
+**LRI/KBR — rangingPreparation**:
 
 ```matlab
 lri = timeSeriesPreparation.Arc(tl, rl, auxl);   kbr = timeSeriesPreparation.Arc(tk, rk, auxk);
-res = ranging.process(lri, 'Reference', kbr, 'Drivers', drv);
+res = rangingPreparation.process(lri, 'Reference', kbr, 'Drivers', drv);
 ```
 
 **Result fields.**
@@ -182,7 +183,7 @@ res = ranging.process(lri, 'Reference', kbr, 'Drivers', drv);
   `config` and `provenance`. A contract test pins this set.
 - `app.calibrate` adds `calibration` (`app.Calibration`: apply / invert /
   summaryTable / save / load) and `attribution`.
-- `ranging.process` adds `comparison`.
+- `rangingPreparation.process` adds `comparison`.
 
 ---
 
@@ -259,7 +260,7 @@ are estimated by `lsqvce.fit`.
   a priori amplitudes, space weather, β′ and u; a VIF above 10 gives the
   verdict `unresolved`.
 
-### 6.3 LRI/KBR (ranging)
+### 6.3 LRI/KBR (rangingPreparation)
 
 - `observables`: range, range-rate and range-acceleration, with the
   correction columns the real header declares (V-3).
@@ -361,7 +362,7 @@ passed + failed + incomplete = total before every run.
 | id | verification item (from documents or real bytes, never memory) | blocks |
 |---|---|---|
 | V-1 | GRACE-FO ACC CRN parameters vs JPL D-56935 | removing the `crnKernel` warning |
-| V-2 | KBR1B and LRI1B CRN parameters | ranging CRN presets |
+| V-2 | KBR1B and LRI1B CRN parameters | rangingPreparation CRN presets |
 | V-3 | LRI1B correction columns, signs and units from the real header | L-01 |
 | V-4 | ITSG `nonConservativeForces`: model or calibrated measurement? CRN-filtered? | ORC-4 |
 | V-5 | the ACT1B satellite-D transplant statement in the header | N-02 report wording |
@@ -391,7 +392,7 @@ repository has one open PR at a time.
 | timeSeriesPreparation | X-04 | `crnKernel` (ACC; KBR/LRI after V-2), `crnApply` → **release 0.1** | WP-10 | X-03 |
 | timeSeriesPreparation | X-05 | `mask`, `qc` (port of NonGravForces.qc 0.12.0) → **release 0.2** | WP-06 | X-04 |
 | timeSeriesPreparation | X-06 | `align`, `checkAlignment` | WP-02 part, WP-11 part | X-04 |
-| timeSeriesPreparation | X-07 | noise stage on `tsmodels`/`spectral`, `observability`, `bootstrap`, `crossval` | WP-07, WP-12, WP-15 part | X-02, X-03 |
+| timeSeriesPreparation | X-07 | noise stage on `tsmodels`/`spectral`, `observability`, `bootstrap`, `crossval`; **Q12 agreement test**: `arma2acv`↔`lsqvce.kernel.armaACV`, `spec2acv`↔`psd2acv`, `tsLjungBox`↔`whitenessCorr`, `tsFitAR`↔`levinsonDurbin`/`whittle`, each with a tolerance naming the term it bounds (lsqvce is a test-only dependency) | WP-07, WP-12, WP-15 part | X-02, X-03 |
 | timeSeriesPreparation | X-08 | `fill` | — | X-07, V-7 |
 | timeSeriesPreparation | X-09 | `drivers`, `correlate` | WP-17 part | X-07 |
 | timeSeriesPreparation | X-10 | `run`, full `Config`, integration test (real ACT1B against the ITSG reference; synthetic) → **release 1.0** | WP-19 part | X-03..X-09 |
@@ -403,12 +404,12 @@ repository has one open PR at a time.
 | NonGravForces | N-03 | time-varying scale, model comparison, per-revolution, attribution | WP-14, WP-16 part, WP-17 part | N-02, R-01 |
 | NonGravForces | N-05 | calibration figures | WP-20 part | N-03 |
 | NonGravForces | N-06 | records: A.2 rule, dependency table, B.4 | — | with N-02 |
-| ranging | L-00 | repository, as X-00 | — | Q11 |
-| ranging | L-01 | `observables` | — | L-00, V-3 |
-| ranging | L-04 | `spectrum` (on `+spectral`) | — | L-01, X-02 |
-| ranging | L-02 | `detectPhaseJumps` | — | L-01, release 0.2 |
-| ranging | L-03 | `compareKbr` | — | L-02, X-06, V-2, V-6 |
-| ranging | L-05 | `process`, truth generator, integration test, report | — | L-01..L-04, release 1.0, R-01 |
+| rangingPreparation | L-00 | repository, as X-00 | — | X-00 |
+| rangingPreparation | L-01 | `observables` | — | L-00, V-3 |
+| rangingPreparation | L-04 | `spectrum` (on `+spectral`) | — | L-01, X-02 |
+| rangingPreparation | L-02 | `detectPhaseJumps` | — | L-01, release 0.2 |
+| rangingPreparation | L-03 | `compareKbr` | — | L-02, X-06, V-2, V-6 |
+| rangingPreparation | L-05 | `process`, truth generator, integration test, report | — | L-01..L-04, release 1.0, R-01 |
 
 ### 10.2 Global order — why this sequence
 
@@ -420,11 +421,11 @@ repository has one open PR at a time.
 4. Keep one open PR per repository.
 
 **Phase 0 — decisions and reading, no code (days).**
-- Q11: the name of the ranging toolbox. Q12: the lsqvce/sigtools overlap.
+- Q11 and Q12 are decided (rev 0.7).
 - Read V-3 and V-5 from the pool's real headers, V-4 from the ITSG README,
   and V-6 from the lsqvce source.
 - V-1 and V-2 need the handbooks. Establish whether they are available now,
-  because V-2 is the only item that can block ranging late.
+  because V-2 is the only item that can block rangingPreparation late.
 
 **Phase 1 — foundations, three repositories in parallel.**
 
@@ -453,7 +454,7 @@ Downstream work starts early, one PR at a time per repository:
 | repo | sequence |
 |---|---|
 | NonGravForces | N-02 (+ N-06) → N-03 → N-05 |
-| ranging | L-03 → L-05 |
+| rangingPreparation | L-03 → L-05 |
 
 **Phase 4 — X-11 reports, and X-12 whenever the handbook is available.**
 
@@ -482,8 +483,8 @@ beside it.
 | Q8 | Owner of β′ and argument of latitude | **decided: referenceSystem** (#25) |
 | Q9 | Where does LRI/KBR processing live? | **decided: a toolbox of its own** |
 | Q10 | Where do Arc, the CRN kernel, masks, QC, gaps and correlation live? | **decided: a shared toolbox**, named **timeSeriesPreparation** (owner, 2026-09-18) |
-| Q11 | Name of the LRI/KBR toolbox | open — working name `ranging`. **Gates L-00** |
-| Q12 | sigtools and lsqvce both implement ARMA autocovariance (`arma2acv` / `armaACV`), PSD→ACV (`spec2acv` / `psd2acv`), Ljung-Box (`tsLjungBox` / `whitenessCorr`) and AR fitting (`tsFitAR` / `levinsonDurbin`, `whittle`) | open — proposal: keep both, with a mechanical agreement test in timeSeriesPreparation (lsqvce as a test-only dependency). The copies serve different roles: user-facing analysis versus batched whitening inside the adjustment. Making either call the other adds a dependency in one direction. **Gates X-07** |
+| Q11 | Name of the LRI/KBR toolbox | **decided 2026-09-18: rangingPreparation** |
+| Q12 | sigtools and lsqvce both implement ARMA autocovariance (`arma2acv` / `armaACV`), PSD→ACV (`spec2acv` / `psd2acv`), Ljung-Box (`tsLjungBox` / `whitenessCorr`) and AR fitting (`tsFitAR` / `levinsonDurbin`, `whittle`) | **decided 2026-09-18: keep both**, with a mechanical agreement test in timeSeriesPreparation (X-07; lsqvce as a test-only dependency). The copies serve different roles: user-facing analysis versus batched whitening inside the adjustment. Making either call the other adds a dependency in one direction |
 | Q13 | Is sigtools included whole, or only the parts the pipeline uses? | **decided: included** (owner, 2026-09-18); proposal in force: whole, since nothing else owns it |
 
 ---
@@ -500,7 +501,7 @@ beside it.
    goes to timeSeriesPreparation.
 5. timeSeriesPreparation contains no least-squares estimator. The
    applications call `lsqvce.fit`.
-6. β′ and u belong to referenceSystem (#25). ranging does not depend on
+6. β′ and u belong to referenceSystem (#25). rangingPreparation does not depend on
    NonGravForces.
 7. Do not implement from the v3 handover's Part IV; section 10 maps every WP.
 8. The legacy AccelBiasScaleToolbox zip is v2.4.2, not the v2.5.0 that the

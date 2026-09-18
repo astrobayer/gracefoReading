@@ -1,6 +1,8 @@
 # GUIDE — building the GRACE/GRACE-FO preprocessing chain, step by step
 
-**Revision 1.0 · 2026-09-18 · written with Claude Opus 5 (Anthropic) for Matthias Weigelt**
+**Revision 1.1 · 2026-09-18 · written with Claude Opus 5 (Anthropic) for Matthias Weigelt**
+
+Rev 1.1: the current GitHub token stays (owner decision 2026-09-18: one user, private repositories); A1 now only checks that it reaches the new repositories.
 
 This file is the **only authority for the order of work and for every
 procedure**: preparing repositories, collecting data and references,
@@ -150,27 +152,14 @@ immutable)**
 
 ## 4. Stage A — prepare (once, before any code)
 
-**A1 — Replace the token (do first).** The current token sits in plain text
-in this project's files.
-
-1. GitHub → Settings → Developer settings → Fine-grained tokens → **Generate
-   new token**.
-2. **Repository access:** only select repositories — gracefoReading,
-   referenceSystem, NonGravForces, lsqvce, ci-actions, timeSeriesPreparation,
-   rangingPreparation (the last two once they exist; edit the token then).
-3. **Permissions:**
-   - Contents: Read and write
-   - Pull requests: Read and write
-   - Issues: Read and write
-   - Actions: Read and write
-   - **Workflows: Read and write** (needed to push `.github/workflows` files)
-   - Metadata: Read
-   - **Not** Administration: rulesets stay manual.
-4. **Expiry:** 30–90 days.
-5. Replace `GitHub_Access_Token.txt` in the Claude project; **revoke** the old
-   token.
-6. **Checkpoint:** a session reads one repository's metadata with the new
-   token.
+**A1 — Token access to the new repositories.** The current token stays
+(owner decision, 2026-09-18). Two checks once A3 and A4 are done:
+1. **Checkpoint:** a Session reads the metadata of both new repositories with
+   the token. If it was issued for selected repositories only, add the two new
+   ones to it.
+2. **Checkpoint at X-00b**, the first push of a file under `.github/workflows/`:
+   if the push is refused, the token lacks the permission "Workflows: Read and
+   write".
 
 **A2 — Organisation settings.**
 - **Variable `READING_DATA_POOL`** at organisation level, visible to
@@ -350,7 +339,7 @@ CHANGELOG: MINOR for new capability, PATCH for fixes.
 
 | step | what | done when |
 |---|---|---|
-| 0.1 | Stage A (A1–A6) | token replaced; both repositories exist with rulesets; X-00a merged; #15 and #57 merged |
+| 0.1 | Stage A (A1–A6) | token reaches both new repositories; both exist with rulesets; X-00a merged; #15 and #57 merged |
 | 0.2 | Stage B, D-1 to D-7 (D-8 when you supply it, D-9 after D-2) | `MANIFEST.sha256` written; `sha256sum -c` passes |
 | 0.3 | Stage C; close the V-items that documents answer: V-1, V-2, V-3, V-5, V-8, V-13 to V-16 | one docs-only PR in timeSeriesPreparation per batch, each V row citing page or table |
 | 0.4 | lsqvce#107: V-6 read from source, then release **lsqvce v6.1.0** (annotated) | tag read back |

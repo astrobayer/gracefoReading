@@ -1,6 +1,6 @@
 # CONCEPT — GRACE-FO time-series preparation, accelerometer calibration, LRI/KBR processing
 
-**Revision 0.9 (DRAFT) · 2026-09-18 · written with Claude Opus 5 (Anthropic)**
+**Revision 0.10 (DRAFT) · 2026-09-18 · written with Claude Opus 5 (Anthropic)**
 
 This file is the **single point of truth for the design** of one pipeline
 spanning six toolboxes. Each repository's HANDOVER stays the single point of
@@ -28,7 +28,8 @@ only items are two reader obligations, G-01 (its O-11) and G-02 (its O-1).
 | 0.6 | preparation toolbox named timeSeriesPreparation; sigtools v1.3.1 becomes part of it; global order (section 10) |
 | 0.7 | Q11: LRI/KBR toolbox named rangingPreparation; Q12: sigtools and lsqvce kernels both kept, with a mechanical agreement test |
 | 0.8 | Q4: no orbit integration and no LGD; Q6: classic GRACE is supported as well, with real files supplied by the owner when the work starts |
-| **0.9** | **Q14: improvements 1–9 adopted — gpsns epoch authority (R-02), campaign mode (X-15, N-09), stage cache (X-14), regression baseline (N-10), concept moved now (X-00a), decisions recorded once, shared static audit (C-01), downstream contracts (C-02), X-02 later in the order** |
+| 0.9 | Q14: improvements 1–9 adopted — gpsns epoch authority (R-02), campaign mode (X-15, N-09), stage cache (X-14), regression baseline (N-10), concept moved now (X-00a), decisions recorded once, shared static audit (C-01), downstream contracts (C-02), X-02 later in the order |
+| **0.10** | **Q15: improvements 11–20 adopted — output-epoch CRN, QC speed after an unchanged port, reading profiled, streaming accumulation, real-day defect catalogue, minimum-data gate, array conventions, data-handling rules, one help template and generator, executed documentation** |
 
 **Read at**
 
@@ -228,6 +229,36 @@ no positional fallback.
 - Applications take it as `'Preproc'` and hash it together with their own
   options.
 
+### 5.1 Array conventions (Q15, item 17)
+
+- **Samples in rows, channels in columns** (N×M) everywhere. One call handles
+  the 3 ACC axes or all LRI observables; there is no per-axis loop in a public
+  interface.
+- A campaign is an **array of `Arc`s**; numerical kernels see plain matrices,
+  never objects or per-sample structures.
+- **No `datetime` in inner loops.** Relative double seconds are formed once per
+  arc from the int64 epochs: about 6e-10 s resolution over a month. Absolute
+  time stays int64.
+- The `vectorisation` test category holds every kernel to this: a batched call
+  equals the loop over its parts, bitwise.
+
+### 5.2 Data-handling rules (Q15, item 18)
+
+- **One L1B release per arc and per campaign.** Mixing release versions
+  (e.g. RL04 and a later one) refuses unless asked for explicitly. The release
+  is read from the file name or header and recorded in provenance (R3).
+- **NaN is the only missing value.** No sentinel numbers; filled samples are
+  flagged, never disguised.
+- **Units are checked** between observation and reference at `align`; a
+  mismatch refuses.
+- **Results are stored per day**, not as one array: about 1 GB per
+  satellite-year at 1 Hz for 3 axes plus weights. Versioned MAT schema per day,
+  and one data-management manifest per campaign (DataCite/PROV fields).
+- **Minimum-data gate (item 16).** An axis whose remaining weight fraction
+  falls below a threshold refuses with an identifier; it never returns NaN.
+  The threshold is set explicitly in each product preset, with its rationale
+  in the preset's help.
+
 ---
 
 ## 6. Pipeline
@@ -239,7 +270,7 @@ no positional fallback.
 | 1 | mask | `mask` | qualflg layers via `decodeQualFlags`; THR1B windows (margins justified by the CRN span); eclipse transitions from a driver series; CRN edges; a user layer |
 | 2 | QC | `qc` | residual-based outliers; impulses (matched filter on the CRN impulse response, THR1B priors); jumps (reported and turned into parameters, never masked) |
 | 3 | align | `align`, `checkAlignment` | reference moved onto the observation epochs; lag diagnostic over ±60 s that warns above 1 s and never shifts silently (v3 F2) |
-| 4 | consistency | `crnKernel`, `crnApply` | exact ATBD kernel normalised at f0, DC gain 1.0004533 kept; chunked per file day with half-span overlap, bit-identical to unchunked; NaN edges |
+| 4 | consistency | `crnKernel`, `crnApply` | exact ATBD kernel normalised at f0, DC gain 1.0004533 kept; chunked per file day with half-span overlap, bit-identical to unchunked; NaN edges. **The convolution sum is evaluated only at the output epochs** (1 Hz for ACC1B from the 10 Hz grid): about 3.6e8 instead of 3.6e9 multiply-adds per day for 3 axes, pinned equal to full-rate convolution followed by sampling |
 | 5 | noise | `tsmodels`, `spectral` | residual noise model (AR/ARMA/SARIMA exact ML with gaps, or PSD → ARMA), Ljung-Box, Allan deviation; the model feeds `fill` and the applications' lsqvce covariance |
 | 6 | gate | `observability` | metrics an application uses to refuse or downgrade unidentifiable parameters before its fit |
 | 7 | uncertainty | `bootstrap`, `crossval` | moving-block bootstrap with substreamed RNG; blocked CV |
@@ -326,6 +357,9 @@ are estimated by `lsqvce.fit`.
   the scale is common or per arc as configured. Multi-day solutions with
   space-weather attribution are the only route that separates sensor error
   from model error (v3 I.5-2).
+- **Multi-arc fits use lsqvce's streaming accumulation** (declaration kind A,
+  one system per arc) rather than a dense design matrix over the campaign, and
+  keep the three axes as three separate problems (item 14).
 
 **Stage cache.**
 - `Config.run.cacheDir` is empty by default, which means the cache is off (R5).
@@ -376,7 +410,8 @@ are estimated by `lsqvce.fit`.
 | int64 gpsns, never double GPS time | 2020 gpsns ≈ 6.3e17 > 2^53 |
 | qualflg meanings from the file header | O-1: invented formats fail on real files |
 | deterministic opt-in parallelism; RNG substream per replicate, seed per stage name | results independent of worker count and stage insertion |
-| sigtools numerics move unchanged; conventions change afterwards, in a separate WP | any numerical change must be attributable to a WP that says so |
+| **ported code moves unchanged first** (sigtools, NonGravForces `qc`); conventions or speed change afterwards, in a separate WP gated by equality to the ported version | any numerical change must be attributable to a WP that says so |
+| CRN convolution evaluated only at output epochs | same numbers, a tenth of the work (item 11) |
 
 GRACE-FO CRN parameters are the GRACE ATBD ones and are unverified for
 GRACE-FO (V-1). `crnKernel` warns until a named constant cites the handbook.
@@ -421,6 +456,7 @@ passed + failed + incomplete = total before every run.
 | ORC-8 | sigtools' NumPy/SciPy re-derivations (per its HANDOFF §3) and its imported suite | the moved numerics are unchanged |
 | ORC-9 | real classic GRACE files (A/B), one per product, supplied by the owner at G-02 | classic layouts, qualflg, dictionaries, presets |
 | ORC-10 | regression baseline 2020-01, C and D, plus one classic month (6.6) | releases change no calibrated number beyond k × bootstrap sigma |
+| ORC-11 | **defect catalogue of real days** (V-12): thruster spikes, bias jumps, day-boundary duplicates and gaps, a satellite-D transplant period, an LRI phase jump, a KBR SNR drop, and classic cases after G-02 | every detector is tested on a real instance, not only on synthetic data |
 
 | id | verification item (from documents or real bytes, never memory) | blocks |
 |---|---|---|
@@ -435,6 +471,47 @@ passed + failed + incomplete = total before every run.
 | V-9 | GRACE macro model (plates, areas, optical properties, mass), from the GRACE product specification; the document must be supplied, not recalled | N-07 |
 | V-10 | classic GRACE accelerometer thermal-control history, and which housekeeping product carries the accelerometer temperature | N-08 bias model and drivers |
 | V-11 | is there a published daily ACC bias/scale series (processing centre or science data system) usable as an external oracle? | ORC-10 external half |
+| V-12 | the defect catalogue: one real day per defect class, recorded as file, epoch range and expected verdict | X-05, L-02, N-02 tests |
+
+**Fault injection (item 16).** Every new check is fault-injected in the
+round that adds it: it must fire on a broken input and stay silent on a
+healthy one. A check that its own injection does not fire is not a check.
+
+### 9.1 Help text and documentation (Q15, items 19–20)
+
+**One help template for the new repositories**, enforced by the shared audit
+C-01 and rendered by the shared generator C-03:
+- SYNTAX;
+- DESCRIPTION, motivated, with numbers;
+- INPUTS / OUTPUTS / OPTIONS as `(size) type units description`;
+- ACCURACY, never empty ("not applicable, because ..." is an answer);
+- ERRORS grouped by cause;
+- a runnable EXAMPLE;
+- LIMITATIONS and REFERENCES;
+- See also;
+- the footer per Q5: toolbox and version, date and time, model.
+
+Existing repositories keep their own templates until each opts into C-01 in
+its own PR (see the C-01 risk in 10.2).
+
+**One generator.** Today there are three (`docsrc/generate_docs.py`,
+`tools/buildDocs.py`, `referenceSystem.buildDocumentation`) and four help
+styles counting sigtools. C-03 provides one, driven by the help blocks:
+- HTML pages, `helptoc.xml`, `info.xml`, the search database;
+- a generated error-identifier catalogue per repository.
+
+sigtools' hand-made HTML pages are replaced at X-02, because otherwise they
+would be a second authority.
+
+**Executed documentation.**
+- Every help EXAMPLE runs in the suite (`testHelpExamples`, generated by C-03),
+  as NonGravForces already does for its demos.
+- Every warning about a pitfall quotes the measured size of the effect and
+  the experiment that produced it (v3 V.2).
+- One **processing-chain page** (read → prepare → calibrate → ranging on
+  2020-01-01) is executed by an ecosystem job in `ci-actions` (C-04). It lives
+  at the top of the dependency graph, so no toolbox's CI needs a toolbox
+  above it; each toolbox's getting-started page links to it.
 
 ---
 
@@ -450,28 +527,32 @@ repository has one open PR at a time.
 | repo | WP | content | replaces v3 | needs |
 |---|---|---|---|---|
 | gracefoReading | G-01 | O-11: `readL1bMulti` accepts `findL1bFiles`' column | — | — |
+| gracefoReading | G-03 | O-7 measured (item 13): parse time of one real ACT1B day and the extrapolated year; decide on the fixed-layout fast path from the number | — | G-01 |
 | gracefoReading | G-02 | O-1 discharge: classic layouts confirmed or corrected against real files, `classicExperimental` warning removed, files added to `tests/realdata/` | — | owner supplies files (V-8) |
 | referenceSystem | R-01 | `orbitSunGeometry` (#25) | WP-16 part | — |
 | referenceSystem | R-02 | int64 GPS nanoseconds as an epoch representation (to and from), exact integer arithmetic | WP-02 part | — |
 | ci-actions | C-01 | shared static audit as a versioned action: help template, footer, error-identifier agreement, catalogue; per-repository configuration | — | — |
 | ci-actions | C-02 | ecosystem compatibility file (version sets tested together) and its update rule | — | — |
+| ci-actions | C-03 | shared documentation generator: help blocks → HTML, `helptoc.xml`, `info.xml`, search database, error-identifier catalogue, `testHelpExamples` | WP-23 | C-01 |
+| ci-actions | C-04 | ecosystem job: the processing-chain page executed on 2020-01-01 across all toolboxes | — | N-02, L-05 |
 | lsqvce | V-6 | read-only: confirm the surface N-02 and L-03 declare against | — | — |
 | timeSeriesPreparation | X-00a | create the repository with documents only; move this folder and `inputs/` here; reduce gracefoReading #15 to a pointer and the G-01/G-02 records | — | — |
 | timeSeriesPreparation | X-00b | skeleton, CI (ci-actions probe and C-01 audit), documentation pipeline, test tags, layering test, optional-gracefoReading resolution | WP-00, WP-05 | X-00a, C-01 |
 | timeSeriesPreparation | X-01 | **sigtools import**: `+spectral`, `+tsmodels`, demos, tests; numerics byte-identical; imported suite green and counted | — | X-00b |
-| timeSeriesPreparation | X-02 | sigtools conventions: `arguments` blocks (24 of 26 files lack one), prefixed error identifiers, plotting split out of the four functions whose code plots (`allanVariance`, `plotPowerSpectrum`, `psd2arma`, `tsCheckResiduals`), one shared Lyapunov solver (four local copies today). Numbers unchanged; ORC-8 is the gate | — | X-01 |
-| timeSeriesPreparation | X-03 | `Arc`, `Config` skeleton; `contract` tests pinning gracefoReading's `aux` fields | WP-01 | X-00b |
-| timeSeriesPreparation | X-04 | `crnKernel` (ACC; KBR/LRI after V-2), `crnApply` → **release 0.1** | WP-10 | X-03 |
-| timeSeriesPreparation | X-05 | `mask`, `qc` (port of NonGravForces.qc 0.12.0) → **release 0.2** | WP-06 | X-04 |
-| timeSeriesPreparation | X-06 | `align`, `checkAlignment` | WP-02 part, WP-11 part | X-04 |
-| timeSeriesPreparation | X-07 | noise stage on `tsmodels`/`spectral`, `observability`, `bootstrap`, `crossval`; **Q12 agreement test**: `arma2acv`↔`lsqvce.kernel.armaACV`, `spec2acv`↔`psd2acv`, `tsLjungBox`↔`whitenessCorr`, `tsFitAR`↔`levinsonDurbin`/`whittle`, each with a tolerance naming the term it bounds (lsqvce is a test-only dependency) | WP-07, WP-12, WP-15 part | X-02, X-03 |
+| timeSeriesPreparation | X-02 | sigtools conventions: `arguments` blocks (24 of 26 files lack one), prefixed error identifiers, plotting split out of the four functions whose code plots (`allanVariance`, `plotPowerSpectrum`, `psd2arma`, `tsCheckResiduals`), one shared Lyapunov solver (four local copies today). Numbers unchanged; ORC-8 is the gate. Hand-made HTML replaced by C-03 output | — | X-01, C-03 |
+| timeSeriesPreparation | X-03 | `Arc`, `Config` skeleton; `contract` tests pinning gracefoReading's `aux` fields; release version in the metadata and the one-release rule (5.2) | WP-01 | X-00b |
+| timeSeriesPreparation | X-04 | `crnKernel` (ACC; KBR/LRI after V-2), `crnApply` with output-epoch evaluation (item 11) → **release 0.1** | WP-10 | X-03 |
+| timeSeriesPreparation | X-05 | `mask`, `qc` (port of NonGravForces.qc 0.12.0, **unchanged**, its tests as gate); defect-catalogue tests (ORC-11) → **release 0.2** | WP-06 | X-04, V-12 |
+| timeSeriesPreparation | X-06 | `align`, `checkAlignment`, unit check (5.2) | WP-02 part, WP-11 part | X-04 |
+| timeSeriesPreparation | X-07 | noise stage on `tsmodels`/`spectral`, `observability` with the minimum-data gate (5.2), `bootstrap`, `crossval`; **Q12 agreement test**: `arma2acv`↔`lsqvce.kernel.armaACV`, `spec2acv`↔`psd2acv`, `tsLjungBox`↔`whitenessCorr`, `tsFitAR`↔`levinsonDurbin`/`whittle`, each with a tolerance naming the term it bounds (lsqvce is a test-only dependency) | WP-07, WP-12, WP-15 part | X-02, X-03 |
 | timeSeriesPreparation | X-08 | `fill` | — | X-07, V-7 |
 | timeSeriesPreparation | X-09 | `drivers`, `correlate` | WP-17 part | X-07 |
 | timeSeriesPreparation | X-10 | `run`, full `Config`, integration test (real ACT1B against the ITSG reference; synthetic) → **release 1.0** | WP-19 part | X-03..X-09 |
 | timeSeriesPreparation | X-11 | `report` | WP-20 part | X-10 |
 | timeSeriesPreparation | X-12 | V-1 CRN verification | WP-24 | handbook |
 | timeSeriesPreparation | X-14 | stage cache (6.6) | — | X-10 |
-| timeSeriesPreparation | X-15 | campaign mode of `run` (6.6) → **release 1.1** | WP-19 part (`runBatch`) | X-14 |
+| timeSeriesPreparation | X-16 | QC speed (item 12): `hampel` on `movmedian` with an exact window MAD, jump detection's candidate bookkeeping vectorised (or a C layer); gated by equality to the X-05 port | — | X-05, X-14 |
+| timeSeriesPreparation | X-15 | campaign mode of `run` (6.6), per-day storage and the per-campaign manifest (5.2) → **release 1.1** | WP-19 part (`runBatch`) | X-14, X-16, G-03 |
 | timeSeriesPreparation | X-13 | classic GRACE: dictionaries, masks (`qualflg` per V-8), `Config` presets, classic fixtures in the integration test | — | G-02, X-10 |
 | NonGravForces | N-04 | `sensor.Electrostatic` takes its default kernel from `crnKernel` | — | release 0.1 |
 | NonGravForces | N-01 | `qc` forwards to timeSeriesPreparation, then is deleted | — | release 0.2 |
@@ -509,14 +590,15 @@ repository has one open PR at a time.
   and V-6 from the lsqvce source.
 - V-1 and V-2 need the handbooks. Establish whether they are available now,
   because V-2 is the only item that can block rangingPreparation late.
+- V-12: pick the real days of the defect catalogue from the data pool.
 
 **Phase 1 — foundations, three repositories in parallel.**
 
 | repo | sequence |
 |---|---|
-| gracefoReading | G-01 |
+| gracefoReading | G-01 → G-03 |
 | referenceSystem | R-01 → R-02 |
-| ci-actions | C-01 → C-02 |
+| ci-actions | C-01 → C-03 → C-02 |
 | timeSeriesPreparation | X-00b → X-01 (after C-01) |
 
 - G-01, R-01 and R-02 are small, independent, and needed by everything later.
@@ -532,7 +614,7 @@ repository has one open PR at a time.
 
 **Phase 2 — the critical path, in timeSeriesPreparation:**
 X-03 → X-04 (**0.1**) → X-05 (**0.2**) → X-06 → X-02 → X-07 → X-08 → X-09 → X-10 (**1.0**)
-→ X-14 → X-15 (**1.1**).
+→ X-14 → X-16 → X-15 (**1.1**).
 
 Downstream work starts early, one PR at a time per repository:
 - as soon as 0.1 is out: N-04, and L-00 → L-01 → L-04;
@@ -551,12 +633,12 @@ the data exist, even during Phase 1, because it touches only the reader.
 Because every WP is mission-aware from the start, this track adds entries and
 never reworks the GRACE-FO path.
 
-**Phase 4 — X-11 reports, and X-12 whenever the handbook is available.**
+**Phase 4 — X-11 reports, C-04 the executed processing-chain page, and X-12 whenever the handbook is available.**
 
 **Critical path.**
 - To the first calibration: C-01 → X-00b → X-01 → X-03 → X-04 → X-05 → X-06
   → X-02 → X-07 → X-08 → X-09 → X-10 → N-02, about thirteen WPs deep.
-- To a validated campaign calibration, add X-14 → X-15 and N-03 → N-09 → N-10.
+- To a validated campaign calibration, add X-14 → X-16 → X-15 and N-03 → N-09 → N-10.
 - Everything else runs beside it.
 
 **Largest schedule risks:**
@@ -589,6 +671,7 @@ never reworks the GRACE-FO path.
 | Q12 | sigtools and lsqvce both implement ARMA autocovariance (`arma2acv` / `armaACV`), PSD→ACV (`spec2acv` / `psd2acv`), Ljung-Box (`tsLjungBox` / `whitenessCorr`) and AR fitting (`tsFitAR` / `levinsonDurbin`, `whittle`) | **decided 2026-09-18: keep both**, with a mechanical agreement test in timeSeriesPreparation (X-07; lsqvce as a test-only dependency). The copies serve different roles: user-facing analysis versus batched whitening inside the adjustment. Making either call the other adds a dependency in one direction |
 | Q13 | Is sigtools included whole, or only the parts the pipeline uses? | **decided: included** (owner, 2026-09-18); proposal in force: whole, since nothing else owns it |
 | Q14 | Improvements 1–9 proposed 2026-09-18 | **decided 2026-09-18: all adopted** — R-02, X-15/N-09, X-14, N-10/ORC-10, X-00a, decisions recorded once, C-01, C-02, X-02 moved before X-07 |
+| Q15 | Improvements 11–20 proposed 2026-09-18 | **decided 2026-09-18: all adopted** — output-epoch CRN (X-04), unchanged QC port then X-16, G-03, streaming multi-arc (N-09), ORC-11/V-12, minimum-data gate and fault injection, 5.1, 5.2, 9.1 with C-03 and C-04 |
 
 ---
 
@@ -602,18 +685,22 @@ never reworks the GRACE-FO path.
    decision.
 3. X-02 comes after X-06, not after X-01: do not "restore" the early
    position.
-4. Classic GRACE is in scope (Q6), but nothing classic is built on the
+4. Ported code (sigtools, `qc`) moves unchanged first; speed and conventions
+   change in their own WPs (X-02, X-16), gated by equality to the port.
+5. The processing-chain page belongs to `ci-actions` (C-04), at the top of the
+   graph, not to any toolbox.
+6. Classic GRACE is in scope (Q6), but nothing classic is built on the
    unvalidated layouts: G-02 with real files comes first.
-5. The two draft PRs (gracefoReading #15, NonGravForces #57) are **not ready
+7. The two draft PRs (gracefoReading #15, NonGravForces #57) are **not ready
    to merge**: the owner said so on 2026-09-18.
-6. sigtools moves **unchanged** first (X-01), then changes conventions (X-02)
+8. sigtools moves **unchanged** first (X-01), then changes conventions (X-02)
    with its own tests as the gate. Never mix the two.
-7. Calibration stays in NonGravForces. Only `qc` leaves NonGravForces, and it
+9. Calibration stays in NonGravForces. Only `qc` leaves NonGravForces, and it
    goes to timeSeriesPreparation.
-8. timeSeriesPreparation contains no least-squares estimator. The
+10. timeSeriesPreparation contains no least-squares estimator. The
    applications call `lsqvce.fit`.
-9. β′ and u belong to referenceSystem (#25). rangingPreparation does not depend on
+11. β′ and u belong to referenceSystem (#25). rangingPreparation does not depend on
    NonGravForces.
-10. Do not implement from the v3 handover's Part IV; section 10 maps every WP.
-11. The legacy AccelBiasScaleToolbox zip is v2.4.2, not the v2.5.0 that the
+12. Do not implement from the v3 handover's Part IV; section 10 maps every WP.
+13. The legacy AccelBiasScaleToolbox zip is v2.4.2, not the v2.5.0 that the
    v3 handover reviewed.

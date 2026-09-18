@@ -1,13 +1,14 @@
 # CONCEPT — Preprocessing layer of gracefoReading (ACC calibration, LRI)
 
-**Revision 0.2 (DRAFT, Q1–Q3 decided) · 2026-09-18 · written with Claude Opus 5 (Anthropic)**
+**Revision 0.3 (DRAFT, Q1–Q3 and Q5 decided) · 2026-09-18 · written with Claude Opus 5 (Anthropic)**
 
 This file is the **single point of truth for the design** of the
 preprocessing layer. `HANDOVER.md` stays the single point of truth for
 status, obligations and the decision record, and points here. Nothing in
 this file is implemented yet. Decisions still open (section 11) block the
 work packages named there until the owner has answered.
-Rev 0.2: Q1 = A, Q2 = lsqvce, Q3 = no fill by default (owner, 2026-09-18).
+Rev 0.2: Q1 = A, Q2 = lsqvce, Q3 = no fill by default. Rev 0.3: Q5 = keep the
+repo's help-footer rule (owner, 2026-09-18).
 
 Read at: gracefoReading `a18e9ad` (v1.0.2) · referenceSystem `311e060`
 (2.1.244) · NonGravForces `3cc0123` (0.12.0) · lsqvce `ac981cd` (6.1).
@@ -351,7 +352,7 @@ same change, version bumped once at batch end (1.0.2 → 1.1.0, additive).
 
 | WP | content | replaces v3 | needs |
 |---|---|---|---|
-| P-00 | layering test; optional-dependency resolution + `depMissing`; deterministic-parallel helper (internal); CI checks out referenceSystem + lsqvce; `docsrc` and `auditHelp.py` extended to sub-packages; test-tag convention. **Workflow change, own PR** | WP-00, WP-05 | Q5 |
+| P-00 | layering test; optional-dependency resolution + `depMissing`; deterministic-parallel helper (internal); CI checks out referenceSystem + lsqvce; `docsrc` and `auditHelp.py` extended to sub-packages; test-tag convention. **Workflow change, own PR** | WP-00, WP-05 | — |
 | P-01 | `Arc` | WP-01 (no time code) | P-00 |
 | P-02 | `crnKernel`, `crnApply`, `acc.syntheticPair` (pulled forward) | WP-10, WP-21 | P-01 |
 | P-03 | `mask`, `qc` (port of NonGravForces.qc if Q1 = A) | WP-06 | P-01, P-02 |
@@ -383,15 +384,15 @@ documentation from help blocks), WP-25 `fromSca1b` (referenceSystem +
 | Q2 | Estimator core | **decided 2026-09-18: `lsqvce.fit`** — NonGravForces B.4 named the re-entry condition itself; coloured-noise GLS and multi-arc pre-elimination meet it. V-6 still gates P-05 |
 | Q3 | Gap filling default | **decided 2026-09-18: `none`**; `collocation` ≤ `maxGap` on request; `maxGap` has no default (6.5) |
 | Q4 | LRI analysis beyond L1B-internal and KBR comparison? | open — proposal in force until overridden: no; LGD and orbit residuals stay downstream. Gates P-11 |
-| Q5 | Help footer: repo rule (Author line without model, dates only) vs "time, date, Claude version" | open — proposal in force until overridden: keep the repo rule; model and time go in commit and PR. **Gates P-00** (overriding it changes `auditHelp.py`) |
+| Q5 | Help footer: repo rule (Author line without model, dates only) vs "time, date, Claude version" | **decided 2026-09-18: keep the repo rule** (`HANDOVER.md` D; enforced by `auditHelp.py`). Model and time go in commit messages and PR bodies |
 | Q6 | Classic GRACE in v1.1? | open — proposal in force until overridden: no; after O-1 |
 
 ---
 
 ## 12. What a next session would be wrong for not reading
 
-1. This is a **draft**; Q1–Q3 are decided, Q5 gates P-00, Q4 gates P-11,
-   Q6 gates classic-GRACE work. Do not start from the v3
+1. This is a **draft**; Q1–Q3 and Q5 are decided, P-00 may start; Q4 gates
+   P-11, Q6 gates classic-GRACE work. Do not start from the v3
    handover's Part IV prompts: five of its packages re-implement capabilities
    that have an owner (section 2).
 2. `NonGravForces` already ships `app.calibrate` and `qc.screen`. Building a

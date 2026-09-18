@@ -1,6 +1,6 @@
 # HANDOVER — gracefoReading
 
-**Revision 3.3 · 2026-09-14 · toolbox v1.0.2**
+**Revision 3.4 · 2026-09-18 · toolbox v1.0.2**
 
 The single point of truth for this repository. Where this document and a
 general engineering habit disagree, this document is right. Read it
@@ -9,7 +9,10 @@ before any code, and do not start from memory of a previous session.
 `README.md` is the user-facing description (what the toolbox does, how to
 install it). This file is the developer record: status, decisions,
 obligations, and what a next session would be wrong for not reading.
-Facts live in one of the two, not both.
+The design of the preprocessing pipeline built on this reader lives in
+`astrobayer/timeSeriesPreparation`: `docs/CONCEPT.md` (decisions in its
+section 11) and `docs/GUIDE.md` (order of work and procedures). This toolbox
+gains no preprocessing code from it. Facts live in one place, never in two.
 
 ---
 
@@ -163,7 +166,7 @@ outside this table claims to be one.
 
 | id | obligation | owner | re-entry |
 |---|---|---|---|
-| O-1 | **Classic GRACE layouts are ASSUMED, not validated.** The built-in ACC1B/SCA1B/KBR1B/GNV1B column tables in `internal/parseClassicProduct.m` come from the GRACE L1B handbook *from memory*. Every classic read warns `classicExperimental`. Before any scientific use: obtain one real classic file per product, then either confirm the layouts (add the files to `tests/realdata/`, drop the warning) or correct the tables. Classic `qualflg` may be decimal rather than an 8-character bit string — verify. The v1 lesson applies exactly: invented formats fail on real files | owner | before any classic-era study |
+| O-1 | **Classic GRACE layouts are ASSUMED, not validated.** The built-in ACC1B/SCA1B/KBR1B/GNV1B column tables in `internal/parseClassicProduct.m` come from the GRACE L1B handbook *from memory*. Every classic read warns `classicExperimental`. Before any scientific use: obtain one real classic file per product, then either confirm the layouts (add the files to `tests/realdata/`, drop the warning) or correct the tables. Classic `qualflg` may be decimal rather than an 8-character bit string — verify. The v1 lesson applies exactly: invented formats fail on real files **Scheduled 2026-09-18 as concept G-02** (Q6: classic GRACE is in scope of the preprocessing pipeline); the owner supplies the real files when that work starts | owner | owner supplies one real classic file per product (G-02) |
 | O-2 | **GROOPS export conventions unverified — now half-closed on the READ side.** Five real GROOPS files (ITSG, version tag `20200123`, identical to the writer's) were read on 2026-09-14, so the reader is verified against real output. The WRITER is not: real GROOPS emits a type-name comment, a column legend and a rule that `writeGroopsInstrument` does not, and it writes `1` as the second header integer where the writer writes the column count. An exported file is therefore still not known to be readable by a GROOPS installation. *Original entry:* `writeGroopsInstrument` writes `groops instrument version=20200123`, a two-integer type/dim header, a lone record count and decimal-MJD records, per the known structure. Neither writer nor reader has been checked against a real GROOPS installation. `NonGravForces` WP-34 (its O-19) closes this from the other side | owner | before production export |
 | O-3 | **Three version literals, one fact.** `astrobayer/ci-actions/VERSIONING.md` says `version.m` reads `Contents.m` at runtime and never hardcodes. Here `version.m`, `Contents.m` and `docsrc/functionSpecs.json` each carry the literal, reconciled by `testDocConsistency` and `auditHelp.py` rather than derived from one source (R1). A bump therefore touches 28 stamps plus three literals by hand | owner | next time the version machinery is touched |
 | O-4 | **Tagging is behind and off-standard.** `v1.0.0` is a *lightweight* tag; VERSIONING.md requires an annotated tag plus a GitHub release per version. v1.0.1 is merged with neither. Tags are immutable and are never moved, so `v1.0.0` stays as it is; the correction is forward-only | owner | before anyone depends on a pinned version |
@@ -214,6 +217,8 @@ The half of it that remains is O-2's writer side, not this.
 | 2026-09-14 | The frame and time system are recorded with their provenance, never inferred from the file name alone | measured: no frame or time-system string appears anywhere in the files. The product README supplies both, keyed on the product, and the product comes from the name — so `aux.frameSource`, `aux.timeSystemSource` and `aux.productSource` say how each answer was reached, and an unrecognised product gets no frame at all |
 | 2026-09-14 | `readItsgProductMulti` checks the product first and does not check the frame at all | the frame is derived from the product and `'Frame'` is forwarded to every file, so equal products already mean equal frames. A frame check could never fire, and a documented identifier that cannot be raised is a promise the function cannot keep — the same standard `auditHelp.py` enforces in the other direction |
 | 2026-09-14 | `readItsgProductMulti` declares `fileNames` unsized and normalises it, rather than copying `readL1bMulti`'s `(1,:)` | `findItsgFiles` returns a `[K x 1]` column, exactly as `findL1bFiles` does. Copying the declaration would have reproduced O-11, where the documented two-line workflow fails for more than one file |
+| 2026-09-18 | The preprocessing concept is the design authority for preprocessing, accelerometer calibration and LRI/KBR processing across the ecosystem. It was drafted here on branch `claude/preproc-concept` and moved to `astrobayer/timeSeriesPreparation` `docs/` at X-00a (timeSeriesPreparation#2); decisions Q1–Q16 are in its section 11 and not restated here. **Consequence for this repository:** no preprocessing code; reader obligations G-01 #16 (= O-11), G-02 #17 (= O-1), G-03 #18 (= O-7), G-04 #19, G-05 #20, G-06 #21 | owner |
+| 2026-09-18 | PR #15 is merged with **Squash and merge**, an exception to the merge-commit rule, and branch `claude/preproc-concept` is **kept** | a merge commit would carry the branch's 2.7 MB input zips and every concept draft into `main`'s history, which the concept (Q14 item 5) rules out; the kept branch is the archive of the concept's history before X-00a, cited from timeSeriesPreparation |
 | 2026-09-14 | The `'TimeFormat'` mapping moved to `internal/formatEpoch`, called by both readers | the datetime epoch formula was about to exist in two files. That is the 2026-09-06 failure mode exactly, and a divergence would shift every epoch of one reader with nothing visible to say so |
 
 ---
@@ -252,3 +257,8 @@ The half of it that remains is O-2's writer side, not this.
    `testRealData` needs `READING_DATA_POOL`; the full suite needs MATLAB.
    A session with neither can still run all three static gates, and
    should say so rather than reporting "green".
+8. **gracefoReading gains no preprocessing code from the concept.** Its
+   items are G-01 … G-06 (issues #16–#21). The design, the order of work and
+   the procedures live in `astrobayer/timeSeriesPreparation` (`docs/CONCEPT.md`,
+   `docs/GUIDE.md`). Branch `claude/preproc-concept` is the archive of the
+   concept's history before the move: do not delete it.

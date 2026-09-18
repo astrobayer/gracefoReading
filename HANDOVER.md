@@ -218,7 +218,7 @@ The half of it that remains is O-2's writer side, not this.
 | 2026-09-14 | `readItsgProductMulti` checks the product first and does not check the frame at all | the frame is derived from the product and `'Frame'` is forwarded to every file, so equal products already mean equal frames. A frame check could never fire, and a documented identifier that cannot be raised is a promise the function cannot keep — the same standard `auditHelp.py` enforces in the other direction |
 | 2026-09-14 | `readItsgProductMulti` declares `fileNames` unsized and normalises it, rather than copying `readL1bMulti`'s `(1,:)` | `findItsgFiles` returns a `[K x 1]` column, exactly as `findL1bFiles` does. Copying the declaration would have reproduced O-11, where the documented two-line workflow fails for more than one file |
 | 2026-09-18 | The preprocessing concept is the design authority for preprocessing, accelerometer calibration and LRI/KBR processing across the ecosystem. It was drafted here on branch `claude/preproc-concept` and moved to `astrobayer/timeSeriesPreparation` `docs/` at X-00a (timeSeriesPreparation#2); decisions Q1–Q16 are in its section 11 and not restated here. **Consequence for this repository:** no preprocessing code; reader obligations G-01 #16 (= O-11), G-02 #17 (= O-1), G-03 #18 (= O-7), G-04 #19, G-05 #20, G-06 #21 | owner |
-| 2026-09-18 | PR #15 is merged with **Squash and merge**, an exception to the merge-commit rule, and branch `claude/preproc-concept` is **kept** | a merge commit would carry the branch's 2.7 MB input zips and every concept draft into `main`'s history, which the concept (Q14 item 5) rules out; the kept branch is the archive of the concept's history before X-00a, cited from timeSeriesPreparation |
+| 2026-09-18 | **Correction, measured after the merge:** PR #15 was merged with a **merge commit** (`de87fbf`, parents `a18e9ad` and `4a6bc8c`), not squashed as planned, and its branch was deleted. The tree is as intended (net change `HANDOVER.md` only; CI on `main` run 35392857232 green), but `main`'s history now contains every concept draft (`2d7a06c` … `4c08cb7`) and the two input zips (AccelBiasScaleToolbox 2.4.2, sigtools 1.3.1; about 2.7 MB). Accepted: removing them would mean rewriting `main`, which the ruleset forbids and nothing requires. The concept's pre-move history stays reachable from `main` up to `4c08cb7` | measured 2026-09-18; the planned squash (concept Q14 item 5) did not happen |
 | 2026-09-14 | The `'TimeFormat'` mapping moved to `internal/formatEpoch`, called by both readers | the datetime epoch formula was about to exist in two files. That is the 2026-09-06 failure mode exactly, and a divergence would shift every epoch of one reader with nothing visible to say so |
 
 ---
@@ -260,5 +260,6 @@ The half of it that remains is O-2's writer side, not this.
 8. **gracefoReading gains no preprocessing code from the concept.** Its
    items are G-01 … G-06 (issues #16–#21). The design, the order of work and
    the procedures live in `astrobayer/timeSeriesPreparation` (`docs/CONCEPT.md`,
-   `docs/GUIDE.md`). Branch `claude/preproc-concept` is the archive of the
-   concept's history before the move: do not delete it.
+   `docs/GUIDE.md`). The concept's history before the move is in this
+   repository's `main` history (merged with #15), ending at `4c08cb7`; the
+   files are no longer in the tree.

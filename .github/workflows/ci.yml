@@ -44,10 +44,16 @@ jobs:
       # run-command moved from the v2 SHA to the v3 SHA this same file
       # already ran at the Code Analyzer step, which the runner did not flag.
       #
-      # STILL ON NODE 20, and deliberately: actions/setup-python and
-      # actions/upload-artifact. No verified commit SHA for a newer major of
-      # either was available to the session that made this change, and a pin
-      # nobody has verified is worse than a deprecation warning.
+      # THE LAST TWO MOVED 2026-09-20, once their SHAs could be verified
+      # against the upstream repositories rather than guessed:
+      #   setup-python   v5 -> v6. node20 -> node24 is its ONLY breaking
+      #                  change, and it runs here on ubuntu-latest.
+      #   upload-artifact v4 -> v6. v5 is STILL node20 - measured, not
+      #                  assumed - so v6 is the first major that fixes
+      #                  anything. Its README warns that self-hosted runners
+      #                  may need additional firewall rules, and this step
+      #                  runs on the self-hosted machine, so the pull request
+      #                  that moved it was the experiment.
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
       # The probe and the reasoning behind it live in
       # astrobayer/ci-actions. Six repositories carried this step
@@ -119,7 +125,7 @@ jobs:
 
       - name: Publish test report and coverage
         if: always()
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
         with:
           name: testresults-self-hosted-windows
           path: artifacts/
@@ -130,7 +136,7 @@ jobs:
     steps:
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
 
-      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
         with:
           python-version: '3.11'
 

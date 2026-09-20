@@ -1,0 +1,59 @@
+# Tag and release on merge - gracefoReading's adoption of the shared action.
+#
+# WHAT IT DOES HERE
+#   mode: file. Contents.m is this repository's version authority (GUIDE
+#   section 2), and version.m, docsrc/functionSpecs.json and every help
+#   block's provenance footer are checked against it. So nothing in this
+#   workflow decides a number: the bump happens INSIDE the pull request that
+#   earns it, where the audit verifies the agreement, and the action only
+#   asks whether a tag for the stated version exists yet.
+#
+#   A merge that does not touch Contents.m releases nothing and says so.
+#   Today Contents.m reads 1.0.2 and v1.0.2 is tagged, so the first merge
+#   after this lands will do exactly that - which is the quiet way to prove
+#   the wiring before it has anything to create.
+#
+# WHY NOT A version: LABEL, AS ci-actions USES
+#   A label stating the version beside a file stating the version is two
+#   authorities for one fact, and the file wins because the audit checks
+#   every footer against it. ci-actions has no version file, which is why
+#   its labels decide there and not here.
+#
+# WHY THE TAG IS ANNOTATED
+#   VERSIONING.md requires it, and this repository's v1.0.0 and v1.0.2 are
+#   lightweight (O-4) because they were made by hand. The action creates the
+#   tag before the release, so GitHub cannot invent a lightweight one.
+#
+# Created: 2026-09-20
+# Author:  Developed by Matthias Weigelt with the help of Anthropic
+#          Claude Opus 5, 2026-09-20
+
+name: release
+
+on:
+  pull_request:
+    types: [closed]
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+jobs:
+  release:
+    name: release
+    if: github.event.pull_request.merged == true
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          fetch-depth: 0
+          ref: ${{ github.event.pull_request.merge_commit_sha }}
+
+      - uses: astrobayer/ci-actions/matlab-release@v1.3.0
+        with:
+          mode: file
+          version-file: +gracefoReading/Contents.m

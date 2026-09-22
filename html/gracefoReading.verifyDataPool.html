@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html><head><meta charset="utf-8"><title>gracefoReading.verifyDataPool</title>
+<style>
+body { font-family: Arial, Helvetica, sans-serif; margin: 0; padding: 0 2em 3em 2em;
+       color: #212121; max-width: 62em; }
+h1 { font-size: 1.6em; font-weight: normal; color: #b33; border-bottom: 1px solid #ccc;
+     padding-bottom: 0.2em; margin-top: 1em; }
+h2 { font-size: 1.2em; color: #333; margin-top: 1.6em; border-bottom: 1px solid #eee; }
+p.purpose { font-size: 1.05em; color: #444; }
+pre.syntax, pre.example { background: #f5f5f5; border: 1px solid #e0e0e0;
+     padding: 0.7em 1em; border-radius: 4px; overflow-x: auto;
+     font-family: Consolas, Monaco, monospace; font-size: 0.92em; }
+p.excap { margin-bottom: 0.2em; font-weight: bold; font-size: 0.92em; color: #444; }
+table.args { border-collapse: collapse; width: 100%; margin: 0.6em 0; }
+table.args th { background: #f0f0f0; text-align: left; padding: 0.4em 0.6em;
+     border: 1px solid #ddd; font-size: 0.88em; }
+table.args td { padding: 0.4em 0.6em; border: 1px solid #ddd; font-size: 0.88em;
+     vertical-align: top; }
+td.mono, code { font-family: Consolas, Monaco, monospace; }
+ul.fields { margin: 0.3em 0 0 0; padding-left: 1.1em; font-size: 0.95em; }
+ul.limits li { margin-bottom: 0.35em; }
+div.footer { margin-top: 3em; padding-top: 0.6em; border-top: 1px solid #ccc;
+     color: #888; font-size: 0.8em; }
+a { color: #06c; text-decoration: none; }
+a:hover { text-decoration: underline; }
+</style></head><body>
+<h1>gracefoReading.verifyDataPool</h1>
+<p class="purpose">Verify a data pool against its published checksums.</p>
+<h2>Syntax</h2>
+<pre class="syntax">report = gracefoReading.verifyDataPool(poolFolder)
+report = gracefoReading.verifyDataPool(poolFolder, Name, Value)
+[report, summary] = gracefoReading.verifyDataPool(___)</pre>
+<h2>Description</h2>
+<p>Checks every file of a local data pool against the checksum its source published, so that a silently truncated download, a half-written copy or a file edited by accident is found before it reaches a processing run rather than after it.</p>
+<p>The pool is searched for checksum manifests (see &#x27;Manifests&#x27; for the patterns). Each manifest lists file names relative to its own folder, so the MD5 list that ships inside a daily L1B archive and a SHA-256 manifest written beside a month of data are both read where they lie. Every listed file is hashed with the algorithm the manifest&#x27;s own digest length implies and compared; every file in the pool that no manifest lists is reported as well, because &quot;not checked&quot; and &quot;checked and correct&quot; are different answers and a report that showed only the second would be read as the first.</p>
+<p>Each row of the report names the manifest that made the claim, so a mismatch can be taken back to its source. Nothing is repaired, deleted or re-downloaded: the function only reports.</p>
+<h2>Input Arguments</h2>
+<table class="args"><tr><th>Name</th><th>Type</th><th>Size</th><th>Description</th><th>Options</th><th>Default</th></tr><tr><td class="mono">poolFolder</td><td>string | char</td><td>1x1</td><td>Root of the pool to verify, for example the DATAPOOL root named by READING_DATA_POOL, or one product folder below it.<br><em>Validation: must be an existing folder</em></td><td></td><td class="mono"></td></tr><tr><td class="mono">&#x27;Manifests&#x27;</td><td>string | [M x 1]</td><td>[1 x M]</td><td>Explicit manifest files, overriding the search. Use this to verify one month against one list instead of walking the whole pool.</td><td>any readable checksum manifests. When empty, the pool is searched for SHA256SUMS*.txt, MD5SUMS*.txt, MANIFEST.sha256, *.sha256 and *.md5 (including the checksum.&lt;kind&gt;.md5 lists of the L1B day archives)</td><td class="mono">string.empty (search the pool)</td></tr><tr><td class="mono">&#x27;Recursive&#x27;</td><td>logical</td><td>1x1</td><td>Search sub-folders for manifests and for unlisted files.</td><td>true | false</td><td class="mono">true</td></tr><tr><td class="mono">&#x27;ReportUnlisted&#x27;</td><td>logical</td><td>1x1</td><td>Add one row per pool file that no manifest lists. Manifests themselves are never reported as unlisted.</td><td>true | false</td><td class="mono">true</td></tr><tr><td class="mono">&#x27;Progress&#x27;</td><td>logical</td><td>1x1</td><td>Print one line per manifest as it is processed. A full DATAPOOL is hashed at disk speed and takes minutes; without this the function looks stuck.</td><td>true | false</td><td class="mono">false</td></tr></table>
+<h2>Output Arguments</h2>
+<table class="args"><tr><th>Name</th><th>Type</th><th>Size</th><th>Description</th><th>Options</th><th>Default</th></tr><tr><td class="mono">report</td><td>table</td><td>[R x 7]</td><td>One row per checked or unlisted file, in manifest order and then pool order; R = number of rows. Variables:<ul class="fields"><li><code>file</code> &ndash; string: full path</li><li><code>manifest</code> &ndash; string: the manifest that listed it, &quot;&quot; for an unlisted file</li><li><code>algorithm</code> &ndash; string: &quot;MD5&quot; | &quot;SHA-1&quot; | &quot;SHA-256&quot; | &quot;SHA-384&quot; | &quot;SHA-512&quot;, &quot;&quot; if unlisted</li><li><code>status</code> &ndash; string: &quot;OK&quot; | &quot;MISMATCH&quot; | &quot;MISSING&quot; | &quot;UNREADABLE&quot; | &quot;UNLISTED&quot;</li><li><code>expected</code> &ndash; string: digest from the manifest</li><li><code>actual</code> &ndash; string: digest computed here</li><li><code>bytes</code> &ndash; double: file size, NaN if absent</li></ul></td><td></td><td class="mono"></td></tr><tr><td class="mono">summary</td><td>struct</td><td>1x1</td><td>Fields pool, manifests (string [M x 1]), numManifests, numChecked, numOk, numMismatch, numMissing, numUnreadable, numUnlisted and ok (true only when nothing failed and nothing is missing or unreadable).</td><td></td><td class="mono"></td></tr></table>
+<h2>Accuracy and Limitations</h2><ul class="limits">
+<li>A pool is only as verified as its manifests. Sources that publish no checksums at all (measured for the ITSG and ZARM products) produce UNLISTED rows, which is the honest answer: those files are unverified, not verified-good.</li>
+<li>Files are hashed byte for byte, so the cost is one full pass over every listed file. Verifying a multi-gigabyte pool is minutes of disk, not seconds; narrow it with &#x27;Manifests&#x27; or by pointing poolFolder at one sub-folder.</li>
+<li>A manifest entry naming a file outside the pool, or a path that does not exist, is reported MISSING rather than silently dropped.</li>
+<li>The same file listed by two manifests gives two rows. That is deliberate: two sources claiming different digests for one file is exactly the state a verification should expose.</li>
+<li>Hashing needs the JVM. Under -nojvm every row is UNREADABLE and hashingUnavailable is raised once; no row is reported OK.</li>
+<li>The function reports; it never repairs. Deleting or refetching a bad file is a decision for the caller.</li>
+</ul>
+<h2>Errors</h2><table class="args"><tr><th>Error identifier</th><th>Condition</th></tr><tr><td class="mono">gracefoReading:verifyDataPool:poolNotFound</td><td>poolFolder is not an existing folder</td></tr><tr><td class="mono">gracefoReading:verifyDataPool:manifestNotFound</td><td>a file named in &#x27;Manifests&#x27; does not exist</td></tr><tr><td class="mono">gracefoReading:verifyDataPool:noManifest</td><td>no manifest was found in the pool and none was given</td></tr></table>
+<h2>Warnings</h2><table class="args"><tr><th>Warning identifier</th><th>Condition</th></tr><tr><td class="mono">gracefoReading:verifyDataPool:verificationFailed</td><td>at least one row is not OK</td></tr><tr><td class="mono">gracefoReading:verifyDataPool:manifestLineUnparsable</td><td>line matched neither format</td></tr><tr><td class="mono">gracefoReading:verifyDataPool:unknownAlgorithm</td><td>digest length names no algorithm</td></tr><tr><td class="mono">gracefoReading:verifyDataPool:hashingUnavailable</td><td>no JVM or no such digest</td></tr></table>
+<h2>Examples</h2>
+<p class="excap">verify the whole pool CI reads from</p>
+<pre class="example">pool = getenv(&#x27;READING_DATA_POOL&#x27;);
+[rep, sum1] = gracefoReading.verifyDataPool(pool, &#x27;Progress&#x27;, true);
+disp(rep(rep.status ~= &quot;OK&quot;, :));
+fprintf(&#x27;%d of %d file(s) verified\n&#x27;, sum1.numOk, sum1.numChecked);</pre>
+<p class="excap">one month, against the manifest written beside it</p>
+<pre class="example">m = fullfile(pool, &#x27;GRACEFO&#x27;, &#x27;L1B&#x27;, &#x27;RL04&#x27;, &#x27;2020&#x27;, ...
+   &#x27;SHA256SUMS_2020-01.txt&#x27;);
+rep = gracefoReading.verifyDataPool(fileparts(m), &#x27;Manifests&#x27;, m, ...
+   &#x27;ReportUnlisted&#x27;, false);</pre>
+<p class="excap">fail a batch job on the first bad file</p>
+<pre class="example">[~, s] = gracefoReading.verifyDataPool(pool);
+assert(s.ok, &#x27;Pool %s failed verification: %d mismatch(es).&#x27;, ...
+   pool, s.numMismatch);</pre>
+<h2>See Also</h2><p><a href="gracefoReading.findL1bFiles.html"><code>gracefoReading.findL1bFiles</code></a>, <a href="gracefoReading.findItsgFiles.html"><code>gracefoReading.findItsgFiles</code></a>, <a href="gracefoReading.readL1b.html"><code>gracefoReading.readL1b</code></a></p>
+<div class="footer">gracefoReading v1.1.0 &middot; 2026-09-22 &middot; Matthias Weigelt with support of Anthropic Claude &middot; License: MIT &middot; Generated from the MATLAB help blocks &mdash; do not edit by hand.</div>
+</body></html>

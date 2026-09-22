@@ -39,11 +39,15 @@ function [time, obs, aux] = readL1b(fileName, options)
 %       - optional content-hashed caching of parsed results.
 %
 %     Classic GRACE (2002-2017) files, whose headers are "KEY : VALUE"
-%     lines terminated by "END OF HEADER", are detected automatically.
-%     Because classic headers do not declare their columns, built-in
-%     per-product layouts or the 'ColumnNames' option supply them; this
-%     path is EXPERIMENTAL and warns on every use (see ACCURACY AND
-%     LIMITATIONS).
+%     records terminated by "END OF HEADER", are detected
+%     automatically, and so is the variant: the header's own
+%     "FILE FORMAT 0=BINARY 1=ASCII" record decides whether the data
+%     section is packed big-endian binary or whitespace-separated
+%     text. Classic headers do not declare their columns, so the
+%     layout comes from a per-product table - measured on real RL02
+%     files for the binary variant, inferred from it for the ASCII one
+%     - or from the 'ColumnNames' option (ASCII only). See ACCURACY
+%     AND LIMITATIONS for what that distinction means.
 %
 %   INPUT
 %     fileName - string | char, 1x1
@@ -146,14 +150,25 @@ function [time, obs, aux] = readL1b(fileName, options)
 %     - Quality filtering removes whole records; it does not repair or
 %       interpolate. Gaps that result are reported by
 %       gracefoReading.findGaps, not by this function.
-%     - Classic GRACE support is EXPERIMENTAL: the built-in column
-%       layouts (ACC1B, SCA1B, KBR1B, GNV1B) are taken from the GRACE
-%       Level-1B handbook and have NOT been validated against real
-%       classic files; classic qualflg may be decimal rather than an
-%       8-character bit string. Every classic read warns accordingly.
-%       Verify against a real file, or pass 'ColumnNames', before
-%       scientific use.
-%     - Binary Level-1B files are not supported (ASCII products only).
+%     - Classic GRACE (2002-2017) comes in two variants, and they are
+%       NOT on the same footing:
+%         BINARY (the ".dat" files, header "FILE FORMAT ... : 0") is
+%         read from a MEASURED layout and does not warn. ACC1B, SCA1B,
+%         GNV1B, KBR1B, THR1B and MAS1B were derived from real RL02
+%         files of 2008-01-01 and each checked against a physical
+%         quantity it must reproduce; classic MAG1B and AHK1B are
+%         refused, because their structure is known but their column
+%         names and per-bit value types are not.
+%         ASCII (the ".asc" files) still WARNS. Its columns are taken
+%         to be those measured on the binary variant of the same
+%         product, which is an inference and not a measurement: no
+%         real classic ASCII file has been read here.
+%       Classic qualflg was the open question and is now answered: the
+%       binary files store it as a single BYTE bitmask, which the
+%       reader renders as the same 8-character bit string the GRACE-FO
+%       products use, so decodeQualFlags works on both unchanged.
+%     - Binary classic products are read; binary GRACE-FO products are
+%       not, there being none in the ASCII releases this toolbox reads.
 %     - Caching trusts the SHA-256 content digest; if no JVM is
 %       available the digest cannot be computed and the file is parsed
 %       normally after a cacheUnavailable warning.
@@ -182,13 +197,22 @@ function [time, obs, aux] = readL1b(fileName, options)
 %     gracefoReading:readL1b:conflictingQualityOptions
 %                                                 both quality options given
 %     gracefoReading:readL1b:unsupportedClassicProduct
-%                                                 classic file without built-in
+%                                                 classic file without a known
 %                                                 layout and no 'ColumnNames'
+%     gracefoReading:readL1b:classicRecordMismatch
+%                                                 classic binary record length
+%                                                 disagrees with the file
+%     gracefoReading:readL1b:columnNamesNotForBinary
+%                                                 'ColumnNames' given for a
+%                                                 classic BINARY product
+%     gracefoReading:readL1b:fileUnreadable       file could not be opened
+%     gracefoReading:readL1b:badClassicType       unknown classic field type
 %
 %   WARNINGS
 %     gracefoReading:readL1b:recordCountMismatch  header/actual count differ
 %     gracefoReading:readL1b:cacheUnavailable     hashing failed; parsed fresh
-%     gracefoReading:readL1b:classicExperimental  classic layout assumed
+%     gracefoReading:readL1b:classicExperimental  classic ASCII layout
+%                                                 inferred from the binary one
 %     gracefoReading:readL1b:variableNameAdjusted declared variable name
 %                                                 not usable as a struct
 %                                                 field; aux field renamed
@@ -236,8 +260,16 @@ if options.ApplyQualityFlags && ~isempty(options.QualityBitMask)
          '''QualityBitMask'' (selected bits), not both.']);
 end
 
-% ---- read file text (gzip-aware) --------------------------------------
-rawText = gracefoReading.internal.readTextMaybeGz(fileName);
+% ---- read file (gzip-aware) -------------------------------------------
+% Bytes, not text, and then char() over the bytes. The classic GRACE
+% products are BINARY after an ASCII header, and a char read applies the
+% file encoding: an arbitrary byte sequence is not valid UTF-8, so bytes
+% would be replaced or merged and the records destroyed - silently,
+% because the ASCII header would still look perfectly readable.
+% char() of a uint8 row maps each byte to the same code point, so the
+% text paths below see exactly what they saw before.
+rawBytes = gracefoReading.internal.readBytesMaybeGz(fileName);
+rawText = char(rawBytes);
 
 % ---- cache lookup ------------------------------------------------------
 cacheFile = "";
@@ -260,7 +292,7 @@ if cacheFile ~= "" && isfile(cacheFile)
     aux.fileName = fileName;      % cache may have been written elsewhere
     aux.cacheHit = true;
 else
-    [timeMjd, timeNs, obs, aux] = localParse(rawText, fileName, ...
+    [timeMjd, timeNs, obs, aux] = localParse(rawText, rawBytes, fileName, ...
         options.TimeVariable, options.ColumnNames);
     aux.cacheHit = false;
     if cacheFile ~= ""
@@ -307,25 +339,54 @@ time = gracefoReading.internal.formatEpoch(timeMjd, timeNs, ...
 end
 
 % ========================================================================
-function [timeMjd, timeNs, obs, aux] = localParse(rawText, fileName, timeVarOpt, columnNames)
+function [timeMjd, timeNs, obs, aux] = localParse(rawText, rawBytes, fileName, ...
+    timeVarOpt, columnNames)
+% The YAML marker is searched in the FIRST part of the file only for the
+% classic test below; a binary data section can contain any byte
+% sequence, including one that looks like a marker, so the classic
+% branch is decided by the header's own FILE FORMAT field rather than by
+% what the bytes further down happen to spell.
 lines = splitlines(string(rawText));
 
 yamlEnd = find(contains(lines, "End of YAML header"), 1);
 classicEnd = find(strtrim(lines) == "END OF HEADER", 1);
 
-if ~isempty(yamlEnd)
+if ~isempty(yamlEnd) && (isempty(classicEnd) || yamlEnd < classicEnd)
     [timeMjd, timeNs, obs, aux] = gracefoReading.internal.parseYamlProduct( ...
         lines, yamlEnd, fileName, timeVarOpt);
     aux.headerFormat = 'yaml';
 elseif ~isempty(classicEnd)
-    warning('gracefoReading:readL1b:classicExperimental', ...
-        ['Classic GRACE header detected in %s. Column layouts for classic ', ...
-         'files are assumed from the GRACE L1B handbook and NOT yet ', ...
-         'validated against real files; verify results or supply ', ...
-         '''ColumnNames''. See HANDOVER.md.'], fileName);
-    [timeMjd, timeNs, obs, aux] = gracefoReading.internal.parseClassicProduct( ...
-        lines, classicEnd, fileName, timeVarOpt, columnNames);
-    aux.headerFormat = 'classic';
+    % Looked up by the key the header actually prints, not by a
+    % sanitised field name: makeValidName rewrites
+    % "FILE FORMAT 0=BINARY 1=ASCII" in a way that is its business, not
+    % this dispatch's, and getting it wrong would silently route a
+    % binary file through the text parser.
+    [~, hdrKeys, hdrValues] = ...
+        gracefoReading.internal.parseClassicHeader(lines(1:classicEnd));
+    iFmt = find(startsWith(hdrKeys, "FILE FORMAT"), 1);
+    isBinary = ~isempty(iFmt) && str2double(hdrValues(iFmt)) == 0;
+    if isBinary
+        if ~isempty(columnNames)
+            error('gracefoReading:readL1b:columnNamesNotForBinary', ...
+                ['%s is a classic BINARY product; its record layout is a ', ...
+                 'sequence of typed fields, so ''ColumnNames'' cannot ', ...
+                 'describe it. Names come from the measured layout table.'], ...
+                fileName);
+        end
+        [timeMjd, timeNs, obs, aux] = gracefoReading.internal.parseClassicBinary( ...
+            rawBytes, fileName, timeVarOpt);
+        aux.headerFormat = 'classicBinary';
+    else
+        warning('gracefoReading:readL1b:classicExperimental', ...
+            ['Classic GRACE ASCII header detected in %s. The ASCII variant ', ...
+             'is still read with column layouts that have NOT been validated ', ...
+             'against a real ASCII file - only the BINARY variant was ', ...
+             'measured (G-02). Verify results or supply ''ColumnNames''. ', ...
+             'See HANDOVER.md.'], fileName);
+        [timeMjd, timeNs, obs, aux] = gracefoReading.internal.parseClassicProduct( ...
+            lines, classicEnd, fileName, timeVarOpt, columnNames);
+        aux.headerFormat = 'classic';
+    end
 else
     error('gracefoReading:readL1b:badHeader', ...
         ['No "# End of YAML header" (GRACE-FO) or "END OF HEADER" ', ...

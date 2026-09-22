@@ -275,21 +275,20 @@ for k = 1:nVar
 end
 
 % ---- build time: double MJD pair AND exact int64 nanoseconds ----------
-mjdEpoch = 51544;
+% The epoch arithmetic itself lives in internal/gpsSecondsToMjd, shared
+% with the classic binary parser. Splitting the tag into whole and
+% fractional seconds is this function's job, because only here is the
+% declared unit of the fractional column known.
 if numel(timeColIdx) == 1
     v = data(:, timeColIdx);
-    ip = floor(v);
-    timeNs = int64(ip) * 1000000000 + int64(round((v - ip) * 1e9));
-    gpsSeconds = v;
+    intPart = floor(v);
+    fracPart = v - intPart;
 else
-    fracSec = fracScale * data(:, timeColIdx(2));
-    timeNs = int64(data(:, timeColIdx(1))) * 1000000000 + int64(round(fracSec * 1e9));
-    gpsSeconds = data(:, timeColIdx(1)) + fracSec;
+    intPart = data(:, timeColIdx(1));
+    fracPart = fracScale * data(:, timeColIdx(2));
 end
-totalSec = gpsSeconds + 43200;
-daysFull = floor(totalSec / 86400);
-secOfDay = totalSec - daysFull * 86400;
-timeMjd = [mjdEpoch + daysFull, secOfDay];
+[timeMjd, timeNs, mjdEpoch] = ...
+    gracefoReading.internal.gpsSecondsToMjd(intPart, fracPart);
 
 % ---- classify obs vs aux ----------------------------------------------
 isAux = ~isNumericCol | isBitStr | isCharCol | isIdCol;

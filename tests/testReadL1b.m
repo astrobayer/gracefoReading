@@ -704,18 +704,26 @@ classdef testReadL1b < matlab.unittest.TestCase
         end
 
         function testClassicHeaderExperimental(testCase)
-            % classic GRACE ACC1B: KEY : VALUE header, END OF HEADER,
-            % 9 columns from the built-in (assumed) layout.
+            % Classic GRACE ACC1B, ASCII variant: KEY : VALUE header,
+            % END OF HEADER, and the column layout now shared with the
+            % binary path. That layout was CORRECTED on 2026-09-22: it
+            % carries NINE observation columns, the three residual ones
+            % having been missing from the assumed table entirely, so
+            % a record has twelve tokens and not nine.
             f = fullfile(testCase.workDir, 'ACC1B_2008-01-01_A_02.txt');
             fid = fopen(f, 'wt');
             fprintf(fid, 'PRODUCER AGENCY               : NASA\n');
             fprintf(fid, 'PRODUCER INSTITUTION          : JPL\n');
             fprintf(fid, 'NUMBER OF DATA RECORDS        : 2\n');
             fprintf(fid, 'END OF HEADER\n');
-            fprintf(fid, '252460800 A 1e-7 2e-7 3e-7 1e-9 2e-9 3e-9 00000000\n');
-            fprintf(fid, '252460801 A 4e-7 5e-7 6e-7 4e-9 5e-9 6e-9 00000000\n');
+            fprintf(fid, ['252460800 A 1e-7 2e-7 3e-7 1e-9 2e-9 3e-9 ', ...
+                '1e-11 2e-11 3e-11 00000000\n']);
+            fprintf(fid, ['252460801 A 4e-7 5e-7 6e-7 4e-9 5e-9 6e-9 ', ...
+                '4e-11 5e-11 6e-11 00000000\n']);
             fclose(fid);
 
+            % The ASCII variant still warns: only the BINARY variant was
+            % measured against real files (G-02).
             [t, obs, aux] = testCase.verifyWarning( ...
                 @() gracefoReading.readL1b(f), ...
                 'gracefoReading:readL1b:classicExperimental');
@@ -723,8 +731,10 @@ classdef testReadL1b < matlab.unittest.TestCase
             testCase.verifyEqual(aux.numRecordsHeader, 2);
             testCase.verifyEqual(aux.obsNames, ...
                 {'lin_accl_x','lin_accl_y','lin_accl_z', ...
-                 'ang_accl_x','ang_accl_y','ang_accl_z'});
-            testCase.verifySize(obs, [2, 6]);
+                 'ang_accl_x','ang_accl_y','ang_accl_z', ...
+                 'acl_x_res','acl_y_res','acl_z_res'});
+            testCase.verifySize(obs, [2, 9]);
+            testCase.verifyEqual(obs(1,7), 1e-11, 'AbsTol', 1e-24);
             testCase.verifyEqual(aux.GRACE_id, ['A'; 'A']);
             testCase.verifyEqual(aux.classicHeaderFields.producerAgency, 'NASA');
             % 252460800 s = 2008-01-01 12:00:00 GPS -> MJD 54466, 43200+0

@@ -74,6 +74,46 @@ an annotated one, and that 1.0.1 has neither tag nor release.
 
 ---
 
+## A2. Scope frozen — branch `claude/graceforreading-open-issues-88b9na`
+
+**Frozen 2026-09-22, tier B** (no MATLAB and no DATAPOOL in the working
+sandbox; the MATLAB suite runs in CI on the self-hosted Windows runner).
+One PR carrying one commit per WP row, per GUIDE section 1.
+
+**What is true after this branch**
+
+| WP | issue | what this branch delivers |
+|---|---|---|
+| G-01 | #16 | `readL1bMulti` accepts a `[K x 1]` column, so the two-line `findL1bFiles` → `readL1bMulti` workflow printed in both help blocks runs. O-11 closes |
+| G-03 | #18 | a measurement, not a guess: `ci/benchmarkParse.m` times one real ACT1B day and extrapolates the year; a non-blocking CI step runs it on the runner, where the file is. The fast-path decision is recorded from the number the run prints, not before it |
+| G-04 | #19 | the reader gap V-13 names is closed: header variable names that are not MATLAB identifiers (`TSU Z-`, with a space) are parsed instead of dropped. The generic `prod_flag` path already covers AHK1B's variable columns and is now tested on an AHK1B-shaped fixture. `testRealData` carries ACH1B / AHK1B / LHK1B rows that skip until the files are in the pool |
+| G-06 | #21 | `gracefoReading.verifyDataPool` verifies a pool against the checksum manifests its sources publish (the ISDC MD5 lists, the SHA-256 manifests written beside the data), reporting per file OK / MISMATCH / MISSING / UNLISTED with the manifest that made each claim |
+| G-07 | #23 | `READING_DATA_POOL` is read as the DATAPOOL **root**: fixtures resolve as `<ROOT>\RawData\tests\realdata\<name>`, falling back to `<ROOT>\<name>` for one release so both values of the variable work. Help text, README and the CI reporting step say the same thing |
+
+**Out of scope on this branch**
+
+- **G-02 (#17)** and **G-05 (#20)** are not implemented. Both need real
+  bytes — classic RL02/RL03 L1B (binary records after an 80-byte ASCII
+  header) and the TN-01 / TN-01a event lists — that exist only in the
+  owner's DATAPOOL. The sandbox's network policy denies
+  `isdc-data.gfz.de` (measured 2026-09-22: `403 CONNECT` from the egress
+  proxy, for both the RL03 tree and `DOCUMENTS/TECHNICAL_NOTES/`), so the
+  files could not be fetched either. Writing either layout from a handbook
+  read from memory is precisely the v1 failure O-1 records, so neither was
+  written. See O-1 and the new O-14.
+- No preprocessing code (CONCEPT, 2026-09-18).
+- No whitespace sweep of the two over-length lines in `readL1bMulti.m`
+  (section D): a sweep is its own change and this branch edits that file
+  for G-01.
+- **Deviation, recorded:** GUIDE section 1 says workflow changes stand
+  alone in their own PR, while the same section allows only one open PR
+  per repository. G-07 and G-03 each require a step in
+  `.github/workflows/ci.yml`, so the workflow edits ride in this PR in
+  **their own commit**, named in the PR body for line-by-line reading.
+  Nothing else in the diff touches `.github/`.
+
+---
+
 ## B. How to run
 
 ```matlab

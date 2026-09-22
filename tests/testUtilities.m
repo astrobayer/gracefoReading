@@ -19,7 +19,8 @@ classdef testUtilities < matlab.unittest.TestCase
 %       under the noRecordsInRange warning instead of raising
 %       MATLAB:badsubscript from the monotonicity check; partial
 %       exclusion and a single surviving record still concatenate and
-%       stay warning-free
+%       stay warning-free; a row, a column and a cellstr of the same
+%       file names give the identical result (G-01)
 %     - decodeQualFlags: bit order (bit 0 rightmost), meanings taken
 %       from header attributes, undocumented bits, counts and
 %       fractions, flagNotFound and notBitString errors
@@ -51,9 +52,9 @@ classdef testUtilities < matlab.unittest.TestCase
 %     results = runtests('testUtilities');
 %     disp(table(results));
 %
-%   Toolbox:  gracefoReading v1.0.2
+%   Toolbox:  gracefoReading v1.1.0
 %   Created:  2026-08-01
-%   Updated:  2026-09-08
+%   Updated:  2026-09-22
 %   Author:   Matthias Weigelt with support of Anthropic Claude
 
     properties
@@ -135,6 +136,26 @@ classdef testUtilities < matlab.unittest.TestCase
             testCase.verifyEqual(t2, t1);
             testCase.verifyEqual(o2, o1);
             testCase.verifyEqual(aux2.recordsPerFile, 3);
+        end
+
+        function testMultiAcceptsBothOrientations(testCase)
+            % G-01 / O-11, issue #16. A row and a column of the same
+            % file names must give the identical result; only the row
+            % was accepted before.
+            f1 = testCase.writeSimple('day1.txt', [0; 43200], 0);
+            f2 = testCase.writeSimple('day2.txt', [86400; 129600], 100);
+            row = [string(f1), string(f2)];
+
+            [tRow, oRow, auxRow] = gracefoReading.readL1bMulti(row);
+            [tCol, oCol, auxCol] = gracefoReading.readL1bMulti(row(:));
+
+            testCase.verifyEqual(tCol, tRow);
+            testCase.verifyEqual(oCol, oRow);
+            testCase.verifyEqual(auxCol.fileNames, auxRow.fileNames);
+            testCase.verifyEqual(auxCol.recordsPerFile, auxRow.recordsPerFile);
+            % cellstr, both orientations, reaches the same place
+            tCell = gracefoReading.readL1bMulti(cellstr(row(:)));
+            testCase.verifyEqual(tCell, tRow);
         end
 
         function testMultiForwardsOptions(testCase)

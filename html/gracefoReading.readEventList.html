@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html><head><meta charset="utf-8"><title>gracefoReading.readEventList</title>
+<style>
+body { font-family: Arial, Helvetica, sans-serif; margin: 0; padding: 0 2em 3em 2em;
+       color: #212121; max-width: 62em; }
+h1 { font-size: 1.6em; font-weight: normal; color: #b33; border-bottom: 1px solid #ccc;
+     padding-bottom: 0.2em; margin-top: 1em; }
+h2 { font-size: 1.2em; color: #333; margin-top: 1.6em; border-bottom: 1px solid #eee; }
+p.purpose { font-size: 1.05em; color: #444; }
+pre.syntax, pre.example { background: #f5f5f5; border: 1px solid #e0e0e0;
+     padding: 0.7em 1em; border-radius: 4px; overflow-x: auto;
+     font-family: Consolas, Monaco, monospace; font-size: 0.92em; }
+p.excap { margin-bottom: 0.2em; font-weight: bold; font-size: 0.92em; color: #444; }
+table.args { border-collapse: collapse; width: 100%; margin: 0.6em 0; }
+table.args th { background: #f0f0f0; text-align: left; padding: 0.4em 0.6em;
+     border: 1px solid #ddd; font-size: 0.88em; }
+table.args td { padding: 0.4em 0.6em; border: 1px solid #ddd; font-size: 0.88em;
+     vertical-align: top; }
+td.mono, code { font-family: Consolas, Monaco, monospace; }
+ul.fields { margin: 0.3em 0 0 0; padding-left: 1.1em; font-size: 0.95em; }
+ul.limits li { margin-bottom: 0.35em; }
+div.footer { margin-top: 3em; padding-top: 0.6em; border-top: 1px solid #ccc;
+     color: #888; font-size: 0.8em; }
+a { color: #06c; text-decoration: none; }
+a:hover { text-decoration: underline; }
+</style></head><body>
+<h1>gracefoReading.readEventList</h1>
+<p class="purpose">Read an official GRACE/GRACE-FO event list (TN-01, TN-01a).</p>
+<h2>Syntax</h2>
+<pre class="syntax">events = gracefoReading.readEventList(fileName)
+events = gracefoReading.readEventList(fileName, Name, Value)
+[events, aux] = gracefoReading.readEventList(___)</pre>
+<h2>Description</h2>
+<p>Reads the two official event lists the project publishes beside the Level-1 data and returns one table row per event, with the provenance of every row (G-05, issue #20):</p>
+<p>TN-01  &quot;sequence of events&quot;, machine-readable. Each line is &lt;epoch&gt; &lt;satellite&gt; &lt;key&gt; &lt;count&gt; &lt;count values&gt; &lt;free text&gt;, where epoch is GPS seconds past 2000-01-01 12:00 and a leading &quot;x&quot; disables the line. The manoeuvres are the rows whose key is MANV. TN-01a &quot;spacecraft events&quot;, written by the operators. Entries are grouped under a YYYY-MM-DD date; an entry starts at the indentation of the date field and wrapped text is indented deeper.</p>
+<p>**This function reads; it does not interpret.** The values of a TN-01 row are returned as the numbers the file gives, under the key the file gives, and a TN-01a entry is returned as its date and its text. Nothing is inferred that the list does not state - turning these rows into mask layers and calibration windows is the business of the preprocessing chain, which knows what it wants them for. That division is why the text and the line number travel with every row.</p>
+<h2>Input Arguments</h2>
+<table class="args"><tr><th>Name</th><th>Type</th><th>Size</th><th>Description</th><th>Options</th><th>Default</th></tr><tr><td class="mono">fileName</td><td>string | char</td><td>1x1</td><td>Path to TN-01_SOE.txt, TN-01a_SCE.txt, or a copy of either. Plain or gzip-compressed.<br><em>Validation: mustBeFile</em></td><td></td><td class="mono"></td></tr><tr><td class="mono">&#x27;Format&#x27;</td><td>string</td><td>1x1</td><td>Which list this is.</td><td>&quot;auto&quot; | &quot;soe&quot; | &quot;sce&quot;. &quot;auto&quot; decides from the content: a file whose first data line parses as the TN-01 grammar is an SOE, one led by YYYY-MM-DD entries is an SCE</td><td class="mono">&quot;auto&quot;</td></tr><tr><td class="mono">&#x27;Satellite&#x27;</td><td>string</td><td>1x1</td><td>Keep only rows whose satellite token matches, case insensitively.</td><td>any token the file uses, e.g. &quot;GRACEC&quot;, &quot;GRACED&quot;; &quot;&quot; keeps everything. Only TN-01 rows carry a satellite token, so a non-empty value removes every TN-01a row</td><td class="mono">&quot;&quot; (no filter)</td></tr><tr><td class="mono">&#x27;TimeFormat&#x27;</td><td>string</td><td>1x1</td><td>Representation of the time column.</td><td>&quot;mjd&quot; (an [N x 2] integer MJD and seconds of day) | &quot;datetime&quot; ([N x 1] datetime on the GPS scale)</td><td class="mono">&quot;mjd&quot;</td></tr></table>
+<h2>Output Arguments</h2>
+<table class="args"><tr><th>Name</th><th>Type</th><th>Size</th><th>Description</th><th>Options</th><th>Default</th></tr><tr><td class="mono">events</td><td>table</td><td>[N x 8]</td><td>One row per event, in file order; N = rows kept. Variables:<ul class="fields"><li><code>time</code> &ndash; double [N x 2]: or datetime [N x 1]</li><li><code>satellite</code> &ndash; string: &quot;&quot; for a TN-01a entry</li><li><code>key</code> &ndash; string: the TN-01 key, &quot;&quot; for TN-01a</li><li><code>values</code> &ndash; cell: the TN-01 numeric values as a row vector, {} for TN-01a</li><li><code>text</code> &ndash; string: the free text of the row</li><li><code>disabled</code> &ndash; logical: true for a TN-01 line commented out with a leading &quot;x&quot;</li><li><code>dayOnly</code> &ndash; logical: true when the file gave a DATE and no time of day, which is every TN-01a row. Such a time is the start of that day and must not be read as an instant.</li><li><code>line</code> &ndash; double: line number in the source file</li></ul></td><td></td><td class="mono"></td></tr><tr><td class="mono">aux</td><td>struct</td><td>1x1</td><td>fileName, format (&quot;soe&quot; | &quot;sce&quot;), numRows, numDisabled, numUnparsable, unparsableLines (double [U x 1]), headerComments (string [H x 1], the leading &quot;#&quot; lines) and timeSystem. timeSystem is &quot;GPS&quot; for an SOE, whose epochs are GPS seconds, and &quot;date&quot; for an SCE, whose dates carry no time scale at all.</td><td></td><td class="mono"></td></tr></table>
+<h2>Accuracy and Limitations</h2><ul class="limits">
+<li>**TN-01a is prose.** Its entries are a human log; only the date and the entry text are structured, and this function returns exactly those. Extracting a manoeuvre window from a sentence like &quot;performed a calibration maneuver from 06:19:26 to 06:21:33 (2.0 cm/sec)&quot; is pattern-matching over free text written by different operators over years, and is deliberately NOT done here.</li>
+<li>Where a TN-01a entry ends and the next begins is decided by indentation: a line indented as far as the date field starts an entry, a deeper one continues it. That is the file&#x27;s own convention, stated in its header, and it is the only rule available; a misaligned line would be joined to its predecessor. The line number of every row is returned so a caller can check.</li>
+<li>A TN-01 epoch of 0 is what the file uses for an initial default rather than a real event. It converts to 2000-01-01 12:00 GPS like any other zero and is NOT filtered out, because which defaults matter is the caller&#x27;s decision.</li>
+<li>TN-01 epochs are GPS seconds past the same epoch the L1B products use, so they need no leap-second handling. TN-01a dates are calendar dates as the operators wrote them; no time scale is stated in the file and none is assumed here.</li>
+<li>A TN-01 line whose value count does not match its declared count, or whose values are not numeric, is not guessed at: it is left out and its line number is reported in aux.unparsableLines.</li>
+</ul>
+<h2>Errors</h2><table class="args"><tr><th>Error identifier</th><th>Condition</th></tr><tr><td class="mono">gracefoReading:readEventList:formatNotRecognised</td><td>&#x27;Format&#x27; is &quot;auto&quot; and the content matches neither list</td></tr><tr><td class="mono">gracefoReading:readEventList:noEvents</td><td>the file holds no parsable event at all</td></tr></table>
+<h2>Warnings</h2><table class="args"><tr><th>Warning identifier</th><th>Condition</th></tr><tr><td class="mono">gracefoReading:readEventList:unparsableLines</td><td>at least one line matched neither grammar and was skipped</td></tr></table>
+<h2>Examples</h2>
+<p class="excap">every manoeuvre of GRACE-C, as datetimes</p>
+<pre class="example">ev = gracefoReading.readEventList(&#x27;TN-01_SOE.txt&#x27;, ...
+   &#x27;Satellite&#x27;, &quot;GRACEC&quot;, &#x27;TimeFormat&#x27;, &quot;datetime&quot;);
+manv = ev(ev.key == &quot;MANV&quot;, :);
+fprintf(&#x27;%d manoeuvre(s), first %s\n&#x27;, height(manv), manv.time(1));</pre>
+<p class="excap">the operators&#x27; log for one day</p>
+<pre class="example">sce = gracefoReading.readEventList(&#x27;TN-01a_SCE.txt&#x27;);
+onDay = sce(sce.time(:,1) == 58849, :);
+disp(onDay.text);</pre>
+<p class="excap">what the reader could not parse</p>
+<pre class="example">[~, a] = gracefoReading.readEventList(&#x27;TN-01_SOE.txt&#x27;);
+fprintf(&#x27;%d of %d line(s) unparsable\n&#x27;, a.numUnparsable, a.numRows);</pre>
+<h2>See Also</h2><p><a href="gracefoReading.readL1b.html"><code>gracefoReading.readL1b</code></a>, <a href="gracefoReading.findGaps.html"><code>gracefoReading.findGaps</code></a>, <a href="gracefoReading.decodeQualFlags.html"><code>gracefoReading.decodeQualFlags</code></a></p>
+<div class="footer">gracefoReading v1.1.0 &middot; 2026-09-22 &middot; Matthias Weigelt with support of Anthropic Claude &middot; License: MIT &middot; Generated from the MATLAB help blocks &mdash; do not edit by hand.</div>
+</body></html>

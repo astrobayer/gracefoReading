@@ -85,9 +85,9 @@ function [timeMjd, timeNs, obs, aux] = parseDataSection(dataLines, dataLineNos, 
 %   See also gracefoReading.readL1b, gracefoReading.internal.parseYamlProduct,
 %            gracefoReading.internal.parseClassicProduct
 %
-%   Toolbox:  gracefoReading v1.0.2
+%   Toolbox:  gracefoReading v1.1.0
 %   Created:  2026-08-01
-%   Updated:  2026-09-06
+%   Updated:  2026-09-22
 %   Author:   Matthias Weigelt with support of Anthropic Claude
 
 nVar = numel(varNames);
@@ -98,16 +98,67 @@ end
 
 % ---- classify columns --------------------------------------------------
 isBitStr = ~cellfun('isempty', regexpi(varNames, 'flag|qualflg', 'once'));
+% One rule, one call: the field names used here are the same ones
+% parseHeaderVariables keyed varAttrs with, so a name that had to be
+% adjusted (AHK1B's "TSU Z-") still finds its attributes.
+[fieldNames, nameAdjusted] = gracefoReading.internal.variableFieldNames(varNames);
 isCharCol = false(1, nVar);
 for k = 1:nVar
-    a = varAttrs.(matlab.lang.makeValidName(varNames{k}));
+    a = varAttrs.(fieldNames{k});
     isCharCol(k) = isfield(a, 'units') && strcmpi(a.units, 'char');
+end
+if any(nameAdjusted)
+    idx = find(nameAdjusted);
+    pairs = arrayfun(@(k) sprintf('"%s" -> aux.%s', varNames{k}, fieldNames{k}), ...
+        idx, 'UniformOutput', false);
+    warning('gracefoReading:readL1b:variableNameAdjusted', ...
+        ['%d of %d declared variable name(s) in %s are not usable as struct ', ...
+         'fields verbatim and were mapped: %s. aux.variableNames and ', ...
+         'aux.obsNames keep the declared names.'], ...
+        numel(idx), nVar, fileName, strjoin(pairs, ', '));
 end
 isIdCol = ~cellfun('isempty', regexpi(varNames, '_id$', 'once'));
 
+% ---- rest-of-line column ----------------------------------------------
+% LHK1B and the other long-format housekeeping products end in a free-text
+% column that the header itself describes as taking what is left of the
+% line. Real LHK1B of 2020-01-01 declares:
+%
+%     - sensorname:
+%         comment: Entire remaining portion of each record
+%         long_name: Sensor name.  Max number of characters = 1,000
+%
+% and 2 886 of its 1 169 274 records use that licence: "fpga_state:
+% science_state" and "mode: science" carry a SPACE, so the record has one
+% whitespace-separated token more than the header declares columns. Until
+% 2026-09-22 that raised columnMismatch on line 537 and the product could
+% not be read at all (issue #19).
+%
+% The rule is read off the file, not assumed from the position: only a
+% last column whose own comment or long_name says it takes the remaining
+% portion absorbs the surplus. It cannot be inferred from "units: char"
+% either - sensorname does not declare units at all.
+restIdx = 0;
+if ~hasProdFlagName(varNames) && nVar >= 2
+    aLast = varAttrs.(fieldNames{nVar});
+    claim = '';
+    if isfield(aLast, 'comment'),   claim = [claim, ' ', aLast.comment];   end
+    if isfield(aLast, 'long_name'), claim = [claim, ' ', aLast.long_name]; end
+    if ~isempty(regexpi(claim, 'remaining\s+portion', 'once'))
+        restIdx = nVar;
+    end
+end
+hasRestOfLine = restIdx > 0;
+if hasRestOfLine
+    % Free text by construction: never numeric, and never a bit string
+    % even if the name happened to contain "flag".
+    isCharCol(restIdx) = true;
+    isBitStr(restIdx) = false;
+end
+
 % ---- identify time columns --------------------------------------------
 [timeColIdx, timeVarUsed, fracScale] = gracefoReading.internal.resolveTime( ...
-    varNames, varAttrs, timeVarOpt);
+    varNames, varAttrs, timeVarOpt, fieldNames);
 
 % ---- prod_flag layout --------------------------------------------------
 pfIdx = find(strcmpi(varNames, 'prod_flag'), 1);
@@ -138,6 +189,18 @@ if hasProdFlag
                  '(%d fixed + %d set prod_flag bits). File may be corrupted.'], ...
                 dataLineNos(r), tokenCounts(r), expected, nFixed, sum(pf == '1'));
         end
+    end
+elseif hasRestOfLine
+    % Surplus tokens are the last column's text, so only a SHORTFALL is a
+    % defect here. The check stays strict in that direction.
+    badIdx = find(tokenCounts < nVar, 1);
+    if ~isempty(badIdx)
+        error('gracefoReading:readL1b:columnMismatch', ...
+            ['Data line %d has %d whitespace-separated token(s); at least %d ', ...
+             'expected (%d declared variables, the last of which the header ', ...
+             'declares as the remaining portion of the record). File may be ', ...
+             'truncated or corrupted.'], ...
+            dataLineNos(badIdx), tokenCounts(badIdx), nVar, nVar);
     end
 else
     badIdx = find(tokenCounts ~= nVar, 1);
@@ -175,6 +238,17 @@ if hasProdFlag
             end
         end
     end
+elseif hasRestOfLine
+    % The leading columns are ordinary tokens; the last one is the rest of
+    % the raw line, sliced at the end of token nVar-1 so that its internal
+    % spacing survives verbatim. vertcat cannot be used here: with a
+    % variable token count the rows are not one matrix.
+    for k = 1:nVar-1
+        colTok{k} = cellfun(@(tk) tk{k}, tokens, 'UniformOutput', false);
+    end
+    tokEnds = regexp(cellstr(dataLines), '\S+', 'end');
+    cut = cellfun(@(e) e(nVar-1), tokEnds);
+    colTok{nVar} = cellstr(strtrim(extractAfter(string(dataLines(:)), cut(:))));
 else
     tokMat = vertcat(tokens{:});
     for k = 1:nVar, colTok{k} = tokMat(:, k); end
@@ -201,21 +275,20 @@ for k = 1:nVar
 end
 
 % ---- build time: double MJD pair AND exact int64 nanoseconds ----------
-mjdEpoch = 51544;
+% The epoch arithmetic itself lives in internal/gpsSecondsToMjd, shared
+% with the classic binary parser. Splitting the tag into whole and
+% fractional seconds is this function's job, because only here is the
+% declared unit of the fractional column known.
 if numel(timeColIdx) == 1
     v = data(:, timeColIdx);
-    ip = floor(v);
-    timeNs = int64(ip) * 1000000000 + int64(round((v - ip) * 1e9));
-    gpsSeconds = v;
+    intPart = floor(v);
+    fracPart = v - intPart;
 else
-    fracSec = fracScale * data(:, timeColIdx(2));
-    timeNs = int64(data(:, timeColIdx(1))) * 1000000000 + int64(round(fracSec * 1e9));
-    gpsSeconds = data(:, timeColIdx(1)) + fracSec;
+    intPart = data(:, timeColIdx(1));
+    fracPart = fracScale * data(:, timeColIdx(2));
 end
-totalSec = gpsSeconds + 43200;
-daysFull = floor(totalSec / 86400);
-secOfDay = totalSec - daysFull * 86400;
-timeMjd = [mjdEpoch + daysFull, secOfDay];
+[timeMjd, timeNs, mjdEpoch] = ...
+    gracefoReading.internal.gpsSecondsToMjd(intPart, fracPart);
 
 % ---- classify obs vs aux ----------------------------------------------
 isAux = ~isNumericCol | isBitStr | isCharCol | isIdCol;
@@ -240,9 +313,10 @@ aux.numRecordsActual = nRec;
 aux.numRecordsFlagged = 0;
 aux.header = headerLines(:);
 
+aux.variableFieldNames = fieldNames;
 unitStruct = struct();
 for k = 1:nVar
-    fn = matlab.lang.makeValidName(varNames{k});
+    fn = fieldNames{k};
     a = varAttrs.(fn);
     if isfield(a, 'units'), unitStruct.(fn) = a.units; end
 end
@@ -251,7 +325,7 @@ aux.variableAttributes = varAttrs;
 
 for k = 1:nVar
     if ~isAux(k) || any(k == timeColIdx), continue; end
-    fn = matlab.lang.makeValidName(varNames{k});
+    fn = fieldNames{k};
     if isBitStr(k)
         raw = char(colTok{k});
         aux.(fn) = raw;
@@ -270,4 +344,13 @@ for k = 1:nVar
         end
     end
 end
+end
+
+% ========================================================================
+function tf = hasProdFlagName(varNames)
+% A file driven by prod_flag already has a rule for its variable columns;
+% the rest-of-line rule is for the products that have no prod_flag at all.
+% No known product declares both, and one that did would need reading
+% before it could be handled.
+tf = any(strcmpi(varNames, 'prod_flag'));
 end

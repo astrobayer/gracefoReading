@@ -1,0 +1,60 @@
+0.0  GRACEC ACC 1  1  Initial default by hywen
+0.0  GRACED ACC 1  1  Initial default by hywen
+0.0  GRACEC AOCS 1  1  Initial default by hywen
+0.0  GRACED AOCS 1  1  Initial default by hywen
+0.0  GRACEC ICUVP 1  0  Initial default by hywen
+0.0  GRACED ICUVP 1  0  Initial default by hywen
+0.0  GRACEC IPU 1  1  Initial default by hywen
+0.0  GRACED IPU 1  1  Initial default by hywen
+0.0  GRACEC IPUR 3  1  0  1  Initial default by hywen
+0.0  GRACED IPUR 3  1  0  1  Initial default by hywen
+0.0  GRACEC KAMI 3  0.0 0.0 0.0 Initial default by hywen
+0.0  GRACED KAMI 3  0.0 0.0 0.0 Initial default by hywen
+0.0  GRACEC KBR 1  1  Initial default by hywen
+0.0  GRACED KBR 1  1  Initial default by hywen
+0.0  GRACEC K_MI 3  0.0 0.0 0.0  Initial default by hywen
+0.0  GRACED K_MI 3  0.0 0.0 0.0  Initial default by hywen
+0.0  GRACEC KTOFF 1  0.0  Initial default by hywen
+0.0  GRACED KTOFF 1  0.0  Initial default by hywen
+0.0  GRACEC LRI 1  1  Initial default by hywen
+0.0  GRACED LRI 1  0  Initial default by hywen
+0.0  GRACEC LRIDATATION 1  0  Initial default by hywen
+0.0  GRACED LRIDATATION 1  0  Initial default by hywen
+0.0  GRACEC MTEA 3  0.0 0.0 0.0  Initial default by hywen
+0.0  GRACED MTEA 3  0.0 0.0 0.0  Initial default by hywen
+0.0  GRACEC MTEB 3  0.0 0.0 0.0  Initial default by hywen
+0.0  GRACED MTEB 3  0.0 0.0 0.0  Initial default by hywen
+0.0  GRACEC QSA 5 1 -0.1846523033914243 0.6877863330342120 0.6765142470974430 0.1875685485836400 Mon May 14 10:00:00 2018 by tamarab - values from ground SCA calibration by Justin Maki
+0.0  GRACEC QSA 5 2 0.2482955018618801 -0.0400731149707713 0.8516159983601500 0.4598844208589170 Mon May 14 10:00:00 2018 by tamarab - values from ground SCA calibration by Justin Maki
+0.0  GRACEC QSA 5 3 -0.4627545612843981 0.8531198681517500 -0.0427367676938312 -0.2371039334602200 Mon May 14 10:00:00 2018 by tamarab - values from ground SCA calibration by Justin Maki
+0.0  GRACED QSA 5 1 -0.1789388979356683 0.6827348935446690 0.6828070775129600 0.1887549491810180 Mon May 14 10:00:00 2018 by tamarab - values from ground SCA calibration by Justin Maki
+0.0  GRACED QSA 5 2 0.2364914939710544 -0.0535740306800429 0.8517947395024960 0.4643784214107150 Mon May 14 10:00:00 2018 by tamarab - values from ground SCA calibration by Justin Maki
+0.0  GRACED QSA 5 3 -0.4504277250139701 0.8590253079524141 -0.0480909983022378 -0.2384903367398640 Mon May 14 10:00:00 2018 by tamarab - values from ground SCA calibration by Justin Maki
+0.0  GRACEC USO 1  1  Initial default by hywen
+0.0  GRACED USO 1  1  Initial default by hywen
+0.0  GRACEC VCM 3  0.00000 0.00000 0.00000  Initial default by hywen
+0.0  GRACED VCM 3  0.00000 0.00000 0.00000  Initial default by hywen
+0.0  GRACEC VGB 6  -1.56125 -0.300 -0.19 -1.56125 -0.300 -0.19  Initial GRACE values
+0.0  GRACED VGB 6  -1.56125 -0.300 -0.19 -1.56125 -0.300 -0.19  Initial GRACE values
+x 0.0  GRACEC VGN 6  0.2602357 -0.001283 -0.433248 0.2602357 -0.001283 -0.439248  From 2018-04-25 Powerpoint by Jeff Tien and Brian Schratz, with 53 mm added to Z values (email forwarded to hywen by glk on 2018-05-18).  Updated by hywen on 2018-05-18.
+x 0.0  GRACED VGN 6  0.26004425 -0.001079 -0.4324555 0.26004425 -0.001079 -0.4384555  From 2018-04-25 Powerpoint by Jeff Tien and Brian Schratz, with 53 mm added to Z values (email forwarded to hywen by glk on 2018-05-18).  Updated by hywen on 2018-05-18.
+580321260  GRACEC IPUR 3  1  0  1  Manually added to lie within time gap in GNV1A_2018-05-23_C_00.dat by glkruizi on 2018-06-11
+580321260  GRACEC IPU  3  1  0  1  Manually added to lie within time gap in GNV1A_2018-05-23_C_00.dat by glkruizi on 2018-06-11 for webpage
+580323370  GRACED IPUR 3  1  0  1  Manually added to lie within time gap in GNV1A_2018-05-23_D_00.dat by glkruizi on 2018-06-11
+580323370  GRACED IPU  3  1  0  1  Manually added to lie within time gap in GNV1A_2018-05-23_D_00.dat by glkruizi on 2018-06-11. Added for webpage by glkruizi
+580414784.600034  GRACEC MANV 4  127.000 0.0988 0 0.0 Wed Oct 10 21:55:15 2018 by operator (2018-05-24 06:19:44)
+580431375.598931  GRACED MANV 4  126.000 0.0988 0 0.0 Wed Oct 10 21:56:10 2018 by operator (2018-05-24 10:56:15)
+580562581.599849  GRACEC MANV 4  416.000 0.0988 0 0.0 Wed Oct 10 21:55:16 2018 by operator (2018-05-25 23:23:01)
+580568286.597180  GRACED MANV 4  406.000 0.0988 0 0.0 Wed Oct 10 21:56:11 2018 by operator (2018-05-26 00:58:06)
+580573978.599828  GRACEC MANV 4  423.000 0.0988 0 0.0  Manually added on 2018-10-11 by hywen (2018-05-26 02:32:58)
+580579682.597023  GRACED MANV 4  413.000 0.0988 0 0.0 Wed Oct 10 21:56:11 2018 by operator (2018-05-26 04:08:02)
+580857980 GRACEC IPUR 4 -1 580858163 -1 -0.47028 Mon Jun 11 20:12:07 2018 by operator
+580857980 GRACEC USO 1 -1 Mon Jun 11 20:12:07 2018 by operator
+x 580858000  GRACEC IPUR 3  1  0  1  Manually added to lie within time gap in GNV1A_2018-05-29_C_00.dat by hywen on 2018-05-29
+580858000  GRACEC IPU  3  1  0  1  Manually added to lie within time gap in GNV1A_2018-05-29_C_00.dat by hywen on 2018-05-29. Added for webpage by glkruizi
+x 580863600  GRACED IPUR 3  1  0  1  Manually added to lie within time gap in GNV1A_2018-05-29_D_00.dat by hywen on 2018-05-29
+x 580863600  GRACED IPU  3  1  0  1  Manually added to lie within time gap in GNV1A_2018-05-29_D_00.dat by hywen on 2018-05-29. Added for webpage by glkruizi
+580863610 GRACED IPUR 4 -1 580863803 -1 -0.453379 Tue Aug 28 20:30:23 2018 by operator
+580863610 GRACED USO 1 -1 Tue Aug 28 20:30:23 2018 by operator
+x 581653840  GRACED IPUR 3  1  0  1  Manually added to lie within time gap in GNV1A_2018-06-07_D_00.dat by glkruizi on 2018-06-11
+581653840  GRACED IPU  3  1  0  1  Manually added to lie within time gap in GNV1A_2018-06-07_D_00.dat by glkruizi on 2018-06-11. Added for webpage by glkruizi

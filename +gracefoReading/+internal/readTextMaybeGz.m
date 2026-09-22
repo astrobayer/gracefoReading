@@ -48,7 +48,7 @@ function txt = readTextMaybeGz(fileName)
 %
 %   See also gracefoReading.readL1b
 %
-%   Toolbox:  gracefoReading v1.0.2
+%   Toolbox:  gracefoReading v1.1.0
 %   Created:  2026-08-01
 %   Updated:  2026-08-14
 %   Author:   Matthias Weigelt with support of Anthropic Claude

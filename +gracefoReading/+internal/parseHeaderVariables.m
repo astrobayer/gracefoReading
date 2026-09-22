@@ -26,11 +26,14 @@ function [varNames, varAttrs] = parseHeaderVariables(headerLines)
 %     varNames - cellstr, [1 x V]
 %                Variable names in file column order.
 %     varAttrs - struct, 1x1
-%                One field per variable, named via
-%                matlab.lang.makeValidName; each field is a struct of
-%                the parsed attributes, scalar attributes as char and
-%                list attributes as cellstr. Variables without
-%                attributes get an empty struct.
+%                One field per variable, named by
+%                gracefoReading.internal.variableFieldNames - the one
+%                rule every consumer of this struct uses; each field
+%                is a struct of the parsed attributes, scalar
+%                attributes as char and list attributes as cellstr.
+%                Variables without attributes get an empty struct.
+%                Index varNames and the field-name list positionally
+%                rather than assuming name == field name.
 %
 %   ACCURACY AND LIMITATIONS
 %     - This is a targeted parser for the header dialect of the L1B
@@ -42,8 +45,16 @@ function [varNames, varAttrs] = parseHeaderVariables(headerLines)
 %     - Attribute values are kept as text exactly as written, with no
 %       type conversion; numeric attributes must be converted by the
 %       caller.
-%     - Field names are sanitized, so two variables whose names differ
-%       only in characters that makeValidName removes would collide.
+%     - A variable name is whatever stands before the terminating
+%       colon, so it need not be a MATLAB identifier: AHK1B declares
+%       "TSU Z-", with a space, and the identifier-only pattern used
+%       until 2026-09-22 dropped that column silently. A name
+%       containing a colon is still not recognised.
+%     - Field names are sanitized AND made unique across the whole
+%       ordered list, so names differing only in characters
+%       makeValidName maps together (AHK1B's "TSU Y+" / "TSU Y-")
+%       stay distinct fields instead of overwriting each other. The
+%       field name is then a per-file detail; match on varNames.
 %
 %   ERRORS
 %     (none; an unparsable header simply yields no variables, which
@@ -53,11 +64,13 @@ function [varNames, varAttrs] = parseHeaderVariables(headerLines)
 %     % internal use only; called by parseYamlProduct:
 %     [names, attrs] = gracefoReading.internal.parseHeaderVariables(hdr);
 %
-%   See also gracefoReading.readL1b, gracefoReading.internal.parseYamlProduct
+%   See also gracefoReading.readL1b,
+%            gracefoReading.internal.parseYamlProduct,
+%            gracefoReading.internal.variableFieldNames
 %
-%   Toolbox:  gracefoReading v1.0.2
+%   Toolbox:  gracefoReading v1.1.0
 %   Created:  2026-08-01
-%   Updated:  2026-08-14
+%   Updated:  2026-09-22
 %   Author:   Matthias Weigelt with support of Anthropic Claude
 
 arguments
@@ -65,9 +78,9 @@ arguments
 end
 
 varNames = {};
-varAttrs = struct();
+attrCells = {};
 inVars = false;
-current = '';
+ci = 0;                                  % index of the variable being filled
 listAttr = '';
 
 for i = 1:numel(headerLines)
@@ -83,41 +96,44 @@ for i = 1:numel(headerLines)
     % legacy style: "    - name: varname"
     tok = regexp(ln, '^\s{2,6}-\s+name:\s*(\S+)\s*$', 'tokens', 'once');
     if ~isempty(tok)
-        current = strtrim(erase(tok{1}, {'''', '"'}));
-        varNames{end+1} = current; %#ok<AGROW>
-        varAttrs.(matlab.lang.makeValidName(current)) = struct();
+        varNames{end+1} = strtrim(erase(tok{1}, {'''', '"'})); %#ok<AGROW>
+        attrCells{end+1} = struct(); %#ok<AGROW>
+        ci = numel(varNames);
         listAttr = '';
         continue
     end
-    % real style: "    - varname:"
-    tok = regexp(ln, '^\s{2,6}-\s+([A-Za-z_]\w*):\s*$', 'tokens', 'once');
+    % real style: "    - varname:". The name is NOT required to be a
+    % MATLAB identifier: AHK1B declares "TSU Z-" with a space, and the
+    % identifier-only pattern used before dropped that column without a
+    % word (V-13, issue #19). Anything up to the terminating colon is
+    % taken as the name; a colon inside it would be ambiguous and is
+    % excluded, which also keeps attribute lines out of this branch.
+    tok = regexp(ln, '^\s{2,6}-\s+(\S[^:]*?)\s*:\s*$', 'tokens', 'once');
     if ~isempty(tok)
-        current = tok{1};
-        varNames{end+1} = current; %#ok<AGROW>
-        varAttrs.(matlab.lang.makeValidName(current)) = struct();
+        varNames{end+1} = strtrim(erase(tok{1}, {'''', '"'})); %#ok<AGROW>
+        attrCells{end+1} = struct(); %#ok<AGROW>
+        ci = numel(varNames);
         listAttr = '';
         continue
     end
     % list-attribute item: deeply indented "- item"
     tok = regexp(ln, '^\s{8,}-\s+(.*\S)\s*$', 'tokens', 'once');
-    if ~isempty(tok) && ~isempty(current) && ~isempty(listAttr)
-        fn = matlab.lang.makeValidName(current);
-        if ~isfield(varAttrs.(fn), listAttr)
-            varAttrs.(fn).(listAttr) = {};
+    if ~isempty(tok) && ci > 0 && ~isempty(listAttr)
+        if ~isfield(attrCells{ci}, listAttr)
+            attrCells{ci}.(listAttr) = {};
         end
-        varAttrs.(fn).(listAttr){end+1} = strtrim(erase(tok{1}, {'''', '"'}));
+        attrCells{ci}.(listAttr){end+1} = strtrim(erase(tok{1}, {'''', '"'}));
         continue
     end
     % scalar attribute or start of list attribute: "        key: value"
     tok = regexp(ln, '^\s{6,}([A-Za-z_]\w*):\s*(.*)$', 'tokens', 'once');
-    if ~isempty(tok) && ~isempty(current)
+    if ~isempty(tok) && ci > 0
         key = matlab.lang.makeValidName(tok{1});
         val = strtrim(erase(tok{2}, {'''', '"'}));
-        fn = matlab.lang.makeValidName(current);
         if isempty(val)
             listAttr = key;                      % list values follow
         else
-            varAttrs.(fn).(key) = val;
+            attrCells{ci}.(key) = val;
             listAttr = '';
         end
         continue
@@ -126,5 +142,14 @@ for i = 1:numel(headerLines)
     if ~isempty(regexp(ln, '^  \S', 'once'))
         inVars = false;
     end
+end
+
+% Field names come from the ONE rule every consumer uses, applied to the
+% complete ordered list: a per-name call cannot see a collision, and
+% AHK1B's four sensor temperatures collide in pairs.
+fieldNames = gracefoReading.internal.variableFieldNames(varNames);
+varAttrs = struct();
+for k = 1:numel(varNames)
+    varAttrs.(fieldNames{k}) = attrCells{k};
 end
 end

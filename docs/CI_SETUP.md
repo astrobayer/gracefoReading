@@ -14,16 +14,27 @@ the command is identical in all three places.
 
 | Job | What it does | Where |
 |---|---|---|
-| `matlab-tests` | `runCI('Exit', true)` → all suites in `tests/`, JUnit + Cobertura reports in `artifacts/` | Linux + Windows, R2024b; plus R2020b on Linux (oldest supported release) |
-| `documentation` | `docsrc/auditHelp.py` (help-text standard) and regeneration of `html/` with a `git diff --exit-code` check | Linux, Python 3.11 |
+| `matlab-tests` | `runCI('Exit', true)` → all suites in `tests/`, JUnit + Cobertura reports in `artifacts/` | self-hosted Windows runner |
+| `documentation` | `docsrc/sourceIntegrity.py`, `docsrc/auditHelp.py` (help-text standard) and regeneration of `html/` with a `git diff --exit-code` check | `ubuntu-latest`, Python 3.11 |
 
-Both platforms are tested deliberately. The two defects that survived
-release testing in this toolbox were platform-specific: an in-memory
-Java gzip read that silently returned zeros, and CRLF line endings from
-`fopen(...,'wt')` on Windows. Neither is visible on the other platform.
+Two further steps run inside `matlab-tests`, both only when the
+repository or organisation variable `READING_DATA_POOL` is set:
 
-The R2020b entry guards the documented minimum release: the toolbox uses
-`arguments` blocks, so R2020b is the floor.
+| Step | What it does | Can it fail the run? |
+|---|---|---|
+| Report which real-data files the pool provides | names every expected fixture as FOUND or ABSENT, and for a found one which of the two lookup paths answered — `RawData\tests\realdata` under the pool root, or the legacy root path | yes: it asserts the pool folder exists |
+| Measure `readL1b` parse time on one real day (G-03) | `benchmarkParse` on one real ACT1B day, printing the per-day and per-year figures that O-7 is decided from | no: `continue-on-error`, and the script asserts nothing |
+
+*Correction, 2026-09-22:* the job table above said Linux + Windows with
+an extra R2020b run. That has not been true since the suites moved to
+the self-hosted Windows runner; `ci.yml` is the authority and it
+defines exactly the two jobs listed. The reasoning that put two
+platforms there still holds — the two defects that survived release
+testing in this toolbox were platform-specific, an in-memory Java gzip
+read that silently returned zeros and CRLF line endings from
+`fopen(...,'wt')` on Windows — and R2020b remains the documented
+minimum release because the toolbox uses `arguments` blocks. Neither is
+covered by a CI job today.
 
 ---
 

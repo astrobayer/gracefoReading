@@ -20,3 +20,17 @@ tests/realdata/*.txt.gz
 # and the format is covered without the data pool. The full days go in
 # READING_DATA_POOL like the large PO.DAAC products.
 !tests/realdata/GRACEFO-1_*.txt
+
+# The two official event lists (G-05) are extracts of the published
+# TN-01 / TN-01a files, ~8 KB together. They must be excepted by name:
+# the "*.txt" rule above would otherwise drop them silently, and the
+# only symptom would be testEventLists failing in CI on a fixture that
+# is present in every working tree.
+!tests/realdata/TN-01_SOE.txt
+!tests/realdata/TN-01a_SCE.txt
+
+# The six classic GRACE fixtures are binary (".dat"), so no rule above
+# touches them; they are named here so the set is visible in one place.
+# First 40 records each, NUMBER OF DATA RECORDS rewritten to match,
+# ~38 KB together. See tests/realdata/README.md.
+!tests/realdata/*.dat

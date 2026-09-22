@@ -1,0 +1,25 @@
+# This file contains GRACE-FO SPACECRAFT_EVENTS, manually written by Level-1 Science Data System
+# operators at NASA JPL, and updated with each weekly incremental data release. The contents of 
+# this file augment the machine-readable Sequence of Events file [TN-01_SOE.txt].
+#
+# Formatting:
+# - Each day entry starts with date in YYYY-MM-DD format.
+# - Multiple entries per date (typically) start with a new line.
+#
+2018-05-23 GRACE-C/D Missing data in the beginning of the arc, pass files show this as well. Changed start time 
+                     to the nearest 5-min epoch from the largest first time on the quaternions and initLeo (nav sol).
+                     looks good, except possibly higher than normal number of outliers. This is early data, we should 
+                     look closer later.
+           IPU resets manually added at 04:21:00.0 for GRACE-C and 04:56:10.0 for GRACE-D
+           Time gaps of up to 27 seconds in IMU, MAG, TIM, and TNK near time syncs to GPS: GRACE-C at 08:09, GRACE-D at 09:52
+2018-05-24 GRACE-C performed a calibration maneuver from 06:19:26 to 06:21:33 (2.0 cm/sec) using both OCT thrusters
+           GRACE-D performed a calibration maneuver from 10:55:57 to 10:58:03 (2.0 cm/sec) using both OCT thrusters
+2018-05-25 GRACE-C performed a drift stop  maneuver from 23:22:42 to 23:29:39 (6.0 cm/sec) using both OCT thrusters
+2018-05-26 GRACE-D performed a drift stop  maneuver from 00:57:48 to 01:04:34 (6.0 cm/sec) using both OCT thrusters #this is 10 min later than in OMM report email!
+           GRACE-C performed a drift stop  maneuver from 02:02:40 to 02:09:43 (6.1 cm/sec) using both OCT thrusters
+           GRACE-D performed a drift stop  maneuver from 04:14:37 to 04:21:30 (6.1 cm/sec) using both OCT thrusters #going by the OMM report email
+2018-05-28 GRACE-C science data loss from 05-28 17:44 to 05-29 00:44
+           GRACE-D science data loss from 05-28 19:00 to 05-29 02:14
+           GRACE-D housekeeping data loss from 05-28 19:29 to 05-29 02:14
+2018-05-29 GRACE-C IPU reset at 09:26:20.0000, then KBR tracking start at 09:29
+           GRACE-D IPU reset at 11:00:00.0000, then KBR tracking start at 11:03

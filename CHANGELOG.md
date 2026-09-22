@@ -1,6 +1,141 @@
 # Changelog — gracefoReading
 
-## Unreleased
+## 1.1.0 — 2026-09-22
+
+Five of the seven reader work packages of the preprocessing concept:
+G-01 (#16), G-03 (#18), G-04 (#19), G-06 (#21) and G-07 (#23). MINOR,
+not PATCH: `verifyDataPool` is new capability and every existing call
+keeps working.
+
+### Added — `gracefoReading.verifyDataPool` (G-06, #21)
+
+- Verifies a local data pool against the checksums its sources publish
+  and returns one table row per file: `OK`, `MISMATCH`, `MISSING`,
+  `UNREADABLE`, or `UNLISTED` for a pool file no manifest covers. Each
+  row names the manifest that made the claim, so a mismatch can be
+  taken back to its source.
+- Reads the **coreutils** manifest format (`<hex>  <name>`, and
+  `*<name>` for binary mode) and the **BSD tagged** format
+  (`SHA256 (<name>) = <hex>`). Entries resolve against their own
+  manifest's folder, so the MD5 list inside an L1B day archive and a
+  SHA-256 manifest written beside a month of data are both read where
+  they lie.
+- The algorithm comes from the digest **length**, a property of the
+  line rather than of the manifest's file name: a list called
+  `SHA256SUMS_…` that holds MD5 digests is read as what it contains,
+  and a tagged line whose tag disagrees with its own digest length
+  names no algorithm at all and is reported rather than verified.
+  Lines matching neither format are reported by line number, never
+  guessed at.
+- `UNLISTED` rows are in the report on purpose. "Not checked" and
+  "checked and correct" are different answers, and the ITSG and ZARM
+  products publish no checksums at all — a report that showed only the
+  verified files would be read as covering the pool.
+- New internals: `+internal/parseChecksumManifest` and
+  `+internal/fileDigest`, the latter streaming a file through
+  `MessageDigest` in 1 MiB blocks and in binary mode, so a
+  multi-gigabyte file is hashed without being held in memory and CRLF
+  is never rewritten under it.
+- The expected digests in the test suite are **not** produced by the
+  code under test: the published FIPS-180 / RFC-1321 vectors for the
+  byte string `abc` and independently computed digests for the other
+  fixtures are the oracle.
+
+### Added — `ci/benchmarkParse` (G-03, #18)
+
+- Measures `readL1b` on one real ACT1B day and extrapolates to a year,
+  so O-7 — whether the fixed-layout products should gain a typed
+  `textscan` fast path — is decided from a number rather than an
+  impression.
+- Reports the total **and** `fileread` alone. Their ratio is the part
+  of the answer a total cannot give: a fast path can only win back the
+  difference, so a run where reading the bytes already dominates
+  settles O-7 by itself.
+- Asserts nothing and returns an empty result when the pool holds no
+  day file; the CI step that runs it is `continue-on-error` and runs
+  under `always()`, so a red suite cannot swallow the measurement. It
+  is a measurement, not an acceptance point.
+- **Measured** on the self-hosted runner, CI run 35698502947, MATLAB
+  R2026a: one real ACT1B day (86 400 records, 13.5 MB) takes
+  **7.801 s**, of which `fileread` is 0.059 s — parsing is 99.2 % of
+  the cost. A year extrapolates to **47.5 min**.
+- **Decided: no fixed-layout fast path**, and not for want of headroom.
+  47.5 min per product-year is not a bottleneck and `'CacheDir'` pays
+  it once; and it would be a second parsing path covering only one of
+  the reader's three record grammars (fixed columns, `prod_flag`
+  variable columns, rest-of-line). O-7 closes; `ci/benchmarkParse`
+  stays so re-opening it costs one command.
+
+### Fixed — `readL1bMulti` accepts the column `findL1bFiles` returns (G-01, #16)
+
+- `fileNames` was declared `(1,:) string` while `findL1bFiles` returns
+  `[K x 1]`, so the two-line workflow printed in **both** help blocks
+  raised a size-validation error for every K > 1 (O-11, now closed).
+  The declaration is unsized and normalised on entry, as
+  `readItsgProductMulti` already did; `aux.fileNames` stays a column.
+
+### Fixed — header variable names that are not MATLAB identifiers (G-04, #19)
+
+- The accelerometer housekeeping product AHK1B declares the sensor
+  temperatures `TSU Y+`, `TSU Y-`, `TSU Z+` and `TSU Z-`, the last with
+  a space. The header parser accepted identifiers only, so that column
+  was dropped and every record then carried one token more than the
+  declared columns.
+- Worse and less visible: `varAttrs` and the `aux` fields were keyed by
+  `matlab.lang.makeValidName` per name, which is not injective — `+`
+  and `-` both become `_`, so `TSU_Y+` and `TSU_Y-` collapsed onto one
+  field and one temperature silently overwrote the other.
+- `+internal/variableFieldNames` is now the single point of access for
+  that mapping — `makeValidName`, truncated, then `makeUniqueStrings`
+  over the whole ordered list — and the header parser, the data-section
+  parser, the classic path and the time resolver all take their keys
+  from it. It is the identity on every name in every product read so
+  far, so nothing existing changes.
+- A rename is never silent: `gracefoReading:readL1b:variableNameAdjusted`
+  names each declared name and the field it landed in, and the new
+  `aux.variableFieldNames` gives the mapping. `aux.variableNames` and
+  `aux.obsNames` keep the declared names, which is what callers match
+  on.
+
+### Fixed — LHK1B could not be read at all (G-04, #19)
+
+- The long-format housekeeping products end in a free-text column that
+  the header declares as taking what is left of the line. Real
+  `LHK1B_2020-01-01_C_04` says so in its own words —
+  `comment: Entire remaining portion of each record` — and 2 886 of its
+  1 169 274 records use it: `fpga_state: science_state` and
+  `mode: science` carry a space, so the record holds nine
+  whitespace-separated tokens where eight columns are declared. The
+  reader raised `columnMismatch` on file line 537 and the product was
+  unreadable.
+- A last column that makes that claim, in its `comment` or
+  `long_name`, now takes the rest of the line **verbatim**, internal
+  spacing included, and is returned as text in `aux`. The rule is the
+  header's sentence, never the column's position: `sensorname` declares
+  no `units: char`, so a rule keyed on character columns would not have
+  fired. Every other surplus token is still `columnMismatch` with its
+  line number, a record short of the declared count is still an error,
+  and the rule does not apply to a file that also declares `prod_flag`.
+- Measured, not assumed: the rule was written after a temporary CI step
+  dumped the real header on the runner, because the format could not be
+  reached from the working session.
+
+### Changed — `READING_DATA_POOL` is the DATAPOOL root (G-07, #23)
+
+- Fixtures resolve as `<ROOT>\RawData\tests\realdata\<name>`, matching
+  the owner's real pool layout. `<ROOT>\<name>` — the value that
+  pointed straight at the fixture folder — stays accepted for **this
+  release only**, so that switching from the repository-level variable
+  to the organisation one cannot turn a green run into a row of skipped
+  acceptance points in the same step.
+- `testRealData.resolveFixture` is the one authority for that layout,
+  as `resolvePool` already was for the location; `testItsgProducts` and
+  `ci/benchmarkParse` both go through it. The CI reporting step prints
+  which of the two paths answered each file, so the switch is visible
+  rather than inferred.
+- New acceptance rows for `ACH1B`, `AHK1B` and `LHK1B`, verifying the
+  generic reader on real bytes through one shared invariant helper.
+  They report **incomplete** until those files are in the pool.
 
 ### Added — ITSG date ranges: findItsgFiles and readItsgProductMulti (O-9)
 
@@ -54,6 +189,10 @@
   blocks raises a size-validation error for more than one file. Noticed
   while deciding the ITSG signature. Left alone here because it is an
   L1B change and this branch is issue #11; recorded as O-11.
+- **Fixed in this same release** — see "Fixed — `readL1bMulti` accepts
+  the column `findL1bFiles` returns" above (G-01, #16). Both entries
+  stay: one records when the defect was found, the other when it was
+  closed.
 
 ### Tests
 
@@ -267,6 +406,99 @@ own commit; these entries are the content, not a release.
   count. It surfaced only because a prediction was made against it and
   missed by exactly those three.
 
+
+### Added — classic GRACE read from measured layouts (G-02, #17)
+
+- Classic GRACE (2002–2017) products whose header says
+  `FILE FORMAT 0=BINARY 1=ASCII : 0` are now read. The data section is
+  packed **big-endian** binary after the 80-character ASCII header, and
+  `gracefoReading.readL1b` decodes ACC1B, SCA1B, GNV1B, KBR1B, THR1B
+  and MAS1B (the last variable-length, driven by `prod_flag`).
+- **The layouts are measured, not remembered.** They were derived from
+  the real RL02 files of 2008-01-01 for GRACE A and B. For each
+  product the declared record count times the derived record length
+  reproduces the data section exactly, the first epoch equals the
+  header's `TIME FIRST OBS`, and a physical quantity was checked:
+  quaternion norm within 1e-6 of unity in all 16 818 + 17 222 SCA1B
+  records; orbit radius 6827–6862 km and speed ~7.6 km/s; the
+  derivative of the biased range matching the range-rate column to a
+  median 5.8e-6 m/s; and the thruster- and tank-based spacecraft
+  masses agreeing to 4 g.
+- **The assumed table was wrong.** Classic ACC1B has **nine**
+  observation columns; the built-in table had six, the three residual
+  columns (`acl_x_res`, `acl_y_res`, `acl_z_res`) missing entirely.
+  That is what obligation O-1 existed to catch, and it is now closed.
+- The binary variant no longer warns `classicExperimental`. The ASCII
+  variant still does: it shares the corrected column table, but that
+  it carries the same columns is an inference from the binary variant
+  and no real classic ASCII file has been read here.
+- **Classic qualflg is a single-byte bitmask** — V-8's open question,
+  answered by measurement. The reader renders it as the same
+  8-character bit string the GRACE-FO products use, so
+  `decodeQualFlags` works on classic and modern files unchanged.
+- **Classic MAG1B and AHK1B are refused**, deliberately. Their
+  structure was measured too (MAG1B is 63 bytes with 13 float32 after
+  the time frame, and |B| comes out at 18–55 µT), but ten of MAG1B's
+  columns could not be named from any document at hand and AHK1B's
+  conditional columns carry per-bit value *types* a single file cannot
+  reveal. Inventing either is the failure O-1 records, so both raise
+  `unsupportedClassicProduct` naming exactly what is known. See O-15.
+- New internals: `readBytesMaybeGz` (byte-exact reading — a char read
+  applies the file encoding and would destroy binary records
+  silently), `classicLayout`, `parseClassicBinary`, and
+  `parseClassicHeader`, the last shared with the ASCII path so the two
+  cannot disagree about what a header says.
+- Six trimmed classic fixtures are bundled, with
+  `tests/python_reference/classic_reference.py` as the independent
+  decoder the golden numbers come from.
+
+### Added — `gracefoReading.readEventList` (G-05, #20)
+
+- Reads the two official event lists: **TN-01** (sequence of events,
+  machine-readable) and **TN-01a** (spacecraft events, the operators'
+  log), returning one table row per event with its source line.
+- TN-01's grammar is honoured exactly — `<epoch> <satellite> <key>
+  <count> <count values> <free text>` — so a `QSA` row yields its five
+  numbers and a `MANV` manoeuvre row its four. All 3 402 lines of the
+  published list parse under it, measured. A line commented out with a
+  leading `x` is **kept and flagged**, not dropped: dropping it would
+  lose the record that the value was once there.
+- TN-01a entries are grouped under their date, with wrapped
+  continuation lines joined to the entry they belong to.
+- **It reads; it does not interpret.** No manoeuvre window is
+  extracted from a sentence like "performed a calibration maneuver
+  from 06:19:26 to 06:21:33 (2.0 cm/sec)". CONCEPT is explicit that
+  nothing is inferred that a list states, and turning these rows into
+  mask layers is X-05's business. `dayOnly` marks the TN-01a rows
+  whose time is a date and not an instant, and `timeSystem` is
+  reported as `"date"` for them because the file states no time scale.
+- A row that does not match its own declared value count is reported
+  by line number in `aux.unparsableLines`, never guessed at.
+
+### Changed — one epoch formula, one classic header parser
+
+- The GPS-epoch arithmetic moved to `internal/gpsSecondsToMjd`, shared
+  by the header-driven and the classic binary parsers, and it returns
+  the epoch integer so that 51544 is not written out twice either. The
+  2026-09-14 entry explains the rule: a formula in two files can
+  diverge and shift every epoch of one reader with nothing visible to
+  say so.
+- `internal/parseClassicHeader` is now the one parser for the classic
+  `KEY : VALUE` dialect. Its key pattern had never admitted `=`, so it
+  had been silently dropping `FILE FORMAT 0=BINARY 1=ASCII` — the very
+  record the binary dispatch turns on — along with two others.
+
+### Still open
+
+- **Classic RL03** is not read. The files supplied are release 02;
+  RL03 carries only KBR1B, SCA1B and the transplant, and no RL03 file
+  was available. Nothing here claims to read one — the record-length
+  self-check is what will say so if its layout differs.
+- **Classic MAG1B and AHK1B** are refused; see O-15 above.
+- **The classic ASCII variant** is still inferred rather than
+  measured, and still warns.
+- One acceptance point, `testRealData/testACH1B`, stays incomplete
+  until `ACH1B_2020-01-01_C_04.txt` reaches the pool.
 
 ## 1.0.2 — 2026-09-09
 

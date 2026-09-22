@@ -1,9 +1,11 @@
-function [timeColIdx, timeVarUsed, fracScale] = resolveTime(varNames, varAttrs, override)
+function [timeColIdx, timeVarUsed, fracScale] = resolveTime(varNames, varAttrs, ...
+    override, fieldNames)
 %RESOLVETIME  Identify the time-tag column or columns of an L1B product.
 %
 %   SYNTAX
 %     [timeColIdx, timeVarUsed, fracScale] = ...
-%         gracefoReading.internal.resolveTime(varNames, varAttrs, override)
+%         gracefoReading.internal.resolveTime(varNames, varAttrs, ...
+%             override, fieldNames)
 %
 %   DESCRIPTION
 %     Shared by the YAML and classic parsing paths. Automatic detection
@@ -30,6 +32,13 @@ function [timeColIdx, timeVarUsed, fracScale] = resolveTime(varNames, varAttrs, 
 %                name, or two joined by '+' such as
 %                "time_intg+time_frac".
 %                Default: "" (set by the caller readL1b).
+%     fieldNames - cellstr, [1 x V]
+%                The varAttrs field name of each variable, from
+%                gracefoReading.internal.variableFieldNames. Passed in
+%                rather than recomputed so the attribute of the
+%                fractional column is looked up under exactly the key
+%                the header parser wrote it under.
+%                Required, positional.
 %
 %   OUTPUT
 %     timeColIdx - double, [1 x 1] or [1 x 2]
@@ -80,9 +89,9 @@ function [timeColIdx, timeVarUsed, fracScale] = resolveTime(varNames, varAttrs, 
 %
 %   See also gracefoReading.readL1b, gracefoReading.internal.parseDataSection
 %
-%   Toolbox:  gracefoReading v1.0.2
+%   Toolbox:  gracefoReading v1.1.0
 %   Created:  2026-08-01
-%   Updated:  2026-09-09
+%   Updated:  2026-09-22
 %   Author:   Matthias Weigelt with support of Anthropic Claude
 
 fracScale = 1;
@@ -101,7 +110,7 @@ if override ~= ""
     timeColIdx = idx;
     timeVarUsed = char(strjoin(varNames(idx), '+'));
     if numel(idx) == 2
-        fracScale = localFracScale(varAttrs, varNames{idx(2)});
+        fracScale = localFracScale(varAttrs, fieldNames{idx(2)}, varNames{idx(2)});
     end
     return
 end
@@ -117,7 +126,7 @@ for p = 1:numel(pairs)
     if ~isempty(i1) && ~isempty(i2)
         timeColIdx = [i1, i2];
         timeVarUsed = sprintf('%s+%s', varNames{i1}, varNames{i2});
-        fracScale = localFracScale(varAttrs, varNames{i2});
+        fracScale = localFracScale(varAttrs, fieldNames{i2}, varNames{i2});
         return
     end
 end
@@ -125,8 +134,8 @@ error('gracefoReading:readL1b:noTime', ...
     'Could not identify a time tag column among: %s', strjoin(varNames, ', '));
 end
 
-function s = localFracScale(varAttrs, fracName)
-a = varAttrs.(matlab.lang.makeValidName(fracName));
+function s = localFracScale(varAttrs, fracField, fracName)
+a = varAttrs.(fracField);
 unit = 'seconds';
 if isfield(a, 'units'), unit = lower(a.units); end
 switch unit

@@ -19,7 +19,17 @@ classdef testReadL1b < matlab.unittest.TestCase
 %     - 'TimeFormat': mjd, datetime and exact int64 gpsns arithmetic
 %     - column classification: observations, char columns, identifiers,
 %       bit-string flags
-%     - prod_flag variable-length records and NaN filling
+%     - the rest-of-line column the long-format housekeeping products
+%       declare ("Entire remaining portion of each record"): its spaces
+%       survive verbatim, a surplus token under a header that makes no
+%       such claim is still refused, and a short record still is (G-04)
+%     - prod_flag variable-length records and NaN filling, for MAS1B
+%       gas masses and for AHK1B-style housekeeping temperatures
+%     - declared names that are not MATLAB identifiers and that
+%       collide under makeValidName (AHK1B's "TSU Y+" / "TSU Y-" /
+%       "TSU Z-"): kept verbatim, mapped to distinct aux fields, and
+%       reported by the variableNameAdjusted warning, which stays
+%       silent on a header whose names are already valid (G-04)
 %     - quality filtering: 'ApplyQualityFlags', selective
 %       'QualityBitMask', and the conflicting-options error
 %     - 'TimeRange' filtering with double and datetime bounds
@@ -44,9 +54,9 @@ classdef testReadL1b < matlab.unittest.TestCase
 %     results = runtests('testReadL1b');
 %     disp(table(results));
 %
-%   Toolbox:  gracefoReading v1.0.2
+%   Toolbox:  gracefoReading v1.1.0
 %   Created:  2026-08-01
-%   Updated:  2026-09-09
+%   Updated:  2026-09-22
 %   Author:   Matthias Weigelt with support of Anthropic Claude
 
     properties
@@ -140,6 +150,83 @@ classdef testReadL1b < matlab.unittest.TestCase
                 fprintf(fid, '%d %d G C 00000000 %s', intg(k), fracMicro(k), prodFlags{k});
                 fprintf(fid, ' %.10g', values{k});
                 fprintf(fid, '\n');
+            end
+            fclose(fid);
+        end
+
+        function f = writeAhkLike(testCase, intg, prodFlags, values)
+            % Synthetic AHK1B-style file (V-13, issue #19). Two things
+            % that no other fixture has and that real AHK1B has:
+            %   - prod_flag-controlled variable columns for ordinary
+            %     numeric housekeeping, not only for MAS1B gas masses;
+            %   - declared names that are not MATLAB identifiers and
+            %     that collapse onto one another under makeValidName:
+            %     "TSU_Y+" / "TSU_Y-" / "TSU_Z+" all map to TSU_Y_ or
+            %     TSU_Z_, and the real header carries one name with a
+            %     SPACE, "TSU Z-".
+            % values: cell array, one numeric row vector per record,
+            % as many entries as bits set in prodFlags{k}.
+            f = fullfile(testCase.workDir, 'AHK1B_synth.txt');
+            fid = fopen(f, 'wt');
+            fprintf(fid, 'header:\n  dimensions:\n    num_records: %d\n', numel(intg));
+            fprintf(fid, '  variables:\n');
+            fprintf(fid, '    - time_intg:\n        units: seconds\n');
+            fprintf(fid, '    - time_frac:\n        units: microseconds\n');
+            fprintf(fid, '    - time_ref:\n        units: char\n');
+            fprintf(fid, '    - GRACEFO_id:\n        units: char\n');
+            fprintf(fid, '    - qualflg:\n        comment: column\n');
+            fprintf(fid, ['    - prod_flag:\n        flag_meanings:\n', ...
+                '          - bit 0 = TSU_Y+\n          - bit 1 = TSU_Y-\n', ...
+                '          - bit 2 = TSU_Z+\n          - bit 3 = TSU Z-\n']);
+            names = {'TSU_Y+', 'TSU_Y-', 'TSU_Z+', 'TSU Z-'};
+            for k = 1:numel(names)
+                fprintf(fid, '    - %s:\n        units: degC\n        long_name: %s\n', ...
+                    names{k}, ['temperature ', names{k}]);
+            end
+            fprintf(fid, '# End of YAML header\n');
+            for k = 1:numel(intg)
+                fprintf(fid, '%d 0 G C 00000000 %s', intg(k), prodFlags{k});
+                fprintf(fid, ' %.10g', values{k});
+                fprintf(fid, '\n');
+            end
+            fclose(fid);
+        end
+
+        function f = writeLhkLike(testCase, records, declareRemaining)
+            % Synthetic LHK1B-style file (issue #19). The long-format
+            % housekeeping products end in a free-text column that the
+            % real header describes as
+            %     comment: Entire remaining portion of each record
+            % and 2 886 of the 1 169 274 records of the real
+            % LHK1B_2020-01-01_C_04 use that licence, carrying a SPACE
+            % in the sensor name. declareRemaining false writes the
+            % same records with that sentence removed, which is the
+            % fault injection: the surplus token must then still be
+            % refused.
+            f = fullfile(testCase.workDir, 'LHK1B_synth.txt');
+            fid = fopen(f, 'wt');
+            fprintf(fid, 'header:\n  dimensions:\n    num_records: %d\n', numel(records));
+            fprintf(fid, '  variables:\n');
+            fprintf(fid, '    - time_intg:\n        units: seconds\n');
+            fprintf(fid, '    - time_frac:\n        units: nanoseconds\n');
+            fprintf(fid, '    - time_ref:\n        units: char\n');
+            fprintf(fid, '    - GRACEFO_id:\n        units: char\n');
+            fprintf(fid, '    - qualflg:\n        comment: column\n');
+            fprintf(fid, '    - sensortype:\n        units: char\n');
+            fprintf(fid, ['    - sensorvalue:\n', ...
+                '        long_name: Value of observation\n']);
+            if declareRemaining
+                fprintf(fid, ['    - sensorname:\n', ...
+                    '        comment: Entire remaining portion of each record\n', ...
+                    '        long_name: Sensor name.  Max number of characters = 1,000\n']);
+            else
+                fprintf(fid, ['    - sensorname:\n', ...
+                    '        long_name: Sensor name\n']);
+            end
+            fprintf(fid, '# End of YAML header\n');
+            for k = 1:numel(records)
+                fprintf(fid, '%d %d G C 00000000 ? %d %s\n', ...
+                    631108800 + k - 1, 100000 * k, 40 + k, records{k});
             end
             fclose(fid);
         end
@@ -274,6 +361,101 @@ classdef testReadL1b < matlab.unittest.TestCase
             testCase.verifyEqual(aux.prod_flag, ['101'; '010']);
             testCase.verifyEqual(aux.prodFlagBits, ...
                 logical([1 0 1; 0 1 0]));  % col b = bit b-1
+        end
+
+        function testAhkStyleNamesSurviveAndStayDistinct(testCase)
+            % G-04 / V-13, issue #19. Before 2026-09-22 the header
+            % parser accepted identifier names only, so "TSU Z-" was
+            % dropped and the record then had one token too many; the
+            % three remaining names collapsed onto two fields.
+            names = {'TSU_Y+', 'TSU_Y-', 'TSU_Z+', 'TSU Z-'};
+            f = testCase.writeAhkLike([0; 1], ...
+                {'00001111', '00001001'}, {[21 22 23 24], [25 28]});
+
+            testCase.verifyWarning(@() gracefoReading.readL1b(f), ...
+                'gracefoReading:readL1b:variableNameAdjusted');
+
+            w = warning('off', 'gracefoReading:readL1b:variableNameAdjusted');
+            c = onCleanup(@() warning(w)); %#ok<NASGU>
+            [t, obs, aux] = gracefoReading.readL1b(f);
+
+            testCase.verifySize(t, [2, 2]);
+            % every declared name is kept verbatim, in declaration order
+            testCase.verifyEqual(aux.obsNames, names);
+            testCase.verifyTrue(all(ismember(names, aux.variableNames)));
+            % and each has its OWN field, so nothing was overwritten
+            fn = aux.variableFieldNames(end-3:end);
+            testCase.verifyEqual(numel(unique(fn)), 4, ...
+                'Four colliding names must map to four distinct fields.');
+            for k = 1:4
+                a = aux.variableAttributes.(fn{k});
+                testCase.verifyEqual(a.long_name, ['temperature ', names{k}], ...
+                    'Attributes must follow their own variable.');
+                testCase.verifyEqual(aux.variableUnits.(fn{k}), 'degC');
+            end
+            % prod_flag drives which columns a record carries
+            testCase.verifyEqual(obs(1, :), [21 22 23 24], 'AbsTol', 1e-12);
+            testCase.verifyEqual(obs(2, [1 4]), [25 28], 'AbsTol', 1e-12);
+            testCase.verifyTrue(all(isnan(obs(2, [2 3]))));
+        end
+
+        function testVariableNameAdjustedStaysSilentOnCleanHeaders(testCase)
+            % The other half of the fault injection: the warning must
+            % not fire on a header whose names are already valid and
+            % unique, which is every product read so far.
+            f = testCase.writeActLike([0; 43200]);
+            testCase.verifyWarningFree(@() gracefoReading.readL1b(f));
+            [~, ~, aux] = gracefoReading.readL1b(f);
+            testCase.verifyEqual(aux.variableFieldNames, aux.variableNames, ...
+                'Valid unique names must be their own field names.');
+        end
+
+        function testRestOfLineColumnAbsorbsItsSpaces(testCase)
+            % G-04, issue #19. Read off the real LHK1B header, whose
+            % last column declares itself "Entire remaining portion of
+            % each record". Before 2026-09-22 the surplus token raised
+            % columnMismatch and the product could not be read at all.
+            names = {'pztInLoopStatus', 'fpga_state: science_state', ...
+                     'mode:  science'};
+            f = testCase.writeLhkLike(names, true);
+
+            [t, obs, aux] = gracefoReading.readL1b(f);
+            testCase.verifySize(t, [3, 2]);
+            % sensorvalue is the only observation; everything else is aux
+            testCase.verifyEqual(aux.obsNames, {'sensorvalue'});
+            testCase.verifyEqual(obs, [41; 42; 43], 'AbsTol', 1e-12);
+            % the text comes back VERBATIM, internal spacing included
+            testCase.verifyEqual(aux.sensorname, names(:));
+            testCase.verifyEqual(aux.sensortype, repmat('?', 3, 1));
+            % and the leading columns are unaffected by the surplus
+            testCase.verifyEqual(aux.GRACEFO_id, repmat('C', 3, 1));
+            % gps 631108800 = 2020-01-01, MJD 58849 (epoch rule in
+            % HANDOVER C, derived and not guessed)
+            testCase.verifyEqual(t(:,1), repmat(58849, 3, 1));
+        end
+
+        function testSurplusTokenWithoutTheDeclarationStillErrors(testCase)
+            % The other half of the fault injection. The rule is the
+            % header's sentence, not the column's position: the same
+            % records under a header that does not claim the remaining
+            % portion must still be refused, with the line number.
+            names = {'pztInLoopStatus', 'fpga_state: science_state'};
+            f = testCase.writeLhkLike(names, false);
+            testCase.verifyError(@() gracefoReading.readL1b(f), ...
+                'gracefoReading:readL1b:columnMismatch');
+        end
+
+        function testRestOfLineStillRefusesAShortRecord(testCase)
+            % Surplus tokens are text; a SHORTFALL is still corruption.
+            f = testCase.writeLhkLike({'pztInLoopStatus'}, true);
+            txt = fileread(f);
+            txt = strrep(txt, '631108800 100000 G C 00000000 ? 41 pztInLoopStatus', ...
+                          '631108800 100000 G C 00000000 ? 41');
+            % 'w', not 'wt': txt already carries the platform's line
+            % endings from fileread, and text mode would double the CR
+            fid = fopen(f, 'w'); fwrite(fid, txt); fclose(fid);
+            testCase.verifyError(@() gracefoReading.readL1b(f), ...
+                'gracefoReading:readL1b:columnMismatch');
         end
 
         function testProdFlagTokenCountMismatchRaises(testCase)
@@ -522,18 +704,26 @@ classdef testReadL1b < matlab.unittest.TestCase
         end
 
         function testClassicHeaderExperimental(testCase)
-            % classic GRACE ACC1B: KEY : VALUE header, END OF HEADER,
-            % 9 columns from the built-in (assumed) layout.
+            % Classic GRACE ACC1B, ASCII variant: KEY : VALUE header,
+            % END OF HEADER, and the column layout now shared with the
+            % binary path. That layout was CORRECTED on 2026-09-22: it
+            % carries NINE observation columns, the three residual ones
+            % having been missing from the assumed table entirely, so
+            % a record has twelve tokens and not nine.
             f = fullfile(testCase.workDir, 'ACC1B_2008-01-01_A_02.txt');
             fid = fopen(f, 'wt');
             fprintf(fid, 'PRODUCER AGENCY               : NASA\n');
             fprintf(fid, 'PRODUCER INSTITUTION          : JPL\n');
             fprintf(fid, 'NUMBER OF DATA RECORDS        : 2\n');
             fprintf(fid, 'END OF HEADER\n');
-            fprintf(fid, '252460800 A 1e-7 2e-7 3e-7 1e-9 2e-9 3e-9 00000000\n');
-            fprintf(fid, '252460801 A 4e-7 5e-7 6e-7 4e-9 5e-9 6e-9 00000000\n');
+            fprintf(fid, ['252460800 A 1e-7 2e-7 3e-7 1e-9 2e-9 3e-9 ', ...
+                '1e-11 2e-11 3e-11 00000000\n']);
+            fprintf(fid, ['252460801 A 4e-7 5e-7 6e-7 4e-9 5e-9 6e-9 ', ...
+                '4e-11 5e-11 6e-11 00000000\n']);
             fclose(fid);
 
+            % The ASCII variant still warns: only the BINARY variant was
+            % measured against real files (G-02).
             [t, obs, aux] = testCase.verifyWarning( ...
                 @() gracefoReading.readL1b(f), ...
                 'gracefoReading:readL1b:classicExperimental');
@@ -541,8 +731,10 @@ classdef testReadL1b < matlab.unittest.TestCase
             testCase.verifyEqual(aux.numRecordsHeader, 2);
             testCase.verifyEqual(aux.obsNames, ...
                 {'lin_accl_x','lin_accl_y','lin_accl_z', ...
-                 'ang_accl_x','ang_accl_y','ang_accl_z'});
-            testCase.verifySize(obs, [2, 6]);
+                 'ang_accl_x','ang_accl_y','ang_accl_z', ...
+                 'acl_x_res','acl_y_res','acl_z_res'});
+            testCase.verifySize(obs, [2, 9]);
+            testCase.verifyEqual(obs(1,7), 1e-11, 'AbsTol', 1e-24);
             testCase.verifyEqual(aux.GRACE_id, ['A'; 'A']);
             testCase.verifyEqual(aux.classicHeaderFields.producerAgency, 'NASA');
             % 252460800 s = 2008-01-01 12:00:00 GPS -> MJD 54466, 43200+0

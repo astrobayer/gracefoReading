@@ -79,22 +79,16 @@ function [timeMjd, timeNs, obs, aux] = parseClassicProduct(lines, hdrEnd, ...
 %
 %   See also gracefoReading.readL1b, gracefoReading.internal.parseDataSection
 %
-%   Toolbox:  gracefoReading v1.0.2
+%   Toolbox:  gracefoReading v1.1.0
 %   Created:  2026-08-01
-%   Updated:  2026-09-06
+%   Updated:  2026-09-22
 %   Author:   Matthias Weigelt with support of Anthropic Claude
 
 headerLines = cellstr(lines(1:hdrEnd));
 
-% parse KEY : VALUE pairs
-hdrFields = struct();
-for i = 1:hdrEnd-1
-    tok = regexp(headerLines{i}, '^([A-Z0-9][A-Z0-9 ()\-/\.]*?)\s*:\s*(.*\S)\s*$', 'tokens', 'once');
-    if ~isempty(tok)
-        key = matlab.lang.makeValidName(lower(strtrim(tok{1})));
-        hdrFields.(key) = strtrim(tok{2});
-    end
-end
+% One parser for the classic header dialect, shared with the binary path
+% so the two cannot disagree about what a header says.
+hdrFields = gracefoReading.internal.parseClassicHeader(headerLines);
 
 numRecordsHeader = NaN;
 if isfield(hdrFields, 'numberOfDataRecords')
@@ -110,21 +104,25 @@ if ~isempty(prodTok), product = prodTok{1}; end
 if ~isempty(columnNames)
     varNames = cellstr(columnNames);
 else
-    layout = localBuiltinLayout(product);
-    if isempty(layout)
+    layout = gracefoReading.internal.classicLayout(product);
+    if isempty(fieldnames(layout))
         error('gracefoReading:readL1b:unsupportedClassicProduct', ...
-            ['No built-in classic column layout for product "%s" ', ...
-             '(built-in: ACC1B, SCA1B, KBR1B, GNV1B). Supply the layout ', ...
-             'via the ''ColumnNames'' option.'], product);
+            ['No classic column layout for product "%s" (known: ACC1B, ', ...
+             'SCA1B, GNV1B, KBR1B, THR1B, MAS1B). Supply the layout via ', ...
+             'the ''ColumnNames'' option.'], product);
     end
-    varNames = layout;
+    varNames = layout.names;
 end
 
 % attributes: units 'char' for the known character columns
 charCols = {'GRACE_id', 'GRACEFO_id', 'coord_ref', 'time_ref'};
 varAttrs = struct();
+% Same field-name rule as the YAML path: 'ColumnNames' is caller-supplied
+% and may hold anything, and parseDataSection looks the attributes up by
+% the field name this call produces.
+classicFields = gracefoReading.internal.variableFieldNames(varNames);
 for k = 1:numel(varNames)
-    fn = matlab.lang.makeValidName(varNames{k});
+    fn = classicFields{k};
     if any(strcmpi(varNames{k}, charCols))
         varAttrs.(fn) = struct('units', 'char');
     else
@@ -145,29 +143,4 @@ dataLineNos = hdrEnd + find(nonEmpty);
     dataLines, dataLineNos, varNames, varAttrs, fileName, timeVarOpt, ...
     numRecordsHeader, headerLines);
 aux.classicHeaderFields = hdrFields;
-end
-
-function names = localBuiltinLayout(product)
-% ASSUMED from the GRACE Level-1B handbook — unvalidated (EXPERIMENTAL).
-switch upper(product)
-    case 'ACC1B'
-        names = {'gps_time','GRACE_id', ...
-                 'lin_accl_x','lin_accl_y','lin_accl_z', ...
-                 'ang_accl_x','ang_accl_y','ang_accl_z','qualflg'};
-    case 'SCA1B'
-        names = {'gps_time','GRACE_id','sca_id', ...
-                 'quatangle','quaticoeff','quatjcoeff','quatkcoeff', ...
-                 'qual_rss','qualflg'};
-    case 'KBR1B'
-        names = {'gps_time','biased_range','range_rate','range_accl', ...
-                 'iono_corr','lighttime_corr','lighttime_rate','lighttime_accl', ...
-                 'ant_centr_corr','ant_centr_rate','ant_centr_accl', ...
-                 'K_A_SNR','Ka_A_SNR','K_B_SNR','Ka_B_SNR','qualflg'};
-    case 'GNV1B'
-        names = {'gps_time','GRACE_id','coord_ref', ...
-                 'xpos','ypos','zpos','xpos_err','ypos_err','zpos_err', ...
-                 'xvel','yvel','zvel','xvel_err','yvel_err','zvel_err','qualflg'};
-    otherwise
-        names = {};
-end
 end

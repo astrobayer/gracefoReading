@@ -1,0 +1,327 @@
+classdef testClassicProducts < matlab.unittest.TestCase
+%TESTCLASSICPRODUCTS  Acceptance tests for classic GRACE binary products.
+%
+%   DESCRIPTION
+%     Reads the real classic GRACE (RL02, 2008-01-01) Level-1B files
+%     bundled in tests/realdata/ and checks the reader against values
+%     derived independently (G-02, issue #17). This is the suite that
+%     discharges obligation O-1: until 2026-09-22 the classic column
+%     layouts were ASSUMED from the GRACE Level-1B handbook read from
+%     memory, every classic read warned, and no real classic file
+%     existed in this repository.
+%
+%     The layouts are now MEASURED. For each product the declared
+%     record count times the derived record length reproduces the data
+%     section exactly, and a physical quantity in the record was
+%     checked against what it must be. The expectations below were
+%     produced by a reference decoder written separately from the
+%     MATLAB code (tests/python_reference/classic_reference.py), so an
+%     expectation derived from the code it tests cannot hide here.
+%
+%     Run with:
+%       results = runtests('testClassicProducts'); table(results)
+%
+%   COVERAGE
+%     - binary dispatch: a classic header declaring
+%       "FILE FORMAT 0=BINARY 1=ASCII : 0" is read as bytes, and the
+%       measured products do NOT warn classicExperimental any more
+%     - ACC1B: nine observation columns, including the three residual
+%       columns the assumed layout was missing entirely
+%     - SCA1B: quaternion norm on real attitude data, qual_rss, and the
+%       star-camera head identifier sca_id cross-checked against
+%       qualflg bit 3 - two independently positioned fields selecting
+%       the same records
+%     - GNV1B: orbit radius and speed, coord_ref
+%     - KBR1B: biased range, the four int16 SNR columns, no satellite id
+%     - THR1B: 42 counter columns, microsecond fractional time
+%     - MAS1B: prod_flag-driven variable-length records, NaN for absent
+%       columns, and the thruster- and tank-based masses agreeing
+%     - classic qualflg: a byte in the file, rendered as the same
+%       8-character bit string the GRACE-FO products use, so
+%       decodeQualFlags works on both
+%     - refusals: a truncated file, 'ColumnNames' against a binary
+%       product, and a classic product with no measured layout
+%
+%   ACCURACY AND LIMITATIONS
+%     - The bundled files are TRIMMED to the first 40 records with
+%       their NUMBER OF DATA RECORDS record rewritten to match; every
+%       other header record, and every data byte kept, is exactly as
+%       published. FILESIZE and TIME LAST OBS therefore still describe
+%       the full published file, which is deliberate: the reader must
+%       not depend on either.
+%     - One day, release 02, GRACE A (KBR1B is the A+B link, token X).
+%       These tests say nothing about RL03, whose record layout was
+%       not available, nor about the classic ASCII variant.
+%
+%   EXAMPLE
+%     results = runtests('testClassicProducts');
+%     disp(table(results));
+%
+%   Toolbox:  gracefoReading v1.1.0
+%   Created:  2026-09-22
+%   Updated:  2026-09-22
+%   Author:   Matthias Weigelt with support of Anthropic Claude
+
+    properties
+        dataDir
+        workDir
+    end
+
+    methods (TestClassSetup)
+        function addToPath(testCase)
+            here = fileparts(mfilename('fullpath'));
+            codeDir = fileparts(here);
+            if ~any(strcmp(strsplit(path, pathsep), codeDir))
+                addpath(codeDir);
+                testCase.addTeardown(@() rmpath(codeDir));
+            end
+            testCase.dataDir = fullfile(here, 'realdata');
+        end
+    end
+
+    methods (TestMethodSetup)
+        function makeWorkDir(testCase)
+            testCase.workDir = tempname;
+            mkdir(testCase.workDir);
+            testCase.addTeardown(@() rmdir(testCase.workDir, 's'));
+        end
+    end
+
+    methods (Access = private)
+        function f = fixture(testCase, name)
+            f = fullfile(testCase.dataDir, name);
+            testCase.assertTrue(isfile(f), sprintf( ...
+                'Bundled classic fixture %s is missing.', name));
+        end
+    end
+
+    methods (Test)
+
+        function testClassicBinaryIsNotExperimentalAnyMore(testCase)
+            % O-1's headline: the measured products must read WITHOUT
+            % the warning that said their layout was a guess.
+            f = testCase.fixture('ACC1B_2008-01-01_A_02.dat');
+            testCase.verifyWarningFree(@() gracefoReading.readL1b(f));
+            [~, ~, aux] = gracefoReading.readL1b(f);
+            testCase.verifyEqual(aux.headerFormat, 'classicBinary');
+            testCase.verifyEqual(aux.product, 'ACC1B');
+            testCase.verifyEqual(aux.timeSystem, 'GPS');
+            testCase.verifyEqual(aux.epochMJD, 51544);
+        end
+
+        function testACC1B(testCase)
+            f = testCase.fixture('ACC1B_2008-01-01_A_02.dat');
+            [t, obs, aux] = gracefoReading.readL1b(f);
+
+            testCase.verifyEqual(aux.numRecordsHeader, 40);
+            testCase.verifySize(t, [40, 2]);
+            testCase.verifyEqual(t(1,:), [54466, 0], 'AbsTol', 1e-9);
+            testCase.verifyEqual(t(end,:), [54466, 39], 'AbsTol', 1e-9);
+
+            % NINE columns. The layout assumed until 2026-09-22 had six:
+            % the three residual columns were missing altogether.
+            testCase.verifyEqual(aux.obsNames, ...
+                {'lin_accl_x','lin_accl_y','lin_accl_z', ...
+                 'ang_accl_x','ang_accl_y','ang_accl_z', ...
+                 'acl_x_res','acl_y_res','acl_z_res'});
+            testCase.verifySize(obs, [40, 9]);
+            testCase.verifyEqual(obs(1,1), 1.2411460611666213e-06, 'AbsTol', 1e-21);
+            testCase.verifyEqual(obs(1,2), -2.960812344006054e-05, 'AbsTol', 1e-20);
+            testCase.verifyEqual(obs(1,7), -1.1784922187307973e-09, 'AbsTol', 1e-24);
+            testCase.verifyEqual(aux.GRACE_id, repmat('A', 40, 1));
+        end
+
+        function testSCA1B(testCase)
+            f = testCase.fixture('SCA1B_2008-01-01_A_02.dat');
+            [t, obs, aux] = gracefoReading.readL1b(f);
+
+            testCase.verifySize(t, [40, 2]);
+            testCase.verifyEqual(t(1,:), [54466, 0], 'AbsTol', 1e-9);
+            testCase.verifyEqual(aux.obsNames, ...
+                {'quatangle','quaticoeff','quatjcoeff','quatkcoeff','qual_rss'});
+            % sca_id identifies the star-camera HEAD, and it is not
+            % constant: measured on this fixture, 31 records come from
+            % head 4 and 9 from head 1. The first version of this row
+            % asserted a constant 4 taken from record 1 and failed -
+            % correctly, the reader being right and the test wrong.
+            testCase.verifyEqual(unique(aux.sca_id)', [1 4]);
+            testCase.verifyEqual(aux.sca_id(1), 4);
+            testCase.verifyEqual(sum(aux.sca_id == 4), 31);
+            testCase.verifyEqual(sum(aux.sca_id == 1), 9);
+
+            % And the two fields cross-check each other. sca_id sits at
+            % byte 6 of the record and qualflg at byte 47, decoded
+            % independently, yet "head 1" and qualflg bit 3 select
+            % exactly the same records - here in all 40, and in 16 812
+            % of the full day's 16 818 (the exceptions being the six
+            % records from head 2). A wrong offset on either field
+            % would destroy that correspondence.
+            [bits, ~] = gracefoReading.decodeQualFlags(aux, 'qualflg');
+            testCase.verifyEqual(aux.sca_id == 1, bits(:, 4), ...
+                'sca_id and qualflg bit 3 must select the same records.');
+            testCase.verifyEqual(obs(1,1), -0.7631110508696913, 'AbsTol', 1e-15);
+            testCase.verifyEqual(obs(1,5), 3.5902978242414106e-05, 'AbsTol', 1e-19);
+
+            % the oracle the layout was derived against, re-checked here
+            [ok, stats] = gracefoReading.checkQuaternionNorm(obs, aux, ...
+                'Tolerance', 1e-9);
+            testCase.verifyTrue(all(ok), sprintf( ...
+                'Quaternion norm violations: %d (max dev %.3g)', ...
+                stats.numViolations, stats.maxDeviation));
+        end
+
+        function testGNV1B(testCase)
+            f = testCase.fixture('GNV1B_2008-01-01_A_02.dat');
+            [t, obs, aux] = gracefoReading.readL1b(f);
+
+            testCase.verifySize(t, [40, 2]);
+            % the orbit file starts a minute before midnight, so the
+            % first epoch is on the PREVIOUS MJD - derived, not guessed
+            testCase.verifyEqual(t(1,:), [54465, 86340], 'AbsTol', 1e-9);
+            testCase.verifyEqual(numel(aux.obsNames), 12);
+            testCase.verifyEqual(aux.coord_ref, repmat('E', 40, 1));
+            testCase.verifyEqual(obs(1,1), 2787825.48771236, 'AbsTol', 1e-6);
+
+            r = sqrt(sum(obs(:,1:3).^2, 2)) / 1e3;
+            testCase.verifyGreaterThan(min(r), 6800);
+            testCase.verifyLessThan(max(r), 6900);
+            v = sqrt(sum(obs(:,7:9).^2, 2)) / 1e3;
+            testCase.verifyGreaterThan(min(v), 7.0);
+            testCase.verifyLessThan(max(v), 8.0);
+        end
+
+        function testKBR1B(testCase)
+            f = testCase.fixture('KBR1B_2008-01-01_X_02.dat');
+            [t, obs, aux] = gracefoReading.readL1b(f);
+
+            testCase.verifySize(t, [40, 2]);
+            testCase.verifyEqual(t(1,:), [54466, 0], 'AbsTol', 1e-9);
+            testCase.verifyEqual(t(2,:), [54466, 5], 'AbsTol', 1e-9);  % 5 s
+            testCase.verifyEqual(numel(aux.obsNames), 14);
+            testCase.verifyFalse(isfield(aux, 'GRACE_id'), ...
+                'KBR1B is the A+B link and carries no satellite id.');
+            testCase.verifyEqual(obs(1,1), 164856.75098305332, 'AbsTol', 1e-8);
+
+            iSnr = find(strcmp(aux.obsNames, 'K_A_SNR'));
+            testCase.verifyEqual(obs(1, iSnr), 686, 'AbsTol', 1e-12);
+            snr = obs(:, iSnr) / 10;
+            testCase.verifyGreaterThan(min(snr), 40);
+            testCase.verifyLessThan(max(snr), 80);
+        end
+
+        function testTHR1B(testCase)
+            f = testCase.fixture('THR1B_2008-01-01_A_02.dat');
+            [t, obs, aux] = gracefoReading.readL1b(f);
+
+            testCase.verifySize(t, [40, 2]);
+            % split tag, fractional part in MICROSECONDS
+            testCase.verifyEqual(aux.timeVariable, 'time_intg+time_frac');
+            testCase.verifyEqual(t(1,:), [54466, 337.487620], 'AbsTol', 1e-6);
+            testCase.verifyEqual(numel(aux.obsNames), 42);
+            testCase.verifyEqual(aux.obsNames{1}, 'thrust_count_att_ctrl_1_1');
+            testCase.verifyEqual(obs(1,1), 587379, 'AbsTol', 1e-9);
+            testCase.verifyEqual(aux.time_ref, repmat('G', 40, 1));
+        end
+
+        function testMAS1B(testCase)
+            f = testCase.fixture('MAS1B_2008-01-01_A_02.dat');
+            [t, obs, aux] = gracefoReading.readL1b(f);
+
+            testCase.verifySize(t, [40, 2]);
+            testCase.verifyEqual(t(1,:), [54466, 33.787684], 'AbsTol', 1e-6);
+            testCase.verifyEqual(aux.obsNames, ...
+                {'mass_thr','mass_thr_err','mass_tnk','mass_tnk_err', ...
+                 'gas_mass_thr1','gas_mass_thr2','gas_mass_tnk1','gas_mass_tnk2'});
+
+            % variable-length records: the first carries the tank set
+            % only, so the thruster columns are NaN there
+            testCase.verifyEqual(aux.prod_flag(1,:), '11001100');
+            testCase.verifyTrue(isnan(obs(1,1)), 'mass_thr absent in record 1');
+            testCase.verifyEqual(obs(1,3), 476.8510304779199, 'AbsTol', 1e-10);
+            testCase.verifyEqual(obs(1,7), 10.725326967232618, 'AbsTol', 1e-12);
+
+            % and where both are present they are the same spacecraft
+            both = ~isnan(obs(:,1)) & ~isnan(obs(:,3));
+            if any(both)
+                testCase.verifyLessThan(max(abs(obs(both,1) - obs(both,3))), 0.5, ...
+                    'Thruster- and tank-based mass must agree to well under a kg.');
+            end
+        end
+
+        function testClassicQualflgIsABitStringLikeEverywhereElse(testCase)
+            % V-8 asked whether classic qualflg is a bit string or a
+            % number. Measured: in the binary files it is a single BYTE.
+            % The reader renders it as the 8-character string the rest
+            % of the toolbox speaks, so decodeQualFlags works unchanged.
+            f = testCase.fixture('SCA1B_2008-01-01_A_02.dat');
+            [~, ~, aux] = gracefoReading.readL1b(f);
+            testCase.verifyClass(aux.qualflg, 'char');
+            testCase.verifySize(aux.qualflg, [40, 8]);
+            testCase.verifyTrue(all(ismember(aux.qualflg(:), '01')));
+
+            [bits, report] = gracefoReading.decodeQualFlags(aux, 'qualflg');
+            testCase.verifySize(bits, [40, 8]);
+            testCase.verifyEqual(height(report), 8);
+            % bit 0 is the rightmost character, as everywhere else
+            testCase.verifyEqual(bits(:,1), aux.qualflg(:,end) == '1');
+        end
+
+        function testTruncatedFileIsRefused(testCase)
+            % Fault injection. A wrong record length yields numbers that
+            % look perfectly plausible, so this must be an error.
+            src = testCase.fixture('SCA1B_2008-01-01_A_02.dat');
+            % byte I/O throughout: fileread would apply the file
+            % encoding and mangle the very bytes under test
+            fidIn = fopen(src, 'r');
+            bytes = fread(fidIn, inf, '*uint8');
+            fclose(fidIn);
+            cut = fullfile(testCase.workDir, 'SCA1B_2008-01-01_A_02.dat');
+            fid = fopen(cut, 'w');
+            fwrite(fid, bytes(1:end-13), 'uint8');   % lose a third of a record
+            fclose(fid);
+            testCase.verifyError(@() gracefoReading.readL1b(cut), ...
+                'gracefoReading:readL1b:classicRecordMismatch');
+        end
+
+        function testColumnNamesAreRefusedForBinary(testCase)
+            f = testCase.fixture('ACC1B_2008-01-01_A_02.dat');
+            testCase.verifyError(@() gracefoReading.readL1b(f, ...
+                'ColumnNames', ["a","b","c"]), ...
+                'gracefoReading:readL1b:columnNamesNotForBinary');
+        end
+
+        function testUnmeasuredClassicProductIsRefused(testCase)
+            % MAG1B and AHK1B are deliberately absent from the layout
+            % table: their structure is known but their column names
+            % (MAG1B) and per-bit value types (AHK1B) are not, and
+            % inventing them is what O-1 forbids.
+            f = fullfile(testCase.workDir, 'MAG1B_2008-01-01_A_02.dat');
+            fid = fopen(f, 'w');
+            hdr = ['FILE FORMAT 0=BINARY 1=ASCII  : 0', newline, ...
+                   'NUMBER OF DATA RECORDS        : 2', newline, ...
+                   'END OF HEADER', newline];
+            fwrite(fid, hdr, 'char');
+            fwrite(fid, zeros(1, 126, 'uint8'), 'uint8');
+            fclose(fid);
+            testCase.verifyError(@() gracefoReading.readL1b(f), ...
+                'gracefoReading:readL1b:unsupportedClassicProduct');
+        end
+
+        function testTimeRangeAndQualityStillApply(testCase)
+            % The classic path must reach the same post-parse machinery
+            % as the GRACE-FO path, not a parallel one.
+            f = testCase.fixture('ACC1B_2008-01-01_A_02.dat');
+            t = gracefoReading.readL1b(f, 'TimeRange', [54466, 54466 + 9/86400]);
+            testCase.verifySize(t, [10, 2]);
+
+            tAll = gracefoReading.readL1b(f, 'TimeFormat', 'datetime');
+            testCase.verifyClass(tAll, 'datetime');
+            testCase.verifySize(tAll, [40, 1]);
+
+            ns = gracefoReading.readL1b(f, 'TimeFormat', 'gpsns');
+            testCase.verifyClass(ns, 'int64');
+            testCase.verifyEqual(ns(1), int64(252417600) * int64(1e9));
+        end
+
+    end
+end

@@ -1,6 +1,6 @@
 # gracefoReading — GRACE-FO Level-1B ASCII reading toolbox for MATLAB
 
-Version 1.0.2 — 2026-09-09 — MIT license — requires MATLAB R2020b+
+Version 1.1.0 — 2026-09-22 — MIT license — requires MATLAB R2020b+
 Developed with Claude Sonnet 5 (Anthropic).
 
 Reads any GRACE-FO Level-1B RL04 ASCII product (ACT1B/ACC1B, SCA1B,
@@ -37,13 +37,26 @@ RL04 files of 2020-01-01 (all seven products above).
 - `gracefoReading.findL1bFiles` — archive search by product/date/
   satellite with missing-day report; `gracefoReading.findGaps` —
   gap/segment analysis
+- `gracefoReading.verifyDataPool` — checks a local data pool against
+  the checksums its sources published (the MD5 lists of the L1B day
+  archives, SHA-256 manifests recorded beside the data), reporting per
+  file OK / MISMATCH / MISSING / UNLISTED with the manifest that made
+  the claim
 - `gracefoReading.decodeQualFlags` — flag meanings from the file's own header
 - `gracefoReading.checkQuaternionNorm` — SCA1B sanity check
 - `gracefoReading.writeGroopsInstrument` / `readGroopsInstrument` —
   GROOPS ASCII export and import
-- **Classic GRACE (2002–2017), experimental**: auto-detected key-value
-  headers; built-in layouts for ACC1B/SCA1B/KBR1B/GNV1B (unvalidated —
-  every read warns), `'ColumnNames'` override for anything else
+- **Classic GRACE (2002–2017)**: auto-detected key-value headers, and
+  the header's own `FILE FORMAT` record decides the variant.
+  **Binary** `.dat` products (ACC1B, SCA1B, GNV1B, KBR1B, THR1B,
+  MAS1B) are read from layouts *measured* on real RL02 files and each
+  checked against a physical quantity it must reproduce — these do not
+  warn. The **ASCII** variant still warns: its columns are inferred
+  from the binary ones, not measured. `'ColumnNames'` overrides the
+  ASCII layout
+- `gracefoReading.readEventList` — the official TN-01 sequence-of-events
+  and TN-01a spacecraft-events lists as an event table with provenance
+  (line number, source, and the operators' text kept verbatim)
 - `gracefoReading.version` — programmatic version checks
 
 ## Verify the installation
@@ -53,8 +66,10 @@ results = runtests('tests');  table(results)
 ```
 
 `tests/testRealData.m` runs against real PO.DAAC files placed in
-`tests/realdata/` (see the README there); tests for absent files are
-skipped automatically.
+`tests/realdata/`, or in the data pool named by the environment
+variable `READING_DATA_POOL` — the **DATAPOOL root**, with the day
+fixtures below it in `RawData\tests\realdata\` (see the README in
+`tests/realdata/`). Tests for absent files are skipped automatically.
 
 ## Documentation
 

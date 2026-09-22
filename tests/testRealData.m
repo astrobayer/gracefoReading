@@ -339,9 +339,22 @@ classdef testRealData < matlab.unittest.TestCase
 
             testCase.verifyTrue(isfield(aux, 'prod_flag'), ...
                 'AHK1B is documented (R-2 pp. 31-32) as prod_flag driven.');
+            % MEASURED 2026-09-22, CI run 35696829972: real AHK1B is
+            % 864 077 records with a THIRTY-TWO character prod_flag,
+            % where ACT1B and MAS1B carry eight. This assertion said 8
+            % and failed, which is the right outcome for the wrong
+            % reason: the width was imported from a sibling product,
+            % the one inference resolveTime's rule explicitly forbids
+            % ("a property of the file, not of the product family").
+            % It is now read off the file, and only the relation
+            % between the decoded bits and the raw column is asserted.
             [bits, report] = gracefoReading.decodeQualFlags(aux, 'prod_flag');
-            testCase.verifySize(bits, [size(t, 1), 8]);
-            testCase.verifyGreaterThan(numel(report.meaning), 0);
+            nBits = size(aux.prod_flag, 2);
+            testCase.verifySize(bits, [size(t, 1), nBits]);
+            testCase.verifyEqual(numel(report.meaning), nBits, ...
+                'decodeQualFlags must report one row per bit of the column.');
+            testCase.verifyEqual(bits(:, 1), aux.prod_flag(:, end) == '1', ...
+                'Bit 0 is the rightmost character of the raw bit string.');
             % the accelerometer sensor-unit temperatures are there
             testCase.verifyTrue(any(contains(aux.variableNames, 'TSU', ...
                 'IgnoreCase', true)), ...

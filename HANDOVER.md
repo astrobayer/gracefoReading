@@ -21,7 +21,7 @@ gains no preprocessing code from it. Facts live in one place, never in two.
 | | |
 |---|---|
 | Version | 1.1.0 (`gracefoReading.version()`; `Contents.m` and `docsrc/functionSpecs.json` must agree) |
-| Tests | **PREDICTED 114 passed + 0 failed + 4 incomplete = 118 total.** Not measured: this branch is tier B and the sandbox has no MATLAB. The CI run on the self-hosted Windows runner is the measurement, and this row is replaced by its numbers and run id before the merge. The last measured figure is 100 + 0 + 1 = 101, CI run 34873244487, 2026-09-14 |
+| Tests | **Measured 114 passed, 2 failed, 3 incomplete over 118 rows** — CI run 35696829972, head `84da369`, self-hosted Windows runner, 2026-09-22, 138.0 s. The three buckets sum to 119 because `testRealData/testLHK1B` errored partway and is counted in both. Predicted was 114 + 0 + 4 = 118: **the passed count matched exactly** and the split did not, informatively — see the note below. RED, and the two failures are the subject of the next commit |
 | Static gates | `docsrc/sourceIntegrity.py` 42 files / 0 findings · `docsrc/auditHelp.py` 42 help blocks clean · `python3 docsrc/generate_docs.py` then `git diff --exit-code -- html/` clean, and byte-identical on a second run — all four run 2026-09-22 in a sandbox without MATLAB |
 | Public units | 14 in `+gracefoReading/`, 14 internal in `+gracefoReading/+internal/` |
 | Tag / release | `v1.0.0` (lightweight tag + GitHub release, 2026-09-06). **v1.0.1 and v1.0.2 are merged but v1.0.1 has no release and 1.1.0 is unreleased** — see O-4 |
@@ -43,6 +43,21 @@ incomplete = 89. Nothing was wrong with the code or the count; the
 arithmetic of the *reconciliation* was wrong, and a sum that agrees with
 itself hides that. State the prediction as passed + failed + incomplete
 = total, and check that the three add up before running.
+
+**What the first CI run of the branch measured, and what the prediction
+got wrong.** The prediction assumed AHK1B and LHK1B were absent from the
+pool and would skip. They are **present** — only ACH1B is missing — so
+the two new acceptance points ran against real bytes and did what an
+acceptance point is for: both found something.
+
+| finding | evidence | whose defect |
+|---|---|---|
+| Real **AHK1B is 864 077 records with a 32-character `prod_flag`**, where ACT1B and MAS1B carry eight | `verifySize([864077x32 logical],[864077 8]) failed` | **the test's.** It asserted 8, imported from a sibling product — the one inference `resolveTime`'s rule forbids. The file itself read correctly, so the G-04 reader work is verified on real AHK1B: 864 077 variable-column records, a non-identifier name among them, parsed. Fixed by reading the width off the file |
+| Real **LHK1B cannot be read at all**: `readL1b:columnMismatch`, "Data line 537 has 9 whitespace-separated token(s), expected 8 (from 8 declared variables)" | run 35696829972 | **the reader's.** A genuine G-04 finding. LHK1B/IHK1B are long-format (sensortype, sensorvalue, sensorname, measured by the owner on issue #19), so a sensorname containing a space is the obvious reading — and acting on "obvious" is what O-1 forbids. A temporary CI step now prints the declared names and every record whose token count disagrees, so the fix is written from the bytes |
+
+**The G-03 measurement was lost to an unrelated failure.** Its step read
+`if: ${{ vars.READING_DATA_POOL != '' }}`, and a failed suite step skips
+a step without `always()`. Corrected; O-7 still waits for the number.
 
 **Four incompletes are expected and are not a regression.** Each has a
 named cause and a one-file fix, and each becomes a pass the moment the

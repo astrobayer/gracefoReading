@@ -1,6 +1,6 @@
 # HANDOVER — gracefoReading
 
-**Revision 3.7 · 2026-09-22 · toolbox v1.1.0**
+**Revision 3.8 · 2026-09-22 · toolbox v1.1.0**
 
 The single point of truth for this repository. Where this document and a
 general engineering habit disagree, this document is right. Read it
@@ -30,10 +30,13 @@ Per-class test counts, for the prediction a next session must make
 *before* running: `testReadL1b` **30**, `testUtilities` 16,
 `testBatchTools` 15, `testItsgProducts` 15, `testRealData` 11,
 `testItsgBatch` 12, `testDataPool` **10** (new, G-06),
-`testClassicProducts` **14** (12 at v1.1.0, +2 for RL03),
+`testClassicProducts` **16** (12 at v1.1.0, +2 for RL03, +2 for MAG1B),
 `testEventLists` **11** (new, G-05), `testDocConsistency` 7,
-`testSourceIntegrity` 5. Sum **146**, of which 144 pass and 2 are the
-documented incompletes below.
+`testSourceIntegrity` 5. Sum **148**, of which 147 pass and **1** is
+the documented incomplete below — `testRealData/testACH1B` stopped
+being incomplete when its fixture was bundled, so the count of
+incompletes went down while the total went up. Predicting the total
+alone would have hidden that.
 The previous measured total is 121. A run reporting anything else is a
 finding, not a rounding.
 
@@ -274,8 +277,12 @@ verdict.
   and no RL03 file was available, so nothing here claims to read one —
   the record-length self-check is what will say so if its layout
   differs.
-- **Classic MAG1B and AHK1B are not read.** Measured but not named;
-  see the new O-15.
+- ~~**Classic MAG1B and AHK1B are not read.**~~ **Half superseded
+  2026-09-22**, after the owner supplied the GRACE Level-1B Data
+  Product User Handbook v1.3 (JPL D-22027). **MAG1B is read**, named
+  from its section 6.8. **AHK1B is still refused**, and the handbook
+  is why it stays refused rather than why it might not: chapter 6 has
+  no AHK1B entry at all. See O-15.
 - No preprocessing code (CONCEPT, 2026-09-18).
 - No whitespace sweep of the two over-length lines in `readL1bMulti.m`
   (section D): a sweep is its own change and this branch edits that file
@@ -342,6 +349,22 @@ below was read off a real file.
 - `readL1b` raises `noData` when a file holds no data records at all.
   An empty result from `readL1b` or `readL1bMulti` therefore always
   means a filter removed everything, never that the file was empty.
+- **Classic binary record lengths, measured** (RL02 and RL03 alike):
+  ACC1B 78, SCA1B 47, GNV1B 103, KBR1B 93, THR1B 179, MAG1B 63 bytes;
+  MAS1B variable. AHK1B is variable too — 8 700 records over 526 350
+  data bytes is 60.5 bytes each — and is the one classic product the
+  toolbox refuses.
+- **The GRACE Level-1B Data Product User Handbook v1.3 (JPL D-22027,
+  March 2010) is in hand** as of 2026-09-22 and is the naming source
+  for classic MAG1B (section 6.8). Its chapter 6 has format records
+  for ACC1B, CLK1B, GPS1B, GNV1B, IHK1B, KBR1B, MAG1B, MAS1B, SCA1B,
+  THR1B, TIM1B, TNK1B, USO1B and the vector-offset products — and for
+  **AHK1B it has none**. That absence is a fact about the document,
+  established by reading it, not an assumption about it.
+- **ACH1B declares the same nine observation columns as classic
+  ACC1B**, measured on the real GRACE D file of 2020-01-01. Its
+  `ang_accl_x/y/z` are identically zero in all 86 400 records: the
+  hybrid transplant supplies linear accelerations only.
 
 ---
 
@@ -387,7 +410,7 @@ outside this table claims to be one.
 | O-4 | **CLOSED 2026-09-22.** `v1.1.0` is an **annotated** tag on the merge commit `2c0d7d8` with a GitHub release, which is what VERSIONING.md asks for and what no previous release of this repository had. `v1.0.0` and `v1.0.2` remain lightweight and are left alone: tags are immutable and the correction was always forward-only. Nothing further is owed | — | — |
 | O-5 | **Superseded in part, 2026-09-22.** Classic GRACE binary products ARE now read (O-1). What remains true is narrower and not a gap: the GRACE-FO releases this toolbox targets publish ASCII only, so there is no binary GRACE-FO product to support | — | if a binary GRACE-FO product ever appears |
 | O-6 | **RL05+ header conventions are unknown.** If PO.DAAC changes them, extend `internal/parseHeaderVariables.m` and add the new files to `tests/realdata/` | owner | when RL05 appears |
-| O-15 | **Classic MAG1B and AHK1B are measured but not named, so they are refused.** MAG1B is 63 bytes per record — `time_intg`, `time_frac` (microseconds), `time_ref`, `GRACE_id`, **13 float32**, `qualflg` — and the first three floats are the magnetic field vector, measured: 18-55 microtesla over the day, which is the Earth's field. The remaining ten could not be named from a documented sibling, this repository bundling no real GRACE-FO MAG1B header. AHK1B is variable-length with a 4-byte `prod_flag`, and its conditional columns carry per-bit value **types** that one file cannot reveal (record lengths 53 and 98 bytes were measured). Both raise `unsupportedClassicProduct` naming exactly this, rather than being decoded on a guess. **Discharged by:** the GRACE Level-1B handbook (JPL D-22027) column tables for these two products, or a real GRACE-FO MAG1B/AHK1B header to carry the names over from | owner | when either document or product is at hand |
+| O-15 | **Narrowed to AHK1B alone, 2026-09-22.** MAG1B is read: its 63-byte record was already measured, and the owner then supplied the **GRACE Level-1B Data Product User Handbook v1.3 (JPL D-22027)**, whose section 6.8 (pp. 38-39) names all eighteen columns in record order. That is exactly the discharge condition this row was written with, met as written - the difference from O-1 being that the handbook is now *in hand* rather than *recalled*. The naming was then checked against the numbers: the field magnitude comes out at 18.3-54.5 uT on GRACE A and 19.5-54.4 on GRACE B, magnetorquer currents inside the 120 mA `torque_cal` full scale, `MF_BCal*` the constants 54/54/53. **What remains:** classic **AHK1B** is refused, and the handbook closes the question rather than leaving it open - chapter 6 has **no AHK1B entry**, the product appearing only in the report-file appendix (pp. 47-48), which names its eight `qualflg` bits and nothing else. Its records are variable-length (8 700 records over 526 350 data bytes = 60.5 bytes each), so a `prod_flag` walk needs a per-bit value **type** for every bit and one file cannot reveal them. **Discharged by:** the GRACE Level-1 *Software* Handbook, which the product headers name as their REFERENCE DOCUMENTATION and which is not in hand, or a real GRACE-FO AHK1B header to carry the names and types over from | owner | when either document or product is at hand |
 | O-10 | **`neutralDensity` is not in the product table.** The ITSG server publishes it and the README gives two different column layouts for releases 1.0 and 1.5/2.0, but no real file was read, so no entry was written. It parses as a generic GROOPS file and warns `productNotRecognised`. Writing the entry from the README alone is the mistake O-1 records | owner | when a real neutralDensity file exists |
 | O-7 | **CLOSED 2026-09-22 — measured, then decided.** `readL1b` takes **7.801 s** on one real ACT1B day (86 400 records, 13.5 MB), of which `fileread` is 0.059 s: parsing is 99.2 % of the cost. A year extrapolates to **47.5 min**. No fixed-layout `textscan` fast path is built, and not for want of headroom — see section A for the two reasons (47.5 min/year is not a bottleneck and `'CacheDir'` pays it once; and it would be a second parsing path for one of the reader's three record grammars). `ci/benchmarkParse` and its CI step stay, so re-opening it costs one command | — | a campaign run of X-15 measuring parse time as its dominant cost |
 
@@ -451,6 +474,7 @@ The half of it that remains is O-2's writer side, not this.
 | 2026-09-18 | The preprocessing concept is the design authority for preprocessing, accelerometer calibration and LRI/KBR processing across the ecosystem. It was drafted here on branch `claude/preproc-concept` and moved to `astrobayer/timeSeriesPreparation` `docs/` at X-00a (timeSeriesPreparation#2); decisions Q1–Q16 are in its section 11 and not restated here. **Consequence for this repository:** no preprocessing code; reader obligations G-01 #16 (= O-11), G-02 #17 (= O-1), G-03 #18 (= O-7), G-04 #19, G-05 #20, G-06 #21 | owner |
 | 2026-09-18 | **Correction, measured after the merge:** PR #15 was merged with a **merge commit** (`de87fbf`, parents `a18e9ad` and `4a6bc8c`), not squashed as planned, and its branch was deleted. The tree is as intended (net change `HANDOVER.md` only; CI on `main` run 35392857232 green), but `main`'s history now contains every concept draft (`2d7a06c` … `4c08cb7`) and the two input zips (AccelBiasScaleToolbox 2.4.2, sigtools 1.3.1; about 2.7 MB). Accepted: removing them would mean rewriting `main`, which the ruleset forbids and nothing requires. The concept's pre-move history stays reachable from `main` up to `4c08cb7` | measured 2026-09-18; the planned squash (concept Q14 item 5) did not happen |
 | 2026-09-22 | The classic binary layouts were derived from the bytes and each checked against a PHYSICAL quantity, not read from the handbook | The handbook was not at hand, and a layout from memory is what O-1 records as the v1 failure. A structural check alone would not have been enough either: a wrong offset yields plausible numbers. The quaternion norm, the orbit radius, the range-rate against the range derivative and the two independent spacecraft masses are oracles the file cannot satisfy by accident — and one of them caught the real error, ACC1B having nine columns where the assumed table had six |
+| 2026-09-22 | **Superseded for MAG1B the same day, by the handbook arriving.** MAG1B's columns are now named from JPL D-22027 section 6.8 and the product is read; AHK1B stays refused, and the handbook is the reason it stays refused rather than the reason it might not - it has no AHK1B format record at all. The entry below stands as the record of why refusing was right while the document was missing | the discharge condition O-15 stated was met exactly as written, which is what a well-written obligation is for |
 | 2026-09-22 | Classic MAG1B and AHK1B are REFUSED although their structure was measured | Structure is not a layout. Ten of MAG1B's thirteen columns have no name that any document here supplies, and AHK1B's conditional columns have per-bit types a single file cannot reveal. Returning columns under invented names would be worse than refusing, because a caller cannot tell an invented name from a measured one. O-15 records exactly what is known so the gap closes in minutes when the handbook appears |
 | 2026-09-22 | The classic ASCII variant keeps its `classicExperimental` warning although it now shares the corrected column table | The correction was measured on the BINARY variant. That the ASCII variant of the same product carries the same columns is a sound inference and it is what the shared table assumes, but it is an inference, and no real classic ASCII file has been read here. The warning is the difference between the two, stated |
 | 2026-09-22 | `readL1b` reads BYTES and derives text from them, rather than reading text | A char read applies the file encoding, and an arbitrary binary record is not valid UTF-8: bytes would be replaced or merged and the records destroyed, silently, because the ASCII header would still look perfectly readable. `char()` over a uint8 row is byte-exact, so the text paths see exactly what they saw before |

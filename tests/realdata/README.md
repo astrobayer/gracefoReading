@@ -5,6 +5,7 @@ original names. Included with the toolbox (small):
 
     MAS1B_2020-01-01_C_04.txt      (~8 KB)
     THR1B_2020-01-01_C_04.txt      (~95 KB)
+    ACH1B_2020-01-01_D_04.txt      (~25 KB, trimmed - see below)
 
 To enable the full acceptance suite, copy in addition (too large to
 bundle; obtain from PO.DAAC, https://podaac.jpl.nasa.gov/, or the ISDC
@@ -15,13 +16,19 @@ mirror):
     SCA1B_2020-01-01_C_04.txt      (~11 MB)
     KBR1B_2020-01-01_Y_04.txt      (~4 MB)
     LRI1B_2020-01-01_Y_04.txt      (~8 MB)
-    ACH1B_2020-01-01_C_04.txt      hybrid transplant accelerometer (ACX)
     AHK1B_2020-01-01_C_04.txt      accelerometer housekeeping
     LHK1B_2020-01-01_C_04.txt      LRI housekeeping
 
-The last three arrive with the `.ACX` and `.LRI` daily archives rather
-than with `.noLRI`, and they are what the `testACH1B`, `testAHK1B` and
-`testLHK1B` rows wait for.
+These two arrive with the `.LRI` daily archive rather than with
+`.noLRI`, and they are what the `testAHK1B` and `testLHK1B` rows wait
+for. ACH1B, which arrives with `.ACX`, no longer waits: it is bundled.
+
+**A bundled fixture can be shadowed.** The lookup is pool first, this
+folder second, so a full-day file of the same name in the pool replaces
+the trimmed extract - and the record-count assertions of `testMAS1B`,
+`testTHR1B` and `testACH1B` then fail. That is loud rather than silent,
+which is the point, but it is worth knowing before putting a full day
+under one of those three names.
 
 Tests for absent files are skipped automatically (assumption failure),
 so the suite passes either way — it simply becomes stricter with data.
@@ -80,9 +87,33 @@ the server's `README.txt` and `README_referenceFrames.txt`, which is why
 `aux.frameSource` exists — see `readItsgProduct`.
 
 
+# Hybrid transplant accelerometer (ACH1B, GRACE D)
+
+    ACH1B_2020-01-01_D_04.txt      the first 120 records of the
+                                   published day, `num_records`
+                                   rewritten to 120
+
+Satellite **D** and not C: D is the one whose accelerometer failed, and
+therefore the one the ACU + ACS + ACM + AC0 transplant exists for.
+
+The complete published file was read before the extract was cut, and
+three properties come from it rather than from the 120 records:
+
+* 86 400 records, first epoch MJD 58849 0 s, last 86 399 s;
+* twelve declared variables and **nine** observation columns — exactly
+  the columns of classic ACC1B, which is independent confirmation of
+  the classic layout measured below;
+* `ang_accl_x/y/z` are identically **zero in all 86 400 records**. The
+  transplant supplies linear accelerations only; the angular columns
+  are declared, so the reader must still return them.
+
+`testACH1B` asserts what survives the trim and states the rest as a
+measurement of the full file.
+
+
 # Classic GRACE (RL02, 2008-01-01) — binary products
 
-`testClassicProducts.m` reads these six bundled files. They are the
+`testClassicProducts.m` reads these seven bundled files. They are the
 evidence that discharged obligation **O-1**: until 2026-09-22 the
 classic column layouts were assumed from the GRACE Level-1B handbook
 and no real classic file existed in this repository.
@@ -93,6 +124,7 @@ and no real classic file existed in this repository.
     KBR1B_2008-01-01_X_02.dat      93   (the A+B link, satellite token X)
     THR1B_2008-01-01_A_02.dat     179
     MAS1B_2008-01-01_A_02.dat     variable, prod_flag driven
+    MAG1B_2008-01-01_A_02.dat      63
 
 **These are trimmed.** Each is the first 40 records of the published
 file, with the `NUMBER OF DATA RECORDS` header record rewritten to 40 —
@@ -117,13 +149,30 @@ regenerate them:
 
     python3 tests/python_reference/classic_reference.py tests/realdata
 
-Classic **MAG1B** and **AHK1B** are deliberately not supported. Their
-record structure was measured too (MAG1B is 63 bytes with 13 float32
-after the time frame, and |B| comes out at 18–55 µT), but ten of
-MAG1B's thirteen columns could not be named from a documented sibling
-product, and AHK1B's variable columns carry per-bit value *types* that
-a single file cannot reveal. Naming them from memory is the failure O-1
-exists to prevent, so both are refused with an explicit error.
+## MAG1B, and why AHK1B is still refused
+
+**MAG1B is supported since 2026-09-22.** Its 63-byte record is
+measured — 86 400 records over a 5 443 200-byte data section is 63.0
+bytes each, and no other field count fits at these widths — and its
+eighteen columns are **named from the GRACE Level-1B Data Product User
+Handbook v1.3 (JPL D-22027), section 6.8, pages 38–39**, which is in
+hand. That is the whole difference from the situation obligation O-1
+records: the earlier layouts were recalled from that handbook, these
+are read out of it. The measured magnitudes then have to agree, and do:
+|B| is 18.3–54.5 µT on GRACE A and 19.5–54.4 µT on GRACE B over the
+full day — the geomagnetic field at 480 km — the six magnetorquer
+currents stay inside the 120 mA `torque_cal` full scale, and the three
+`MF_BCal*` calibration columns are constants (54, 54, 53).
+
+Classic **AHK1B** is still deliberately not supported, and the handbook
+does not change that: chapter 6 has **no AHK1B entry at all**. The
+product appears only in the report-file appendix, which names its eight
+`qualflg` bits and nothing else. Its records are variable-length —
+8 700 records over 526 350 data bytes is 60.5 bytes each — so a
+`prod_flag` walk needs a per-bit value *type* for every bit, and those
+are documented nowhere available here. One file cannot reveal them.
+Naming them from memory is the failure O-1 exists to prevent, so AHK1B
+is refused with an explicit error.
 
 ## Release 03
 

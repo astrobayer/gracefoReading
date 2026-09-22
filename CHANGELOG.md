@@ -2,6 +2,62 @@
 
 ## Unreleased
 
+### Added — classic MAG1B is read (O-15, first half)
+
+- The magnetometer and magnetorquer product is no longer refused.
+  Its 63-byte record is **measured**: the published GRACE A file of
+  2008-01-01 is 86 400 records over a 5 443 200-byte data section,
+  which is 63.0 bytes each and admits no other field count at these
+  widths, and the first and last epochs equal the header's
+  `TIME FIRST OBS` / `TIME LAST OBS` to the microsecond.
+- Its eighteen columns — `time_intg`, `time_frac`, `time_ref`,
+  `GRACE_id`, `MfvX/Y/Z_RAW`, `torque1A`…`torque3B`, `MF_BCalX/Y/Z`,
+  `torque_cal`, `qualflg` — are **named from the GRACE Level-1B Data
+  Product User Handbook v1.3 (JPL D-22027), section 6.8, pages 38–39**,
+  which is now in hand. That is the difference obligation O-1 turns
+  on: the layouts it flagged were *recalled* from that handbook, these
+  are *read out of* it.
+- The naming is then checked against what the numbers must be: |B| is
+  **18.3–54.5 µT** on GRACE A and 19.5–54.4 µT on GRACE B over the
+  full day — the geomagnetic field strength at 480 km — the six
+  magnetorquer currents stay inside the 120 mA `torque_cal` full
+  scale, and `MF_BCalX/Y/Z` are the constants 54, 54, 53. If the
+  vector were not the first three floats, none of that would hold.
+- `MAG1B_2008-01-01_A_02.dat` is bundled, trimmed to 40 records the
+  same way as the other classic fixtures, and
+  `tests/python_reference/classic_reference.py` decodes it too, so the
+  golden numbers still come from outside the code they test.
+
+### Unchanged — classic AHK1B is still refused
+
+- The handbook does not close this half of O-15 and says so plainly:
+  chapter 6 has **no AHK1B entry at all**. The product appears only in
+  the report-file appendix, which names its eight `qualflg` bits and
+  nothing else.
+- Its records are variable-length — 8 700 records over 526 350 data
+  bytes is 60.5 bytes each — so a `prod_flag` walk needs a per-bit
+  value **type** for every bit, and no document available here states
+  them. One file cannot reveal them. AHK1B therefore keeps raising
+  `unsupportedClassicProduct`, and the refusal test now exercises it
+  rather than MAG1B.
+
+### Added — ACH1B is bundled, so its acceptance row no longer skips (G-04, #19)
+
+- `ACH1B_2020-01-01_D_04.txt`, the hybrid transplant accelerometer,
+  is bundled trimmed to its first 120 records. Satellite **D** and not
+  C: D is the one whose accelerometer failed and therefore the one the
+  ACU + ACS + ACM + AC0 transplant exists for.
+- The **complete** published day was read before the extract was cut:
+  86 400 records, first epoch MJD 58849 0 s, last 86 399 s, twelve
+  declared variables and **nine** observation columns — exactly the
+  columns of classic ACC1B, which is independent confirmation of that
+  measured layout — and `ang_accl_x/y/z` identically **zero in all
+  86 400 records**, the transplant supplying linear accelerations
+  only. `testACH1B` asserts what survives the trim and states the rest
+  as a measurement of the full file.
+- The CI pool listing no longer names an ACH1B file; `testAHK1B` and
+  `testLHK1B` still wait for theirs.
+
 ### Verified — classic release 03 reads under the same layouts
 
 - The 1.1.0 notes said classic RL03 was not read: release 02 was what

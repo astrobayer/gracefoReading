@@ -994,6 +994,10 @@
       ]
     },
     {
+      "name": "verifyDataPool",
+      "purpose": "Verify a data pool against its published checksums"
+    },
+    {
       "name": "readGroopsInstrument",
       "purpose": "Read a GROOPS ASCII instrument file",
       "syntax": [

@@ -14,6 +14,8 @@
 %   gracefoReading.findItsgFiles         - Locate ITSG product files by product/date,
 %                                          with coverage report.
 %   gracefoReading.findGaps              - Detect sampling gaps and contiguous segments.
+%   gracefoReading.verifyDataPool        - Verify a data pool against the
+%                                          checksums its sources published.
 %
 % Utilities
 %   gracefoReading.decodeQualFlags       - Decode bit-string quality/product flags
@@ -31,5 +33,5 @@
 %
 %   Toolbox:  gracefoReading v1.0.2
 %   Created:  2026-08-01
-%   Updated:  2026-08-14
+%   Updated:  2026-09-22
 %   Author:   Matthias Weigelt with support of Anthropic Claude

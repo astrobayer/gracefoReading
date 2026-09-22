@@ -37,6 +37,11 @@ RL04 files of 2020-01-01 (all seven products above).
 - `gracefoReading.findL1bFiles` — archive search by product/date/
   satellite with missing-day report; `gracefoReading.findGaps` —
   gap/segment analysis
+- `gracefoReading.verifyDataPool` — checks a local data pool against
+  the checksums its sources published (the MD5 lists of the L1B day
+  archives, SHA-256 manifests recorded beside the data), reporting per
+  file OK / MISMATCH / MISSING / UNLISTED with the manifest that made
+  the claim
 - `gracefoReading.decodeQualFlags` — flag meanings from the file's own header
 - `gracefoReading.checkQuaternionNorm` — SCA1B sanity check
 - `gracefoReading.writeGroopsInstrument` / `readGroopsInstrument` —

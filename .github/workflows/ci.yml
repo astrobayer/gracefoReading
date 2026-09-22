@@ -74,15 +74,23 @@ jobs:
       # skipped themselves on every run so far. A self-hosted machine
       # can hold them once.
       #
-      # THE PATH IS NOT IN THIS FILE. It comes from the repository
-      # variable READING_DATA_POOL, so the mechanism is version
-      # controlled while the machine-specific location is not. Unset
-      # variable: the step skips and the suite filters exactly as
+      # THE PATH IS NOT IN THIS FILE. It comes from the repository or
+      # the organisation variable READING_DATA_POOL, so the mechanism is
+      # version controlled while the machine-specific location is not.
+      # Unset variable: the step skips and the suite filters exactly as
       # before.
       #
+      # G-07 (issue #23): the variable is the DATAPOOL ROOT, and the day
+      # fixtures live below it in RawData\tests\realdata. The repository
+      # value pointed straight at the fixture folder, so BOTH are tried,
+      # root layout first, for exactly one release - and the step prints
+      # WHICH of the two answered each file. Without that, deleting the
+      # repository variable would look identical whether the switch
+      # worked or the fallback carried it.
+      #
       # Reported as a named list, because a missing pool and a pool with
-      # the wrong layout produce the same six skipped points further
-      # down and are otherwise indistinguishable.
+      # the wrong layout produce the same skipped points further down and
+      # are otherwise indistinguishable.
       - name: Report which real-data files the pool provides
         if: ${{ vars.READING_DATA_POOL != '' }}
         timeout-minutes: 2
@@ -94,23 +102,43 @@ jobs:
             pool = string(getenv("READING_DATA_POOL"));
             assert(isfolder(pool), 'gracefoReading:ci:dataPoolMissing', ...
                 'READING_DATA_POOL points at %s, which is not a folder.', pool);
-            fprintf('pool: %s\n', pool);
+            fixtures = fullfile(pool, "RawData", "tests", "realdata");
+            fprintf('pool root : %s\n', pool);
+            fprintf('fixtures  : %s\n', fixtures);
             want = ["ACT1B_2020-01-01_C_04.txt"
                     "GNV1B_2020-01-01_C_04.txt"
                     "SCA1B_2020-01-01_C_04.txt"
                     "KBR1B_2020-01-01_Y_04.txt"
                     "LRI1B_2020-01-01_Y_04.txt"
                     "MAS1B_2020-01-01_C_04.txt"
-                    "THR1B_2020-01-01_C_04.txt"];
+                    "THR1B_2020-01-01_C_04.txt"
+                    "ACH1B_2020-01-01_C_04.txt"
+                    "AHK1B_2020-01-01_C_04.txt"
+                    "LHK1B_2020-01-01_C_04.txt"
+                    "GRACEFO-1_kinematicOrbit_2020-01-01.txt"];
+            nFound = 0; nLegacy = 0;
             for k = 1:numel(want)
-                f = fullfile(pool, want(k));
-                if isfile(f)
-                    d = dir(f);
-                    fprintf('  FOUND   %-34s %9d B\n', want(k), d.bytes);
-                else
-                    fprintf('  ABSENT  %s\n', want(k));
+                cand = [fullfile(fixtures, want(k)), fullfile(pool, want(k))];
+                hit = 0;
+                for c = 1:numel(cand)
+                    if isfile(cand(c)), hit = c; break; end
                 end
+                if hit == 0
+                    fprintf('  ABSENT  %s\n', want(k));
+                    continue
+                end
+                nFound = nFound + 1;
+                if hit == 1
+                    where = 'RawData\tests\realdata';
+                else
+                    where = 'pool root (legacy path, goes away next release)';
+                    nLegacy = nLegacy + 1;
+                end
+                d = dir(cand(hit));
+                fprintf('  FOUND   %-42s %9d B  [%s]\n', want(k), d.bytes, where);
             end
+            fprintf('%d of %d found; %d via the legacy path\n', ...
+                nFound, numel(want), nLegacy);
 
       # The value reaches the suite through the environment and is read
       # by getenv in testRealData.resolvePool, never interpolated into
@@ -122,6 +150,24 @@ jobs:
           READING_DATA_POOL: ${{ vars.READING_DATA_POOL }}
         with:
           command: addpath('ci'); runCI('Exit', true);
+
+      # G-03 / O-7, issue #18. The parse-time number O-7 has waited for
+      # has to be measured where a real ACT1B day is, and that is this
+      # runner. Deliberately NOT an acceptance point:
+      # continue-on-error keeps a slow or busy machine from turning a
+      # green suite red, and benchmarkParse itself asserts nothing and
+      # returns empty when the pool holds no day file. Its output is
+      # read out of this log and recorded in HANDOVER with the run id
+      # and the MATLAB release beside it.
+      - name: Measure readL1b parse time on one real day (G-03)
+        if: ${{ vars.READING_DATA_POOL != '' }}
+        continue-on-error: true
+        timeout-minutes: 10
+        uses: matlab-actions/run-command@bfa857648f4895aa98a446fe41c85e0788421ed5 # v3
+        env:
+          READING_DATA_POOL: ${{ vars.READING_DATA_POOL }}
+        with:
+          command: setupGraceFOReading; addpath('ci'); benchmarkParse;
 
       - name: Publish test report and coverage
         if: always()

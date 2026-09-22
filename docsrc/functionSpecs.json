@@ -2,8 +2,8 @@
   "toolbox": {
     "name": "gracefoReading",
     "title": "GRACE-FO Level-1B ASCII data reading toolbox",
-    "version": "1.0.2",
-    "date": "2026-09-09",
+    "version": "1.1.0",
+    "date": "2026-09-22",
     "developedWith": "Matthias Weigelt with the help of Anthropic Claude Opus 5",
     "license": "MIT",
     "matlabRelease": "R2020b or later",

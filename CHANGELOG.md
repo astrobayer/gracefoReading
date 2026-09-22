@@ -1,6 +1,107 @@
 # Changelog — gracefoReading
 
-## Unreleased
+## 1.1.0 — 2026-09-22
+
+Five of the seven reader work packages of the preprocessing concept:
+G-01 (#16), G-03 (#18), G-04 (#19), G-06 (#21) and G-07 (#23). MINOR,
+not PATCH: `verifyDataPool` is new capability and every existing call
+keeps working.
+
+### Added — `gracefoReading.verifyDataPool` (G-06, #21)
+
+- Verifies a local data pool against the checksums its sources publish
+  and returns one table row per file: `OK`, `MISMATCH`, `MISSING`,
+  `UNREADABLE`, or `UNLISTED` for a pool file no manifest covers. Each
+  row names the manifest that made the claim, so a mismatch can be
+  taken back to its source.
+- Reads the **coreutils** manifest format (`<hex>  <name>`, and
+  `*<name>` for binary mode) and the **BSD tagged** format
+  (`SHA256 (<name>) = <hex>`). Entries resolve against their own
+  manifest's folder, so the MD5 list inside an L1B day archive and a
+  SHA-256 manifest written beside a month of data are both read where
+  they lie.
+- The algorithm comes from the digest **length**, a property of the
+  line rather than of the manifest's file name: a list called
+  `SHA256SUMS_…` that holds MD5 digests is read as what it contains,
+  and a tagged line whose tag disagrees with its own digest length
+  names no algorithm at all and is reported rather than verified.
+  Lines matching neither format are reported by line number, never
+  guessed at.
+- `UNLISTED` rows are in the report on purpose. "Not checked" and
+  "checked and correct" are different answers, and the ITSG and ZARM
+  products publish no checksums at all — a report that showed only the
+  verified files would be read as covering the pool.
+- New internals: `+internal/parseChecksumManifest` and
+  `+internal/fileDigest`, the latter streaming a file through
+  `MessageDigest` in 1 MiB blocks and in binary mode, so a
+  multi-gigabyte file is hashed without being held in memory and CRLF
+  is never rewritten under it.
+- The expected digests in the test suite are **not** produced by the
+  code under test: the published FIPS-180 / RFC-1321 vectors for the
+  byte string `abc` and independently computed digests for the other
+  fixtures are the oracle.
+
+### Added — `ci/benchmarkParse` (G-03, #18)
+
+- Measures `readL1b` on one real ACT1B day and extrapolates to a year,
+  so O-7 — whether the fixed-layout products should gain a typed
+  `textscan` fast path — is decided from a number rather than an
+  impression.
+- Reports the total **and** `fileread` alone. Their ratio is the part
+  of the answer a total cannot give: a fast path can only win back the
+  difference, so a run where reading the bytes already dominates
+  settles O-7 by itself.
+- Asserts nothing and returns an empty result when the pool holds no
+  day file; the CI step that runs it is `continue-on-error`. It is a
+  measurement, not an acceptance point.
+
+### Fixed — `readL1bMulti` accepts the column `findL1bFiles` returns (G-01, #16)
+
+- `fileNames` was declared `(1,:) string` while `findL1bFiles` returns
+  `[K x 1]`, so the two-line workflow printed in **both** help blocks
+  raised a size-validation error for every K > 1 (O-11, now closed).
+  The declaration is unsized and normalised on entry, as
+  `readItsgProductMulti` already did; `aux.fileNames` stays a column.
+
+### Fixed — header variable names that are not MATLAB identifiers (G-04, #19)
+
+- The accelerometer housekeeping product AHK1B declares the sensor
+  temperatures `TSU Y+`, `TSU Y-`, `TSU Z+` and `TSU Z-`, the last with
+  a space. The header parser accepted identifiers only, so that column
+  was dropped and every record then carried one token more than the
+  declared columns.
+- Worse and less visible: `varAttrs` and the `aux` fields were keyed by
+  `matlab.lang.makeValidName` per name, which is not injective — `+`
+  and `-` both become `_`, so `TSU_Y+` and `TSU_Y-` collapsed onto one
+  field and one temperature silently overwrote the other.
+- `+internal/variableFieldNames` is now the single point of access for
+  that mapping — `makeValidName`, truncated, then `makeUniqueStrings`
+  over the whole ordered list — and the header parser, the data-section
+  parser, the classic path and the time resolver all take their keys
+  from it. It is the identity on every name in every product read so
+  far, so nothing existing changes.
+- A rename is never silent: `gracefoReading:readL1b:variableNameAdjusted`
+  names each declared name and the field it landed in, and the new
+  `aux.variableFieldNames` gives the mapping. `aux.variableNames` and
+  `aux.obsNames` keep the declared names, which is what callers match
+  on.
+
+### Changed — `READING_DATA_POOL` is the DATAPOOL root (G-07, #23)
+
+- Fixtures resolve as `<ROOT>\RawData\tests\realdata\<name>`, matching
+  the owner's real pool layout. `<ROOT>\<name>` — the value that
+  pointed straight at the fixture folder — stays accepted for **this
+  release only**, so that switching from the repository-level variable
+  to the organisation one cannot turn a green run into eight skipped
+  acceptance points in the same step.
+- `testRealData.resolveFixture` is the one authority for that layout,
+  as `resolvePool` already was for the location; `testItsgProducts` and
+  `ci/benchmarkParse` both go through it. The CI reporting step prints
+  which of the two paths answered each file, so the switch is visible
+  rather than inferred.
+- New acceptance rows for `ACH1B`, `AHK1B` and `LHK1B`, verifying the
+  generic reader on real bytes through one shared invariant helper.
+  They report **incomplete** until those files are in the pool.
 
 ### Added — ITSG date ranges: findItsgFiles and readItsgProductMulti (O-9)
 
@@ -54,6 +155,10 @@
   blocks raises a size-validation error for more than one file. Noticed
   while deciding the ITSG signature. Left alone here because it is an
   L1B change and this branch is issue #11; recorded as O-11.
+- **Fixed in this same release** — see "Fixed — `readL1bMulti` accepts
+  the column `findL1bFiles` returns" above (G-01, #16). Both entries
+  stay: one records when the defect was found, the other when it was
+  closed.
 
 ### Tests
 
@@ -267,6 +372,15 @@ own commit; these entries are the content, not a release.
   count. It surfaced only because a prediction was made against it and
   missed by exactly those three.
 
+
+### Still open
+
+- **G-02 (#17)** classic GRACE layouts and **G-05 (#20)** the official
+  event lists are untouched. Both need real bytes — classic RL02/RL03
+  L1B, whose RL03 records are binary after an 80-byte ASCII header, and
+  the TN-01 / TN-01a lists — that exist only in the owner's DATAPOOL.
+  Writing either from a handbook remembered rather than read is exactly
+  the failure O-1 records. See O-14.
 
 ## 1.0.2 — 2026-09-09
 

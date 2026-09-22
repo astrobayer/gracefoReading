@@ -50,7 +50,7 @@ classdef testReadL1b < matlab.unittest.TestCase
 %     results = runtests('testReadL1b');
 %     disp(table(results));
 %
-%   Toolbox:  gracefoReading v1.0.2
+%   Toolbox:  gracefoReading v1.1.0
 %   Created:  2026-08-01
 %   Updated:  2026-09-22
 %   Author:   Matthias Weigelt with support of Anthropic Claude

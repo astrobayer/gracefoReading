@@ -75,7 +75,7 @@ function [fieldNames, adjusted] = variableFieldNames(varNames)
 %            gracefoReading.internal.parseHeaderVariables,
 %            gracefoReading.internal.parseDataSection
 %
-%   Toolbox:  gracefoReading v1.0.2
+%   Toolbox:  gracefoReading v1.1.0
 %   Created:  2026-09-22
 %   Updated:  2026-09-22
 %   Author:   Matthias Weigelt with support of Anthropic Claude

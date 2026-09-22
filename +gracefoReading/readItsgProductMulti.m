@@ -109,7 +109,7 @@ function [time, obs, aux] = readItsgProductMulti(fileNames, options)
 %   See also gracefoReading.findItsgFiles, gracefoReading.readItsgProduct,
 %            gracefoReading.readL1bMulti, gracefoReading.findGaps
 %
-%   Toolbox:  gracefoReading v1.0.2
+%   Toolbox:  gracefoReading v1.1.0
 %   Created:  2026-09-14
 %   Updated:  2026-09-14
 %   Author:   Matthias Weigelt with support of Anthropic Claude

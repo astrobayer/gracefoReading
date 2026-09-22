@@ -52,7 +52,7 @@ classdef testItsgProducts < matlab.unittest.TestCase
 %     results = runtests('testItsgProducts');
 %     disp(table(results));
 %
-%   Toolbox:  gracefoReading v1.0.2
+%   Toolbox:  gracefoReading v1.1.0
 %   Created:  2026-09-14
 %   Updated:  2026-09-22
 %   Author:   Matthias Weigelt with support of Anthropic Claude

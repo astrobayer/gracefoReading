@@ -53,8 +53,10 @@ results = runtests('tests');  table(results)
 ```
 
 `tests/testRealData.m` runs against real PO.DAAC files placed in
-`tests/realdata/` (see the README there); tests for absent files are
-skipped automatically.
+`tests/realdata/`, or in the data pool named by the environment
+variable `READING_DATA_POOL` — the **DATAPOOL root**, with the day
+fixtures below it in `RawData\tests\realdata\` (see the README in
+`tests/realdata/`). Tests for absent files are skipped automatically.
 
 ## Documentation
 

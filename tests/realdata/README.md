@@ -7,16 +7,39 @@ original names. Included with the toolbox (small):
     THR1B_2020-01-01_C_04.txt      (~95 KB)
 
 To enable the full acceptance suite, copy in addition (too large to
-bundle; obtain from PO.DAAC, https://podaac.jpl.nasa.gov/):
+bundle; obtain from PO.DAAC, https://podaac.jpl.nasa.gov/, or the ISDC
+mirror):
 
     ACT1B_2020-01-01_C_04.txt      (~14 MB)
     GNV1B_2020-01-01_C_04.txt      (~23 MB)
     SCA1B_2020-01-01_C_04.txt      (~11 MB)
     KBR1B_2020-01-01_Y_04.txt      (~4 MB)
     LRI1B_2020-01-01_Y_04.txt      (~8 MB)
+    ACH1B_2020-01-01_C_04.txt      hybrid transplant accelerometer (ACX)
+    AHK1B_2020-01-01_C_04.txt      accelerometer housekeeping
+    LHK1B_2020-01-01_C_04.txt      LRI housekeeping
+
+The last three arrive with the `.ACX` and `.LRI` daily archives rather
+than with `.noLRI`, and they are what the `testACH1B`, `testAHK1B` and
+`testLHK1B` rows wait for.
 
 Tests for absent files are skipped automatically (assumption failure),
 so the suite passes either way — it simply becomes stricter with data.
+
+## Where the pool is, and where in it these files live
+
+The files above need not sit in this folder. `testRealData` looks
+them up first in the data pool named by the environment variable
+`READING_DATA_POOL` and only then here. That variable is the
+**DATAPOOL root**, and the day fixtures live below it:
+
+    <READING_DATA_POOL>\RawData\tests\realdata\<name>
+
+`<READING_DATA_POOL>\<name>` — the variable pointing straight at the
+fixture folder — is still accepted, **for one release only**, so that a
+repository-level and an organisation-level value both work while the
+switch is made. The CI step that lists the pool reports which of the two
+answered each file, so the switch is visible rather than inferred.
 
 
 # ITSG (TU Graz) satellite orbit products
@@ -42,8 +65,8 @@ One property does NOT survive the trim: the kinematic products are
 corrected for receiver clock errors and their sampling is not constant,
 but the departures from 10 s (up to ±291 ns over a day) first occur well
 past record 60. `testFullDayKinematicJitter` covers that and needs the
-complete file, so copy the published originals into the pool to enable
-it:
+complete file, so copy the published originals into the pool (same
+layout as above) to enable it:
 
     GRACEFO-1_kinematicOrbit_2020-01-01.txt            (~2.2 MB)
 

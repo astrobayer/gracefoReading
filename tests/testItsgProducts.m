@@ -54,7 +54,7 @@ classdef testItsgProducts < matlab.unittest.TestCase
 %
 %   Toolbox:  gracefoReading v1.0.2
 %   Created:  2026-09-14
-%   Updated:  2026-09-14
+%   Updated:  2026-09-22
 %   Author:   Matthias Weigelt with support of Anthropic Claude
 
     properties
@@ -305,10 +305,12 @@ classdef testItsgProducts < matlab.unittest.TestCase
         function testFullDayKinematicJitter(testCase)
             % Needs the whole published day: the +-291 ns receiver-clock
             % variation does not occur inside the first 60 records.
-            pool = testRealData.resolvePool();     % one authority for the pool
-            testCase.assumeTrue(strlength(pool) > 0, 'READING_DATA_POOL unset; skipped');
-            f = fullfile(pool, 'GRACEFO-1_kinematicOrbit_2020-01-01.txt');
-            testCase.assumeTrue(isfile(f), sprintf('%s not in the pool; skipped', f));
+            % One authority for the pool AND for the layout below it:
+            % the fixture sits in <ROOT>\RawData\tests\realdata (G-07).
+            f = testRealData.resolveFixture('GRACEFO-1_kinematicOrbit_2020-01-01.txt');
+            testCase.assumeTrue(strlength(f) > 0, ...
+                ['GRACEFO-1_kinematicOrbit_2020-01-01.txt not found via ', ...
+                 'READING_DATA_POOL; skipped']);
             tns = gracefoReading.readItsgProduct(f, 'TimeFormat', 'gpsns');
             steps = unique(diff(tns));
             testCase.verifyGreaterThan(numel(steps), 1, ...

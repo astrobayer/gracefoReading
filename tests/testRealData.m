@@ -15,6 +15,9 @@ classdef testRealData < matlab.unittest.TestCase
 %
 %   COVERAGE
 %     - real header dialect: "variables:" with "- varname:" entries
+%     - the pool products that only the runner holds: ACH1B, the
+%       accelerometer housekeeping AHK1B and the LRI housekeeping
+%       LHK1B (G-04); these skip until the files are in the pool
 %     - fractional time declared in microseconds (THR1B, MAS1B)
 %     - qualflg and prod_flag as 8-character bit strings
 %     - MAS1B prod_flag-controlled variable-length records, including
@@ -32,15 +35,18 @@ classdef testRealData < matlab.unittest.TestCase
 %       themselves when the corresponding file is absent, so a green
 %       run does not imply full-product coverage unless the archive
 %       files are present.
-%     - The five large products are looked up in the folder named by
-%       the environment variable READING_DATA_POOL before the bundled
-%       tests/realdata folder. The path is deliberately not in the
-%       repository; CI fills the variable from the repository variable
-%       of the same name. An unset or wrong variable is not an error
-%       here - the affected points skip - so a run that silently
-%       covers less looks identical to one that covers more. The
-%       workflow therefore names every expected file in its own step,
-%       where a wrong layout is visible.
+%     - The five large products are looked up in the data pool named
+%       by the environment variable READING_DATA_POOL before the
+%       bundled tests/realdata folder. That variable is the DATAPOOL
+%       ROOT (G-07, issue #23), and fixtures sit below it in
+%       RawData\tests\realdata; <ROOT>\<name> is still accepted for
+%       one release, so the repository-level and the organisation
+%       value both work while the switch is made. The path is
+%       deliberately not in the repository. An unset or wrong variable
+%       is not an error here - the affected points skip - so a run
+%       that silently covers less looks identical to one that covers
+%       more. The workflow therefore names every expected file in its
+%       own step, where a wrong layout is visible.
 %     - Tolerances follow the ASCII precision of the products, which
 %       is well within double precision.
 %
@@ -50,7 +56,7 @@ classdef testRealData < matlab.unittest.TestCase
 %
 %   Toolbox:  gracefoReading v1.0.2
 %   Created:  2026-08-01
-%   Updated:  2026-08-14
+%   Updated:  2026-09-22
 %   Author:   Matthias Weigelt with support of Anthropic Claude
 
     properties
@@ -78,11 +84,7 @@ classdef testRealData < matlab.unittest.TestCase
             % Search order: external pool first, bundled folder second.
             % The two small products travel with the toolbox; the five
             % large ones are too big to bundle and live in the pool.
-            f = "";
-            if strlength(testCase.dataPool) > 0
-                cand = fullfile(testCase.dataPool, name);
-                if isfile(cand), f = cand; end
-            end
+            f = testRealData.resolveFixture(name);
             if strlength(f) == 0
                 f = fullfile(testCase.dataDir, name);
             end
@@ -91,6 +93,37 @@ classdef testRealData < matlab.unittest.TestCase
                  '(READING_DATA_POOL = "%s"); test skipped.'], ...
                 name, testCase.dataDir, testCase.dataPool));
         end
+
+        function verifyGenericInvariants(testCase, t, obs, aux, product)
+            % The promises the header-driven reader makes for ANY RL04
+            % product, checked on real bytes. Written as invariants and
+            % not as golden numbers on purpose: a golden number for a
+            % file nobody in this repository has read would be an
+            % assumption dressed as a measurement, which is the failure
+            % O-1 records. The numbers follow when the file does.
+            testCase.verifyEqual(aux.product, product);
+            testCase.verifySize(t, [size(obs, 1), 2]);
+            testCase.verifyGreaterThan(size(t, 1), 0);
+            testCase.verifyEqual(aux.numRecordsActual, size(t, 1));
+            testCase.verifyEqual(aux.timeSystem, 'GPS');
+            testCase.verifyEqual(aux.epochMJD, 51544);
+
+            % strictly increasing epochs, day-of-second in range
+            secs = (t(:,1) - t(1,1)) * 86400 + (t(:,2) - t(1,2));
+            testCase.verifyTrue(all(diff(secs) > 0), ...
+                'Epochs of a real product must be strictly increasing.');
+            testCase.verifyGreaterThanOrEqual(min(t(:,2)), 0);
+            testCase.verifyLessThan(max(t(:,2)), 86400);
+
+            % every declared variable is reachable under its own field
+            testCase.verifyEqual(numel(aux.variableFieldNames), ...
+                numel(aux.variableNames));
+            testCase.verifyEqual(numel(unique(aux.variableFieldNames)), ...
+                numel(aux.variableNames), ...
+                'Two declared variables must never share one aux field.');
+            testCase.verifyEqual(numel(aux.obsNames), size(obs, 2));
+        end
+
     end
 
     methods (Static)
@@ -116,6 +149,52 @@ classdef testRealData < matlab.unittest.TestCase
             pool = string(getenv('READING_DATA_POOL'));
             if strlength(pool) == 0 || ~isfolder(pool)
                 pool = "";
+            end
+        end
+
+        function f = resolveFixture(name)
+            %RESOLVEFIXTURE  Full path of one pool fixture, or "".
+            %
+            % SINGLE POINT OF ACCESS for the fixture LAYOUT, as
+            % resolvePool is for the pool location. G-07 (issue #23):
+            % READING_DATA_POOL names the DATAPOOL ROOT, and the day
+            % fixtures live below it in RawData\tests\realdata.
+            %
+            % Two candidates are tried, in this order:
+            %   1. <ROOT>\RawData\tests\realdata\<name>  - the
+            %      organisation value, the owner's real layout;
+            %   2. <ROOT>\<name>                            - the
+            %      repository-level value, which pointed straight at
+            %      the fixture folder.
+            %
+            % The second is a DELIBERATE FALLBACK for exactly one
+            % release, so that deleting the repository-level variable
+            % and switching to the organisation one cannot turn a
+            % green run into eight skipped acceptance points in the
+            % same step. It goes away with the next release; the CI
+            % step that lists the pool reports which of the two
+            % answered, so the switch is visible rather than inferred.
+            %
+            % INPUT
+            %   name - string | char, 1x1. Bare file name of a fixture.
+            %
+            % OUTPUT
+            %   f - string, 1x1. Full path of the first candidate that
+            %       exists, or "" when the pool is unset or holds
+            %       neither. Callers then fall back to the bundled
+            %       tests/realdata folder and skip as before.
+            f = "";
+            pool = testRealData.resolvePool();
+            if strlength(pool) == 0
+                return
+            end
+            candidates = [fullfile(pool, 'RawData', 'tests', 'realdata', name)
+                          fullfile(pool, name)];
+            for k = 1:numel(candidates)
+                if isfile(candidates(k))
+                    f = candidates(k);
+                    return
+                end
             end
         end
     end
@@ -228,6 +307,58 @@ classdef testRealData < matlab.unittest.TestCase
             testCase.verifyTrue(all(bits(:, 7) & bits(:, 8)));  % bits 6,7
             testCase.verifyEqual(report.meaning(7), "gas_mass_tnk1");
             testCase.verifyEqual(report.meaning(8), "gas_mass_tnk2");
+        end
+
+        function testACH1B(testCase)
+            % G-04 / V-16, issue #19. ACH1B is the hybrid transplant
+            % accelerometer product used by gravity RL06.3
+            % (ACH = ACU + ACS + ACM + AC0). It is an ordinary RL04
+            % YAML product, so what this row verifies is the GENERIC
+            % READER on the real bytes, not a layout: the golden
+            % numbers of this file are added when it is in the pool
+            % and has been read, exactly as the other rows here were
+            % derived from the Python reference before being written.
+            f = testCase.requireFile('ACH1B_2020-01-01_C_04.txt');
+            [t, obs, aux] = gracefoReading.readL1b(f);
+            testCase.verifyGenericInvariants(t, obs, aux, 'ACH1B');
+        end
+
+        function testAHK1B(testCase)
+            % G-04 / V-13, issue #19. The accelerometer housekeeping
+            % product: which columns a record carries is set by
+            % prod_flag, and its declared names are not all MATLAB
+            % identifiers. The acceptance point is the invariant the
+            % reader promises and that failed before 2026-09-22 -
+            % every declared variable keeps its own field - rather
+            % than one file's particular malformed name.
+            f = testCase.requireFile('AHK1B_2020-01-01_C_04.txt');
+            ws = warning('off', 'gracefoReading:readL1b:variableNameAdjusted');
+            c = onCleanup(@() warning(ws)); %#ok<NASGU>
+            [t, obs, aux] = gracefoReading.readL1b(f);
+            testCase.verifyGenericInvariants(t, obs, aux, 'AHK1B');
+
+            testCase.verifyTrue(isfield(aux, 'prod_flag'), ...
+                'AHK1B is documented (R-2 pp. 31-32) as prod_flag driven.');
+            [bits, report] = gracefoReading.decodeQualFlags(aux, 'prod_flag');
+            testCase.verifySize(bits, [size(t, 1), 8]);
+            testCase.verifyGreaterThan(numel(report.meaning), 0);
+            % the accelerometer sensor-unit temperatures are there
+            testCase.verifyTrue(any(contains(aux.variableNames, 'TSU', ...
+                'IgnoreCase', true)), ...
+                'AHK1B is documented to carry the TSU temperatures.');
+        end
+
+        function testLHK1B(testCase)
+            % G-04 / V-14, issue #19. LHK1B is the LRI housekeeping
+            % product; V-14 closed on it carrying LRI temperatures and
+            % NO solar-array temperature, which is why L-09 takes the
+            % thermal-coupling correction from AEI RTC1B instead.
+            f = testCase.requireFile('LHK1B_2020-01-01_C_04.txt');
+            [t, obs, aux] = gracefoReading.readL1b(f);
+            testCase.verifyGenericInvariants(t, obs, aux, 'LHK1B');
+            testCase.verifyTrue(any(contains(aux.variableNames, 'TEMP', ...
+                'IgnoreCase', true)), ...
+                'LHK1B is documented to carry LRI temperatures.');
         end
 
         function testMultiFileMixedProductsRejected(testCase)

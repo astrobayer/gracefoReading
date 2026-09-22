@@ -21,7 +21,7 @@ gains no preprocessing code from it. Facts live in one place, never in two.
 | | |
 |---|---|
 | Version | 1.1.0 (`gracefoReading.version()`; `Contents.m` and `docsrc/functionSpecs.json` must agree) |
-| Tests | Last measured **141 passed, 1 failed, 2 incomplete = 144 total** — CI run 35701780423, head `845861f`, MATLAB R2026a, 2026-09-22, 197.1 s. The **count** was predicted exactly (144) and the split missed by one: `testClassicProducts/testSCA1B` asserted `sca_id` constant at 4, taken from record 1, and it is not constant. The reader was right and the test was wrong — see the note below. Corrected; **the prediction for the next run is 142 passed + 0 failed + 2 incomplete = 144** |
+| Tests | **142 passed, 0 failed, 2 incomplete = 144 total** — CI run 35702315239, head `3c2bf28`, self-hosted Windows runner, MATLAB R2026a on PCWIN64, 2026-09-22, 196.6 s. GREEN. The prediction was stated as a split and matched it on all three numbers. The two incompletes are `testItsgProducts/testFullDayKinematicJitter` and `testRealData/testACH1B`, each one named file from passing |
 | Static gates | `docsrc/sourceIntegrity.py` 50 files / 0 findings · `docsrc/auditHelp.py` 50 help blocks clean · `python3 docsrc/generate_docs.py` then `git diff --exit-code -- html/` clean, and byte-identical on a second run — all four run 2026-09-22 in a sandbox without MATLAB |
 | Public units | 15 in `+gracefoReading/`, 19 internal in `+gracefoReading/+internal/` |
 | Tag / release | `v1.0.0` (lightweight tag + GitHub release, 2026-09-06). **v1.0.1 and v1.0.2 are merged but v1.0.1 has no release and 1.1.0 is unreleased** — see O-4 |
@@ -109,7 +109,8 @@ written from a guess. It has been removed again; what it measured:
   path`, and only then may the fallback be dropped.
 
 **The one failure of run 35701780423 was the test's, and it taught
-something about the product.** `sca_id` is the star-camera HEAD
+something about the product** (fixed in `3c2bf28`; the next run was
+green).** `sca_id` is the star-camera HEAD
 identifier and it is **not constant**: 31 of the fixture's 40 records
 come from head 4 and 9 from head 1, and the full day uses heads 1, 2
 and 4 (12 248 / 6 / 4 564 records). The row asserted a constant taken
@@ -134,6 +135,13 @@ observation columns, 3 repeats, MATLAB R2026a on PCWIN64:
 | `fileread` alone, minimum | **0.059 s — 0.8 % of the total** |
 | throughput | 11 076 records/s, 1.73 MB/s |
 | extrapolated year (365 x the minimum) | **2 847 s = 47.5 min** |
+
+Measured three times on three runs of this branch, since the step runs
+under `always()`: **7.801 s, 7.744 s and 7.525 s** per day, with the
+`fileread` share 0.8 % each time and the year between 45.8 and
+47.5 min. A 3.5 % spread on a shared runner is what one would expect,
+and the decision below does not turn on it - three independent
+measurements agreeing this closely are worth more than any one of them.
 
 **The decision: no fixed-layout fast path, and the reason is not the
 headroom.** The headroom is real — parsing is 99.2 % of the cost, so a

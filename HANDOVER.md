@@ -21,7 +21,7 @@ gains no preprocessing code from it. Facts live in one place, never in two.
 | | |
 |---|---|
 | Version | 1.1.0 (`gracefoReading.version()`; `Contents.m` and `docsrc/functionSpecs.json` must agree) |
-| Tests | **146 passed, 1 failed, 1 incomplete = 148 total** — CI run 35707090459, head `885bdb0`, self-hosted Windows runner, MATLAB R2026a, 2026-09-22, 204.5 s. RED, on one row: `testRealData/testACH1B`, see the finding below. The total and the two new `testClassicProducts` rows were predicted correctly; the split was not. Before that, run 35704249941 (`8ff0ee0`) measured 144 + 0 + 2 = 146 green, and the v1.1.0 release 142 + 0 + 2 = 144 on run 35702315239 (`3c2bf28`, merged as `2c0d7d8`) |
+| Tests | **147 passed, 0 failed, 1 incomplete = 148 total** — CI run 35707792415, head `2d6f226`, self-hosted Windows runner, MATLAB R2026a, 2026-09-22, 205.5 s. GREEN, and the prediction matched on all three numbers. `testClassicProducts` is 16 rows with both MAG1B acceptance points passing, so the handbook naming is verified on real bytes. `testRealData/testACH1B` passes in 7.96 s, which is the full-day file from the pool and not the 120-record extract. The run before it, 35707090459 (`885bdb0`), was RED on that one row — see the finding below. Earlier: 144 + 0 + 2 = 146 on run 35704249941 (`8ff0ee0`), and the v1.1.0 release 142 + 0 + 2 = 144 on run 35702315239 (`3c2bf28`, merged as `2c0d7d8`) |
 | Static gates | `docsrc/sourceIntegrity.py` 50 files / 0 findings · `docsrc/auditHelp.py` 50 help blocks clean · `python3 docsrc/generate_docs.py` then `git diff --exit-code -- html/` clean, and byte-identical on a second run — all four run 2026-09-22 in a sandbox without MATLAB |
 | Public units | 15 in `+gracefoReading/`, 19 internal in `+gracefoReading/+internal/` |
 | Tag / release | **`v1.1.0` is tagged ANNOTATED on the merge commit `2c0d7d8` and released, 2026-09-22 08:13Z** — the first release to meet VERSIONING.md in full. `v1.0.1` is annotated; `v1.0.0` and `v1.0.2` are lightweight and stay so, tags being immutable. O-4 is discharged forward |
@@ -41,7 +41,9 @@ The previous measured total is 121. A run reporting anything else is a
 finding, not a rounding.
 
 **The ACH1B finding, run 35707090459 — a hazard this session wrote
-down and then walked into.** `testACH1B` was written asserting the
+down and then walked into.** *(Fixed in `2d6f226`; run 35707792415 is
+green. Kept because the reason a run goes red is worth more than the
+run.)* `testACH1B` was written asserting the
 bundled 120-record extract. The fixture lookup is **pool first,
 bundled second**, and the owner's pool holds the FULL published day
 under the same name, so the row read 86 400 records and failed on

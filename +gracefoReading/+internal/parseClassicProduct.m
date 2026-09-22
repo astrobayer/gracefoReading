@@ -7,18 +7,26 @@ function [timeMjd, timeNs, obs, aux] = parseClassicProduct(lines, hdrEnd, ...
 %         lines, hdrEnd, fileName, timeVarOpt, columnNames)
 %
 %   DESCRIPTION
-%     EXPERIMENTAL. Classic GRACE ASCII headers are "KEY : VALUE" lines
+%     Classic GRACE ASCII headers are "KEY : VALUE" lines
 %     terminated by "END OF HEADER" and, unlike GRACE-FO YAML headers,
 %     do not declare their data columns. Column layouts therefore come
 %     from built-in per-product tables or from the caller. The record
 %     section is parsed by the same validated engine as the modern
 %     products. Internal function - the public interface is
-%     gracefoReading.readL1b, which warns on every classic read.
+%     gracefoReading.readL1b, which warns only when the CALLER supplies
+%     the layout.
 %
-%     Built-in layouts: ACC1B, SCA1B, GNV1B, KBR1B, THR1B, MAS1B and
-%     MAG1B, taken from gracefoReading.internal.classicLayout - the
-%     same table the binary path uses. Any other classic product,
-%     AHK1B included, requires explicit column names.
+%     Built-in layouts: ACC1B, SCA1B, GNV1B, KBR1B, THR1B, MAS1B,
+%     MAG1B and AHK1B, taken from gracefoReading.internal.classicLayout
+%     - the same table the binary path uses. Any other classic product
+%     requires explicit column names.
+%
+%     The ASCII variant is NOT simply those columns as text, which is
+%     why the order comes from layout.asciiNames and not layout.names:
+%     MAG1B prints GRACE_id before time_ref, and AHK1B writes `status`
+%     as bit characters. Both were measured against the JPL read
+%     software's own Bin2AsciiLevel1 output; neither could have been
+%     inferred from the binary record.
 %
 %   INPUT
 %     lines - string, [L x 1]
@@ -103,6 +111,7 @@ product = '';
 if ~isempty(prodTok), product = prodTok{1}; end
 
 % column layout: explicit override or built-in table
+layout = struct();
 if ~isempty(columnNames)
     varNames = cellstr(columnNames);
 else
@@ -110,30 +119,45 @@ else
     if isempty(fieldnames(layout))
         error('gracefoReading:readL1b:unsupportedClassicProduct', ...
             ['No classic column layout for product "%s" (known: ACC1B, ', ...
-             'SCA1B, GNV1B, KBR1B, THR1B, MAS1B, MAG1B). Supply the ', ...
-             'layout via the ''ColumnNames'' option.'], product);
+             'SCA1B, GNV1B, KBR1B, THR1B, MAS1B, MAG1B, AHK1B). Supply ', ...
+             'the layout via the ''ColumnNames'' option.'], product);
     end
-    varNames = layout.names;
+    % The ASCII order, NOT the binary one: MAG1B prints GRACE_id
+    % before time_ref. classicLayout is the single point of access
+    % for that difference.
+    varNames = layout.asciiNames;
 end
 
-% attributes: units 'char' for the known character columns
-charCols = {'GRACE_id', 'GRACEFO_id', 'coord_ref', 'time_ref'};
-varAttrs = struct();
 % Same field-name rule as the YAML path: 'ColumnNames' is caller-supplied
 % and may hold anything, and parseDataSection looks the attributes up by
 % the field name this call produces.
 classicFields = gracefoReading.internal.variableFieldNames(varNames);
+varAttrs = struct();
+charCols = {'GRACE_id', 'GRACEFO_id', 'coord_ref', 'time_ref'};
 for k = 1:numel(varNames)
     fn = classicFields{k};
-    if any(strcmpi(varNames{k}, charCols))
-        varAttrs.(fn) = struct('units', 'char');
+    a = struct();
+    if isempty(fieldnames(layout))
+        % caller-supplied names: fall back to the known character ones
+        if any(strcmpi(varNames{k}, charCols)), a.units = 'char'; end
     else
-        varAttrs.(fn) = struct();
+        j = find(strcmp(layout.names, varNames{k}), 1);
+        if ~isempty(j) && strcmp(layout.types{j}, 'char')
+            a.units = 'char';
+        end
+        if any(strcmp(layout.asciiBitString, varNames{k}))
+            a.bitStringNumeric = true;
+        end
     end
-    % classic split time tags are documented in microseconds
-    if strcmpi(varNames{k}, 'time_frac')
-        varAttrs.(fn).units = 'microseconds';
+    % Classic split time tags are documented in microseconds, and the
+    % suffix is what says so: THR1B/MAS1B/MAG1B call theirs time_frac,
+    % AHK1B calls its rcvtime_frac because it shares the ACC1A record.
+    % Missing this defaults the scale to 1 and puts the epochs out by
+    % a factor of a million, silently.
+    if endsWith(lower(varNames{k}), '_frac')
+        a.units = 'microseconds';
     end
+    varAttrs.(fn) = a;
 end
 
 dataLines = lines(hdrEnd+1:end);

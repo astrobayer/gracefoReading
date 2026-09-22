@@ -50,6 +50,10 @@ classdef testClassicProducts < matlab.unittest.TestCase
 %     - classic qualflg: a byte in the file, rendered as the same
 %       8-character bit string the GRACE-FO products use, so
 %       decodeQualFlags works on both
+%     - the classic ASCII variant against its binary twin, column for
+%       column, for ACC1B / MAG1B / MAS1B / AHK1B: the MAG1B
+%       time_ref / GRACE_id swap, AHK1B's bit-string `status` and its
+%       rcvtime_frac microseconds, and that none of them warns
 %     - refusals: a truncated file, 'ColumnNames' against a binary
 %       product, and a classic product with no measured layout
 %
@@ -515,6 +519,113 @@ classdef testClassicProducts < matlab.unittest.TestCase
             bias = obs(:, strcmp(aux.obsNames, 'bias_vol'));
             testCase.verifyEqual([min(bias), max(bias)], ...
                 [10.1573, 10.1576], 'AbsTol', 1e-3);
+        end
+
+        function testClassicAsciiMatchesItsBinaryTwin(testCase)
+            % What retires the classicExperimental warning. For each
+            % bundled pair the ASCII file is the SAME 40 records as
+            % the binary one, written by the producer's own format, so
+            % every column has to come back the same. A wrong ASCII
+            % column order yields plausible numbers rather than an
+            % error, which is why this is checked and not argued.
+            for name = ["ACC1B", "MAG1B", "MAS1B"]
+                stem = sprintf('%s_2008-01-01_A_02', name);
+                [tB, oB, aB] = gracefoReading.readL1b( ...
+                    testCase.fixture([stem '.dat']));
+                [tA, oA, aA] = gracefoReading.readL1b( ...
+                    testCase.fixture([stem '.asc']));
+
+                testCase.verifyEqual(aA.headerFormat, 'classic');
+                testCase.verifyEqual(aB.headerFormat, 'classicBinary');
+                testCase.verifyEqual(aA.obsNames, aB.obsNames, sprintf( ...
+                    '%s: the two variants must expose the same observations.', name));
+                testCase.verifyEqual(tA, tB, 'AbsTol', 1e-6, sprintf( ...
+                    '%s: epochs must agree between the variants.', name));
+                testCase.verifyEqual(oA, oB, 'RelTol', 1e-12, 'AbsTol', 1e-20, ...
+                    sprintf('%s: observations must agree between the variants.', name));
+                testCase.verifyEqual(aA.qualflg, aB.qualflg, sprintf( ...
+                    '%s: qualflg is a bit string in both variants.', name));
+            end
+        end
+
+        function testMAG1BAsciiSwapsTimeRefAndGraceId(testCase)
+            % The fact that could not be inferred, and the reason the
+            % warning existed. WrAsciiMAG1XFRecord.c prints GRACE_id
+            % BEFORE time_ref - the opposite of the binary record and
+            % of every other classic product. Read in binary order the
+            % two chars come back exchanged, which no numeric check
+            % would ever catch.
+            [~, ~, aA] = gracefoReading.readL1b( ...
+                testCase.fixture('MAG1B_2008-01-01_A_02.asc'));
+            [~, ~, aB] = gracefoReading.readL1b( ...
+                testCase.fixture('MAG1B_2008-01-01_A_02.dat'));
+
+            testCase.verifyEqual(aA.GRACE_id(1), 'A');
+            testCase.verifyEqual(aA.time_ref(1), 'G');
+            testCase.verifyEqual(aA.GRACE_id, aB.GRACE_id);
+            testCase.verifyEqual(aA.time_ref, aB.time_ref);
+
+            % and the layout says so, rather than the parser knowing it
+            L = gracefoReading.internal.classicLayout('MAG1B');
+            testCase.verifyEqual(L.names{3}, 'time_ref');
+            testCase.verifyEqual(L.names{4}, 'GRACE_id');
+            testCase.verifyEqual(L.asciiNames{3}, 'GRACE_id');
+            testCase.verifyEqual(L.asciiNames{4}, 'time_ref');
+            % every other product prints them in binary order
+            for name = ["THR1B", "MAS1B", "AHK1B"]
+                Lo = gracefoReading.internal.classicLayout(name);
+                testCase.verifyEqual(Lo.asciiNames, Lo.names, sprintf( ...
+                    '%s prints its columns in binary order.', name));
+            end
+        end
+
+        function testAHK1BAsciiStatusAndFractionalSecond(testCase)
+            % Two silent corruptions this file would have caused before
+            % 2026-09-22, neither of which raises anything:
+            %   `status` is written as EIGHT BIT CHARACTERS, so read as
+            %   a decimal it is 10111111 instead of 191;
+            %   the split tag is rcvtime_frac, not time_frac, so the
+            %   microsecond rule missed it and the fraction scaled by 1
+            %   - putting every epoch out by a factor of a million.
+            f = testCase.fixture('AHK1B_2008-01-01_A_02.asc');
+            [tA, oA, aA] = gracefoReading.readL1b(f);
+            [tB, oB, aB] = gracefoReading.readL1b( ...
+                testCase.fixture('AHK1B_2008-01-01_A_02.dat'));
+
+            testCase.verifyEqual(aA.timeVariable, 'rcvtime_intg+rcvtime_frac');
+            testCase.verifyEqual(tA, tB, 'AbsTol', 1e-6);
+            testCase.verifyEqual(tA(1,:), [54465, 86100.792110], 'AbsTol', 1e-6);
+
+            iSt = strcmp(aA.obsNames, 'status');
+            st = oA(:, iSt);
+            testCase.verifyEqual(sum(~isnan(st)), 6, ...
+                'status rides prod_flag bit 25, set in six of the forty records.');
+            testCase.verifyEqual(unique(st(~isnan(st))), 1, ...
+                'Decoded from "00000001", not read as the decimal 1.');
+            testCase.verifyEqual(st, oB(:, iSt), ...
+                'status must agree with the binary variant, NaN pattern included.');
+
+            % a 32-character prod_flag survives the ASCII path too
+            testCase.verifySize(aA.prod_flag, [40, 32]);
+            testCase.verifyEqual(aA.prod_flag, aB.prod_flag);
+
+            % The producer writes AHK1B's single-precision columns with
+            % %.10g, so the ASCII variant is NOT lossless for them -
+            % measured 3.3e-10 relative. Its one double column is
+            % written %.16g and is exact.
+            testCase.verifyEqual(oA, oB, 'RelTol', 1e-9, 'AbsTol', 1e-20);
+            iBias = strcmp(aA.obsNames, 'bias_vol');
+            testCase.verifyEqual(oA(1, iBias), 10.157606470504755, 'AbsTol', 1e-12);
+        end
+
+        function testClassicAsciiNoLongerWarns(testCase)
+            % The retirement itself. A measured layout is a measured
+            % layout in either variant.
+            for nm = ["ACC1B", "MAG1B", "MAS1B", "AHK1B"]
+                f = testCase.fixture(sprintf('%s_2008-01-01_A_02.asc', nm));
+                testCase.verifyWarningFree(@() gracefoReading.readL1b(f), ...
+                    sprintf('Classic ASCII %s is measured and must not warn.', nm));
+            end
         end
 
         function testClassicQualflgIsABitStringLikeEverywhereElse(testCase)

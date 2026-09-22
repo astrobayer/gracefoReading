@@ -33,8 +33,8 @@
 % Validated against real GRACE-FO RL04 files (ACT1B, GNV1B, SCA1B,
 % THR1B, KBR1B, LRI1B, MAS1B, AHK1B, LHK1B); see tests/testRealData.m.
 % Classic GRACE RL02 binary products (ACC1B, SCA1B, GNV1B, KBR1B,
-% THR1B, MAS1B, MAG1B, AHK1B) are validated against real 2008 files; see
-% tests/testClassicProducts.m.
+% THR1B, MAS1B, MAG1B, AHK1B) are validated against real 2008 files in
+% BOTH the binary and the ASCII variant; see tests/testClassicProducts.m.
 %
 %   Toolbox:  gracefoReading v1.1.0
 %   Created:  2026-08-01

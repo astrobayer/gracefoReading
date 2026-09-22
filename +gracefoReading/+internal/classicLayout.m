@@ -65,8 +65,13 @@ function layout = classicLayout(product)
 %                prod_flag bit is set; prodFlagIdx (double) index of
 %                the prod_flag column or 0; recordBytes (double)
 %                fixed record length, or 0 when records are variable;
-%                oracle (char) the physical check this layout was
-%                verified against.
+%                prodFlagBits (double) how many bits the flag
+%                addresses, 8 or 32, or 0; asciiNames (cellstr
+%                [1 x C]) column order of the ASCII variant, which
+%                equals names except for MAG1B; asciiBitString
+%                (cellstr) columns the ASCII variant renders as a bit
+%                string beyond qualflg and prod_flag; oracle (char)
+%                the physical check this layout was verified against.
 %
 %   ACCURACY AND LIMITATIONS
 %     - Verified per product on ACC1B/SCA1B/GNV1B/THR1B/MAS1B/MAG1B/
@@ -173,6 +178,14 @@ arguments
     product (1,1) string
 end
 
+% The ASCII variant is NOT simply the binary columns as text. Two
+% products deviate, both measured against the JPL read software's own
+% Bin2AsciiLevel1 output on 2026-09-22 and neither inferable from the
+% binary record. These two locals carry the deviations; empty means
+% "ASCII prints exactly the binary order, numbers as numbers".
+asciiSwapPair = {};      % two columns the ASCII writer emits swapped
+asciiBits = {};          % columns ASCII renders as a bit string
+
 switch upper(product)
     case 'ACC1B'
         spec = { {'gps_time'}, 'int32'
@@ -248,6 +261,12 @@ switch upper(product)
                  {'torque_cal'}, 'single'
                  {'qualflg'}, 'uint8' };
         oracle = '|B| 18.3-54.5 microtesla; 63 B/record reproduces the file size exactly';
+        % WrAsciiMAG1XFRecord.c prints GRACE_id BEFORE time_ref - the
+        % opposite of the binary record, and of every other product.
+        % Its own THR1B sibling holds the two in the same variables
+        % and passes them the other way round, so this is a quirk of
+        % the writer rather than a convention.
+        asciiSwapPair = {'time_ref', 'GRACE_id'};
 
     case 'AHK1B'
         % The accelerometer housekeeping product, from the JPL GRACE
@@ -278,6 +297,11 @@ switch upper(product)
                  {'Tenhz_count'}, 'uint8'
                  {'Mhz_count'}, 'int32' };
         oracle = 'ICU/SU rails +-15 V, +5 V and +-48 V at nominal; record walk exact';
+        % WrAsciiACC1AFRecord.c case 25 writes `status` as an
+        % 8-character bit string, not a number. Parsed as a number it
+        % would read 10111111 instead of 191 - silently, which is why
+        % the layout has to say so.
+        asciiBits = {'status'};
 
     otherwise
         layout = struct();
@@ -308,6 +332,16 @@ if layout.prodFlagIdx > 0
     layout.prodFlagBits = 8 * localWidth(types{layout.prodFlagIdx});
 end
 layout.oracle = oracle;
+
+% ASCII column order and rendering. Callers of the ASCII path take
+% BOTH from here; nothing infers them from the binary order any more.
+layout.asciiNames = names;
+if ~isempty(asciiSwapPair)
+    i1 = find(strcmp(names, asciiSwapPair{1}), 1);
+    i2 = find(strcmp(names, asciiSwapPair{2}), 1);
+    layout.asciiNames([i1, i2]) = layout.asciiNames([i2, i1]);
+end
+layout.asciiBitString = asciiBits;
 
 widths = cellfun(@localWidth, types);
 if layout.prodFlagIdx > 0

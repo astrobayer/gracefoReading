@@ -1,6 +1,6 @@
 # HANDOVER — gracefoReading
 
-**Revision 4.1 · 2026-09-22 · toolbox v1.1.0**
+**Revision 4.2 · 2026-09-22 · toolbox v1.1.0**
 
 The single point of truth for this repository. Where this document and a
 general engineering habit disagree, this document is right. Read it
@@ -30,10 +30,10 @@ Per-class test counts, for the prediction a next session must make
 *before* running: `testReadL1b` **30**, `testUtilities` 16,
 `testBatchTools` 15, `testItsgProducts` 15, `testRealData` 11,
 `testItsgBatch` 12, `testDataPool` **10** (new, G-06),
-`testClassicProducts` **18** (12 at v1.1.0, +2 RL03, +2 MAG1B,
-+2 AHK1B), `testEventLists` **11** (new, G-05), `testDocConsistency` 7,
-`testSourceIntegrity` 5. Sum **150**, of which 149 pass and **1** is
-the documented incomplete below — `testRealData/testACH1B` stopped
+`testClassicProducts` **22** (12 at v1.1.0, +2 RL03, +2 MAG1B,
++2 AHK1B, +4 classic ASCII), `testEventLists` **11** (new, G-05),
+`testDocConsistency` 7, `testSourceIntegrity` 5. Sum **154**, of which
+153 pass and **1** is the documented incomplete below — `testRealData/testACH1B` stopped
 being incomplete when its fixture was bundled, so the count of
 incompletes went down while the total went up. Predicting the total
 alone would have hidden that.
@@ -390,6 +390,23 @@ below was read off a real file.
   not `time_intg`/`time_frac`, because it shares the ACC1A record.
   Same meaning, same microsecond fraction. The time detection accepts
   both spellings.
+- **The classic ASCII variant is NOT the binary columns as text.** Two
+  products deviate, both measured 2026-09-22 against the JPL read
+  software's own `Bin2AsciiLevel1`, neither inferable from the binary
+  record, and both silent if got wrong:
+  - **MAG1B prints `GRACE_id` before `time_ref`** — the opposite of
+    its binary order and of every other classic product.
+  - **AHK1B writes `status` as eight bit characters**, so a decimal
+    read gives 10 111 111 instead of 191. It is decoded back to a
+    number, not exposed as a bit string, because it is conditional and
+    only `NaN` can say "absent".
+  `classicLayout.asciiNames` and `.asciiBitString` carry both; the
+  parser reads them. The ASCII variant is also **not lossless** for
+  AHK1B's single columns — `%.10g`, so 3.3e-10 relative.
+- **A `_frac` suffix, not the literal name `time_frac`, is what marks
+  a microsecond fraction.** AHK1B calls its `rcvtime_frac`; keying on
+  the literal name defaulted the scale to 1 and put every ASCII epoch
+  out by a factor of a million, silently. Fixed 2026-09-22.
 - **The JPL GRACE Level-1 read software (`GraceReadSW_L1`, release
   2010-03-31) is in hand** as of 2026-09-22 — the producer's own
   reference implementation, and the authority that closed O-15. Its
@@ -488,7 +505,7 @@ outside this table claims to be one.
 
 | id | obligation | owner | re-entry |
 |---|---|---|---|
-| O-1 | **CLOSED 2026-09-22 — the classic layouts are measured.** The owner supplied the RL02 products of 2008-01-01 for GRACE A and B, and the binary layouts of ACC1B, SCA1B, GNV1B, KBR1B, THR1B and MAS1B were derived from those bytes: for each, the declared record count times the derived record length reproduces the data section **exactly**, the first epoch equals the header's TIME FIRST OBS, and a physical quantity was checked (quaternion norm within 1e-6 of unity in all 16 818 + 17 222 SCA1B records; orbit radius 6827-6862 km; range-rate against the derivative of the biased range to 5.8e-6 m/s; thruster- and tank-based spacecraft mass agreeing to 4 g). The assumed table was **wrong**: ACC1B has nine observation columns, not six — the three residual columns were missing entirely. `classicExperimental` no longer fires for the binary variant. What remains is O-15 and the ASCII variant, which is still inferred | — | — |
+| O-1 | **CLOSED 2026-09-22 — the classic layouts are measured.** The owner supplied the RL02 products of 2008-01-01 for GRACE A and B, and the binary layouts of ACC1B, SCA1B, GNV1B, KBR1B, THR1B and MAS1B were derived from those bytes: for each, the declared record count times the derived record length reproduces the data section **exactly**, the first epoch equals the header's TIME FIRST OBS, and a physical quantity was checked (quaternion norm within 1e-6 of unity in all 16 818 + 17 222 SCA1B records; orbit radius 6827-6862 km; range-rate against the derivative of the biased range to 5.8e-6 m/s; thruster- and tank-based spacecraft mass agreeing to 4 g). The assumed table was **wrong**: ACC1B has nine observation columns, not six — the three residual columns were missing entirely. `classicExperimental` no longer fires for the binary variant — nor, since revision 4.2, for the ASCII one, which was measured against the producer's own converter and turned out NOT to be the binary columns as text (MAG1B swaps two of them). Nothing remains | — | — |
 | O-2 | **GROOPS export conventions unverified — now half-closed on the READ side.** Five real GROOPS files (ITSG, version tag `20200123`, identical to the writer's) were read on 2026-09-14, so the reader is verified against real output. The WRITER is not: real GROOPS emits a type-name comment, a column legend and a rule that `writeGroopsInstrument` does not, and it writes `1` as the second header integer where the writer writes the column count. An exported file is therefore still not known to be readable by a GROOPS installation. *Original entry:* `writeGroopsInstrument` writes `groops instrument version=20200123`, a two-integer type/dim header, a lone record count and decimal-MJD records, per the known structure. Neither writer nor reader has been checked against a real GROOPS installation. `NonGravForces` WP-34 (its O-19) closes this from the other side | owner | before production export |
 | O-3 | **Three version literals, one fact.** `astrobayer/ci-actions/VERSIONING.md` says `version.m` reads `Contents.m` at runtime and never hardcodes. Here `version.m`, `Contents.m` and `docsrc/functionSpecs.json` each carry the literal, reconciled by `testDocConsistency` and `auditHelp.py` rather than derived from one source (R1). A bump therefore touches 28 stamps plus three literals by hand | owner | next time the version machinery is touched |
 | O-4 | **CLOSED 2026-09-22.** `v1.1.0` is an **annotated** tag on the merge commit `2c0d7d8` with a GitHub release, which is what VERSIONING.md asks for and what no previous release of this repository had. `v1.0.0` and `v1.0.2` remain lightweight and are left alone: tags are immutable and the correction was always forward-only. Nothing further is owed | — | — |
@@ -560,6 +577,7 @@ The half of it that remains is O-2's writer side, not this.
 | 2026-09-22 | The classic binary layouts were derived from the bytes and each checked against a PHYSICAL quantity, not read from the handbook | The handbook was not at hand, and a layout from memory is what O-1 records as the v1 failure. A structural check alone would not have been enough either: a wrong offset yields plausible numbers. The quaternion norm, the orbit radius, the range-rate against the range derivative and the two independent spacecraft masses are oracles the file cannot satisfy by accident — and one of them caught the real error, ACC1B having nine columns where the assumed table had six |
 | 2026-09-22 | **Superseded for MAG1B the same day, by the handbook arriving.** MAG1B's columns are now named from JPL D-22027 section 6.8 and the product is read; AHK1B stays refused, and the handbook is the reason it stays refused rather than the reason it might not - it has no AHK1B format record at all. The entry below stands as the record of why refusing was right while the document was missing | the discharge condition O-15 stated was met exactly as written, which is what a well-written obligation is for |
 | 2026-09-22 | Classic MAG1B and AHK1B are REFUSED although their structure was measured | Structure is not a layout. Ten of MAG1B's thirteen columns have no name that any document here supplies, and AHK1B's conditional columns have per-bit types a single file cannot reveal. Returning columns under invented names would be worse than refusing, because a caller cannot tell an invented name from a measured one. O-15 records exactly what is known so the gap closes in minutes when the handbook appears |
+| 2026-09-22 | **Reversed the same day, and the caution paid for itself.** The ASCII variant was measured against the JPL read software's own `Bin2AsciiLevel1`: the inference it shares the binary column table is **false for MAG1B**, which prints `GRACE_id` before `time_ref`, and AHK1B writes `status` as bit characters. Holding the warning until a real measurement existed is exactly what kept two silent corruptions out of the toolbox. The entry below stands as the record | the warning now fires only for caller-supplied `ColumnNames` |
 | 2026-09-22 | The classic ASCII variant keeps its `classicExperimental` warning although it now shares the corrected column table | The correction was measured on the BINARY variant. That the ASCII variant of the same product carries the same columns is a sound inference and it is what the shared table assumes, but it is an inference, and no real classic ASCII file has been read here. The warning is the difference between the two, stated |
 | 2026-09-22 | `readL1b` reads BYTES and derives text from them, rather than reading text | A char read applies the file encoding, and an arbitrary binary record is not valid UTF-8: bytes would be replaced or merged and the records destroyed, silently, because the ASCII header would still look perfectly readable. `char()` over a uint8 row is byte-exact, so the text paths see exactly what they saw before |
 | 2026-09-22 | The classic binary dispatch reads the FILE FORMAT field by its RAW key text, not by a sanitised field name | `makeValidName` rewrites "FILE FORMAT 0=BINARY 1=ASCII" in a way that is its business; guessing the result would silently route a binary file through the text parser. Finding the field also required widening the header key pattern, which had never admitted "=" and had been dropping that record — and two others — without a word |

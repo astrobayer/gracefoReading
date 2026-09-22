@@ -68,8 +68,11 @@ function [fieldNames, adjusted] = variableFieldNames(varNames)
 %     % parseDataSection:
 %     [fn, adj] = gracefoReading.internal.variableFieldNames( ...
 %         {'gps_time', 'TSU Z+', 'TSU Z-'});
-%     % fn  = {'gps_time', 'TSUZ_', 'TSUZ__1'}
-%     % adj = [false, true, true]
+%     % fn(1) is 'gps_time' unchanged; fn(2) and fn(3) are two
+%     % DISTINCT valid names, although makeValidName maps both
+%     % declared names onto the same one. adj = [false true true].
+%     % The exact suffix is makeUniqueStrings' business and is not
+%     % promised here - match on varNames, never on a field name.
 %
 %   See also gracefoReading.readL1b,
 %            gracefoReading.internal.parseHeaderVariables,
@@ -84,13 +87,15 @@ arguments
     varNames
 end
 
-names = cellstr(varNames);
-names = reshape(names, 1, []);
-if isempty(names)
+% Emptiness is tested BEFORE cellstr: parseHeaderVariables hands over a
+% 0x0 cell for a header that declares nothing, and cellstr is not
+% required to accept it.
+if isempty(varNames)
     fieldNames = cell(1, 0);
     adjusted = false(1, 0);
     return
 end
+names = reshape(cellstr(varNames), 1, []);
 
 valid = matlab.lang.makeValidName(names);
 tooLong = cellfun(@(s) numel(s) > namelengthmax, valid);

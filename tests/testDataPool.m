@@ -97,7 +97,9 @@ classdef testDataPool < matlab.unittest.TestCase
         end
 
         function f = writeLines(testCase, relName, lines)
-            f = testCase.writeBytes(relName, char(strjoin(lines, newline)));
+            % lines(:)' : strjoin wants a row, and every caller here
+            % writes its fixture as a column of lines.
+            f = testCase.writeBytes(relName, char(strjoin(lines(:)', newline)));
         end
     end
 

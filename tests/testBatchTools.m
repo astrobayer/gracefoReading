@@ -21,7 +21,9 @@ classdef testBatchTools < matlab.unittest.TestCase
 %       and release filters, date-range narrowing, missing-day report,
 %       rejection of decoy names, empty result without error
 %     - readL1bMulti: timeNotMonotonic warning on overlapping files
-%       and warning-free concatenation in correct order
+%       and warning-free concatenation in correct order; the
+%       findL1bFiles -> readL1bMulti workflow run end to end on the
+%       [K x 1] column findL1bFiles returns (G-01)
 %     - readGroopsInstrument: roundtrip against writeGroopsInstrument
 %       including header fields, badFormat and countMismatch errors,
 %       exact int64 nanoseconds from hand-written digit fixtures,
@@ -51,7 +53,7 @@ classdef testBatchTools < matlab.unittest.TestCase
 %
 %   Toolbox:  gracefoReading v1.0.2
 %   Created:  2026-08-01
-%   Updated:  2026-09-14
+%   Updated:  2026-09-22
 %   Author:   Matthias Weigelt with support of Anthropic Claude
 
     properties
@@ -203,6 +205,28 @@ classdef testBatchTools < matlab.unittest.TestCase
             % nothing found is an empty result, not an error
             f4 = gracefoReading.findL1bFiles(d, "LRI1B");
             testCase.verifyEmpty(f4);
+        end
+
+        function testFindL1bFilesOutputFeedsMultiDirectly(testCase)
+            % G-01 / O-11, issue #16. findL1bFiles returns a [K x 1]
+            % column and readL1bMulti declared fileNames (1,:), so the
+            % two-line workflow printed in BOTH help blocks raised a
+            % size-validation error for K > 1. This is the documented
+            % workflow run end to end; it fails on the old declaration.
+            d = testCase.workDir;
+            testCase.writeSimple('ACT1B_2020-01-01_C_04.txt', [0; 43200]);
+            testCase.writeSimple('ACT1B_2020-01-02_C_04.txt', [86400; 129600]);
+
+            files = gracefoReading.findL1bFiles(d, "ACT1B", 'Satellite', "C");
+            testCase.verifySize(files, [2, 1], ...
+                'findL1bFiles is expected to return a column.');
+
+            [t, obs, aux] = gracefoReading.readL1bMulti(files);
+            testCase.verifySize(t, [4, 2]);
+            testCase.verifySize(obs, [4, 1]);
+            testCase.verifyEqual(aux.recordsPerFile, [2; 2]);
+            % aux.fileNames stays a column whatever the caller passed
+            testCase.verifySize(aux.fileNames, [2, 1]);
         end
 
         function testMultiMonotonicWarning(testCase)

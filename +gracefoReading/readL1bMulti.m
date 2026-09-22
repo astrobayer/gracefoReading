@@ -16,9 +16,12 @@ function [time, obs, aux] = readL1bMulti(fileNames, options)
 %     All name-value options are forwarded unchanged to readL1b.
 %
 %   INPUT
-%     fileNames - string | cellstr, 1xK
+%     fileNames - string | cellstr, [1 x K] | [K x 1]
 %                Files in concatenation (typically chronological)
-%                order; K = number of files.
+%                order; K = number of files. Either orientation is
+%                accepted and normalised internally, so the column
+%                gracefoReading.findL1bFiles returns can be passed
+%                straight in.
 %                Validation: mustBeNonempty. Required, positional.
 %
 %     'TimeVariable' - string, 1x1
@@ -129,11 +132,15 @@ function [time, obs, aux] = readL1bMulti(fileNames, options)
 %
 %   Toolbox:  gracefoReading v1.0.2
 %   Created:  2026-08-01
-%   Updated:  2026-09-08
+%   Updated:  2026-09-22
 %   Author:   Matthias Weigelt with support of Anthropic Claude
 
 arguments
-    fileNames (1,:) string {mustBeNonempty}
+    % Deliberately unsized: findL1bFiles returns a [K x 1] column, and the
+    % former (1,:) declaration rejected exactly the two-line workflow both
+    % help blocks print (O-11, issue #16). Normalised to a row below, as
+    % readItsgProductMulti already does.
+    fileNames string {mustBeNonempty}
     options.TimeVariable (1,1) string = ""
     options.TimeRange = []
     options.TimeFormat (1,1) string {mustBeMember(options.TimeFormat, ["mjd","datetime","gpsns"])} = "mjd"
@@ -143,6 +150,7 @@ arguments
     options.ColumnNames (1,:) string = string.empty
 end
 
+fileNames = fileNames(:)';
 nFiles = numel(fileNames);
 timeAll = cell(nFiles, 1); obsAll = cell(nFiles, 1); auxAll = cell(nFiles, 1);
 optArgs = {'TimeVariable', options.TimeVariable, 'TimeRange', options.TimeRange, ...

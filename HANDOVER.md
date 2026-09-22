@@ -21,7 +21,7 @@ gains no preprocessing code from it. Facts live in one place, never in two.
 | | |
 |---|---|
 | Version | 1.1.0 (`gracefoReading.version()`; `Contents.m` and `docsrc/functionSpecs.json` must agree) |
-| Tests | **142 passed, 0 failed, 2 incomplete = 144 total** — CI run 35702315239, head `3c2bf28`, MATLAB R2026a, 2026-09-22, 196.6 s, GREEN; the prediction matched on all three numbers. Merged as `2c0d7d8`. **The RL03 branch adds two rows: the prediction is 144 passed + 0 failed + 2 incomplete = 146** |
+| Tests | **144 passed, 0 failed, 2 incomplete = 146 total** — CI run 35704249941, head `8ff0ee0`, self-hosted Windows runner, MATLAB R2026a, 2026-09-22, 197.6 s. GREEN, and the prediction matched on all three numbers. The v1.1.0 release measured 142 + 0 + 2 = 144 on run 35702315239 (`3c2bf28`, merged as `2c0d7d8`); the two added rows are the RL03 acceptance points |
 | Static gates | `docsrc/sourceIntegrity.py` 50 files / 0 findings · `docsrc/auditHelp.py` 50 help blocks clean · `python3 docsrc/generate_docs.py` then `git diff --exit-code -- html/` clean, and byte-identical on a second run — all four run 2026-09-22 in a sandbox without MATLAB |
 | Public units | 15 in `+gracefoReading/`, 19 internal in `+gracefoReading/+internal/` |
 | Tag / release | **`v1.1.0` is tagged ANNOTATED on the merge commit `2c0d7d8` and released, 2026-09-22 08:13Z** — the first release to meet VERSIONING.md in full. `v1.0.1` is annotated; `v1.0.0` and `v1.0.2` are lightweight and stay so, tags being immutable. O-4 is discharged forward |

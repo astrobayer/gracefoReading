@@ -407,14 +407,98 @@ own commit; these entries are the content, not a release.
   missed by exactly those three.
 
 
+### Added — classic GRACE read from measured layouts (G-02, #17)
+
+- Classic GRACE (2002–2017) products whose header says
+  `FILE FORMAT 0=BINARY 1=ASCII : 0` are now read. The data section is
+  packed **big-endian** binary after the 80-character ASCII header, and
+  `gracefoReading.readL1b` decodes ACC1B, SCA1B, GNV1B, KBR1B, THR1B
+  and MAS1B (the last variable-length, driven by `prod_flag`).
+- **The layouts are measured, not remembered.** They were derived from
+  the real RL02 files of 2008-01-01 for GRACE A and B. For each
+  product the declared record count times the derived record length
+  reproduces the data section exactly, the first epoch equals the
+  header's `TIME FIRST OBS`, and a physical quantity was checked:
+  quaternion norm within 1e-6 of unity in all 16 818 + 17 222 SCA1B
+  records; orbit radius 6827–6862 km and speed ~7.6 km/s; the
+  derivative of the biased range matching the range-rate column to a
+  median 5.8e-6 m/s; and the thruster- and tank-based spacecraft
+  masses agreeing to 4 g.
+- **The assumed table was wrong.** Classic ACC1B has **nine**
+  observation columns; the built-in table had six, the three residual
+  columns (`acl_x_res`, `acl_y_res`, `acl_z_res`) missing entirely.
+  That is what obligation O-1 existed to catch, and it is now closed.
+- The binary variant no longer warns `classicExperimental`. The ASCII
+  variant still does: it shares the corrected column table, but that
+  it carries the same columns is an inference from the binary variant
+  and no real classic ASCII file has been read here.
+- **Classic qualflg is a single-byte bitmask** — V-8's open question,
+  answered by measurement. The reader renders it as the same
+  8-character bit string the GRACE-FO products use, so
+  `decodeQualFlags` works on classic and modern files unchanged.
+- **Classic MAG1B and AHK1B are refused**, deliberately. Their
+  structure was measured too (MAG1B is 63 bytes with 13 float32 after
+  the time frame, and |B| comes out at 18–55 µT), but ten of MAG1B's
+  columns could not be named from any document at hand and AHK1B's
+  conditional columns carry per-bit value *types* a single file cannot
+  reveal. Inventing either is the failure O-1 records, so both raise
+  `unsupportedClassicProduct` naming exactly what is known. See O-15.
+- New internals: `readBytesMaybeGz` (byte-exact reading — a char read
+  applies the file encoding and would destroy binary records
+  silently), `classicLayout`, `parseClassicBinary`, and
+  `parseClassicHeader`, the last shared with the ASCII path so the two
+  cannot disagree about what a header says.
+- Six trimmed classic fixtures are bundled, with
+  `tests/python_reference/classic_reference.py` as the independent
+  decoder the golden numbers come from.
+
+### Added — `gracefoReading.readEventList` (G-05, #20)
+
+- Reads the two official event lists: **TN-01** (sequence of events,
+  machine-readable) and **TN-01a** (spacecraft events, the operators'
+  log), returning one table row per event with its source line.
+- TN-01's grammar is honoured exactly — `<epoch> <satellite> <key>
+  <count> <count values> <free text>` — so a `QSA` row yields its five
+  numbers and a `MANV` manoeuvre row its four. All 3 402 lines of the
+  published list parse under it, measured. A line commented out with a
+  leading `x` is **kept and flagged**, not dropped: dropping it would
+  lose the record that the value was once there.
+- TN-01a entries are grouped under their date, with wrapped
+  continuation lines joined to the entry they belong to.
+- **It reads; it does not interpret.** No manoeuvre window is
+  extracted from a sentence like "performed a calibration maneuver
+  from 06:19:26 to 06:21:33 (2.0 cm/sec)". CONCEPT is explicit that
+  nothing is inferred that a list states, and turning these rows into
+  mask layers is X-05's business. `dayOnly` marks the TN-01a rows
+  whose time is a date and not an instant, and `timeSystem` is
+  reported as `"date"` for them because the file states no time scale.
+- A row that does not match its own declared value count is reported
+  by line number in `aux.unparsableLines`, never guessed at.
+
+### Changed — one epoch formula, one classic header parser
+
+- The GPS-epoch arithmetic moved to `internal/gpsSecondsToMjd`, shared
+  by the header-driven and the classic binary parsers, and it returns
+  the epoch integer so that 51544 is not written out twice either. The
+  2026-09-14 entry explains the rule: a formula in two files can
+  diverge and shift every epoch of one reader with nothing visible to
+  say so.
+- `internal/parseClassicHeader` is now the one parser for the classic
+  `KEY : VALUE` dialect. Its key pattern had never admitted `=`, so it
+  had been silently dropping `FILE FORMAT 0=BINARY 1=ASCII` — the very
+  record the binary dispatch turns on — along with two others.
+
 ### Still open
 
-- **G-02 (#17)** classic GRACE layouts and **G-05 (#20)** the official
-  event lists are untouched. Both need real bytes — classic RL02/RL03
-  L1B, whose RL03 records are binary after an 80-byte ASCII header, and
-  the TN-01 / TN-01a lists — that exist only in the owner's DATAPOOL.
-  Writing either from a handbook remembered rather than read is exactly
-  the failure O-1 records. See O-14.
+- **Classic RL03** is not read. The files supplied are release 02;
+  RL03 carries only KBR1B, SCA1B and the transplant, and no RL03 file
+  was available. Nothing here claims to read one — the record-length
+  self-check is what will say so if its layout differs.
+- **Classic MAG1B and AHK1B** are refused; see O-15 above.
+- **The classic ASCII variant** is still inferred rather than
+  measured, and still warns.
+- One acceptance point, `testRealData/testACH1B`, stays incomplete
+  until `ACH1B_2020-01-01_C_04.txt` reaches the pool.
 
 ## 1.0.2 — 2026-09-09
 

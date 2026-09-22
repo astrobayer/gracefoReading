@@ -1,6 +1,6 @@
 # HANDOVER — gracefoReading
 
-**Revision 3.5 · 2026-09-22 · toolbox v1.1.0**
+**Revision 3.6 · 2026-09-22 · toolbox v1.1.0**
 
 The single point of truth for this repository. Where this document and a
 general engineering habit disagree, this document is right. Read it
@@ -21,20 +21,20 @@ gains no preprocessing code from it. Facts live in one place, never in two.
 | | |
 |---|---|
 | Version | 1.1.0 (`gracefoReading.version()`; `Contents.m` and `docsrc/functionSpecs.json` must agree) |
-| Tests | **119 passed, 0 failed, 2 incomplete = 121 total** — CI run 35698502947, head `efd8656`, self-hosted Windows runner, MATLAB R2026a on PCWIN64, 2026-09-22, 195.6 s. GREEN. The prediction was stated as a split, `119 + 0 + 2 = 121`, and matched it exactly, per class. The two incompletes are `testItsgProducts/testFullDayKinematicJitter` and `testRealData/testACH1B`, both named below with the one file each waits for |
-| Static gates | `docsrc/sourceIntegrity.py` 42 files / 0 findings · `docsrc/auditHelp.py` 42 help blocks clean · `python3 docsrc/generate_docs.py` then `git diff --exit-code -- html/` clean, and byte-identical on a second run — all four run 2026-09-22 in a sandbox without MATLAB |
-| Public units | 14 in `+gracefoReading/`, 14 internal in `+gracefoReading/+internal/` |
+| Tests | Last measured **119 passed, 0 failed, 2 incomplete = 121 total** — CI run 35698502947, head `efd8656`, MATLAB R2026a on PCWIN64, 2026-09-22, GREEN; that prediction matched its run exactly. **G-02 and G-05 then landed on the same branch, so the prediction for the next run is 142 passed + 0 failed + 2 incomplete = 144** (`testClassicProducts` 12 and `testEventLists` 11 are new, `testReadL1b` unchanged at 30; the two incompletes are unchanged) |
+| Static gates | `docsrc/sourceIntegrity.py` 50 files / 0 findings · `docsrc/auditHelp.py` 50 help blocks clean · `python3 docsrc/generate_docs.py` then `git diff --exit-code -- html/` clean, and byte-identical on a second run — all four run 2026-09-22 in a sandbox without MATLAB |
+| Public units | 15 in `+gracefoReading/`, 19 internal in `+gracefoReading/+internal/` |
 | Tag / release | `v1.0.0` (lightweight tag + GitHub release, 2026-09-06). **v1.0.1 and v1.0.2 are merged but v1.0.1 has no release and 1.1.0 is unreleased** — see O-4 |
 
 Per-class test counts, for the prediction a next session must make
-*before* running: `testReadL1b` **30** (+5: two for G-04's header
-names, three for the rest-of-line column), `testUtilities` **16** (+1
-for G-01), `testBatchTools` **15** (+1 for G-01), `testItsgProducts`
-15, `testRealData` **11** (+3 for G-04), `testItsgBatch` 12,
-`testDataPool` **10** (new 2026-09-22, G-06), `testDocConsistency` 7,
-`testSourceIntegrity` 5. Sum **121**, of which 119 pass and 2 are the
-documented incompletes below. The previous measured total is 101. A run
-reporting anything else is a finding, not a rounding.
+*before* running: `testReadL1b` **30**, `testUtilities` 16,
+`testBatchTools` 15, `testItsgProducts` 15, `testRealData` 11,
+`testItsgBatch` 12, `testDataPool` **10** (new, G-06),
+`testClassicProducts` **12** (new, G-02), `testEventLists` **11**
+(new, G-05), `testDocConsistency` 7, `testSourceIntegrity` 5. Sum
+**144**, of which 142 pass and 2 are the documented incompletes below.
+The previous measured total is 121. A run reporting anything else is a
+finding, not a rounding.
 
 **Predict the split, not just the sum.** The 2026-09-14 prediction gave
 the per-class sum correctly as 89 and then wrote it as "89 passed and 1
@@ -196,17 +196,36 @@ One PR carrying one commit per WP row, per GUIDE section 1.
 | G-06 | #21 | `gracefoReading.verifyDataPool` verifies a pool against the checksum manifests its sources publish (the ISDC MD5 lists, the SHA-256 manifests written beside the data), reporting per file OK / MISMATCH / MISSING / UNLISTED with the manifest that made each claim |
 | G-07 | #23 | `READING_DATA_POOL` is read as the DATAPOOL **root**: fixtures resolve as `<ROOT>\RawData\tests\realdata\<name>`, falling back to `<ROOT>\<name>` for one release so both values of the variable work. Help text, README and the CI reporting step say the same thing |
 
+**Scope widened 2026-09-22, mid-branch, and why.** The freeze above put
+G-02 (#17) and G-05 (#20) out of scope because the bytes they need
+could not be reached — recorded as O-14. **The owner then supplied
+them**: sixteen files, the classic RL02 products of 2008-01-01 for
+GRACE A and B and both official event lists. O-14's discharge
+condition was met exactly as it was written, so the two work packages
+came into scope rather than waiting for a second PR. What that adds is
+in the WP table below; the frozen rows above are unchanged, and the
+green run they were measured on (35698502947) still stands as their
+verdict.
+
+| WP | issue | what the widening delivers |
+|---|---|---|
+| G-02 | #17 | classic GRACE read from **measured** layouts, not from a remembered handbook. O-1 closes |
+| G-05 | #20 | `gracefoReading.readEventList` for TN-01 and TN-01a, reading without interpreting |
+
 **Out of scope on this branch**
 
-- **G-02 (#17)** and **G-05 (#20)** are not implemented. Both need real
-  bytes — classic RL02/RL03 L1B (binary records after an 80-byte ASCII
-  header) and the TN-01 / TN-01a event lists — that exist only in the
-  owner's DATAPOOL. The sandbox's network policy denies
-  `isdc-data.gfz.de` (measured 2026-09-22: `403 CONNECT` from the egress
-  proxy, for both the RL03 tree and `DOCUMENTS/TECHNICAL_NOTES/`), so the
-  files could not be fetched either. Writing either layout from a handbook
-  read from memory is precisely the v1 failure O-1 records, so neither was
-  written. See O-1 and the new O-14.
+- ~~G-02 and G-05~~ — **superseded, see the widening above.** The
+  original reason stands as a record: the sandbox's network policy
+  denies `isdc-data.gfz.de` (measured 2026-09-22, `403 CONNECT`, for
+  both the RL03 tree and `DOCUMENTS/TECHNICAL_NOTES/`), so the files
+  could not be fetched. They were supplied directly instead.
+- **Classic RL03 is still out of scope.** The files supplied are
+  release 02. RL03 carries only KBR1B and SCA1B plus the transplant,
+  and no RL03 file was available, so nothing here claims to read one —
+  the record-length self-check is what will say so if its layout
+  differs.
+- **Classic MAG1B and AHK1B are not read.** Measured but not named;
+  see the new O-15.
 - No preprocessing code (CONCEPT, 2026-09-18).
 - No whitespace sweep of the two over-length lines in `readL1bMulti.m`
   (section D): a sweep is its own change and this branch edits that file
@@ -312,15 +331,24 @@ outside this table claims to be one.
 
 | id | obligation | owner | re-entry |
 |---|---|---|---|
-| O-1 | **Classic GRACE layouts are ASSUMED, not validated.** The built-in ACC1B/SCA1B/KBR1B/GNV1B column tables in `internal/parseClassicProduct.m` come from the GRACE L1B handbook *from memory*. Every classic read warns `classicExperimental`. Before any scientific use: obtain one real classic file per product, then either confirm the layouts (add the files to `tests/realdata/`, drop the warning) or correct the tables. Classic `qualflg` may be decimal rather than an 8-character bit string — verify. The v1 lesson applies exactly: invented formats fail on real files **Scheduled 2026-09-18 as concept G-02** (Q6: classic GRACE is in scope of the preprocessing pipeline); the owner supplies the real files when that work starts. **2026-09-19, measured while fetching D-8 (issue #17):** the files exist in the DATAPOOL for 2008-07, 2012-01 and 2017-01, and the problem is larger than a column table — classic RL03 `.dat` files are **binary after an ASCII header** (`FILE FORMAT 0=BINARY 1=ASCII : 0`, `NUMBER OF HEADER RECORDS : 47`), RL03 holds only KBR1B, SCA1B and the transplant, and the full product set is RL02. O-5 (binary L1B unsupported) therefore stands between G-02 and its own data. **2026-09-22:** still not started; see O-14 for why it could not be started from this sandbox | owner | one real classic file per product reachable from the working session (G-02) |
+| O-1 | **CLOSED 2026-09-22 — the classic layouts are measured.** The owner supplied the RL02 products of 2008-01-01 for GRACE A and B, and the binary layouts of ACC1B, SCA1B, GNV1B, KBR1B, THR1B and MAS1B were derived from those bytes: for each, the declared record count times the derived record length reproduces the data section **exactly**, the first epoch equals the header's TIME FIRST OBS, and a physical quantity was checked (quaternion norm within 1e-6 of unity in all 16 818 + 17 222 SCA1B records; orbit radius 6827-6862 km; range-rate against the derivative of the biased range to 5.8e-6 m/s; thruster- and tank-based spacecraft mass agreeing to 4 g). The assumed table was **wrong**: ACC1B has nine observation columns, not six — the three residual columns were missing entirely. `classicExperimental` no longer fires for the binary variant. What remains is O-15 and the ASCII variant, which is still inferred | — | — |
 | O-2 | **GROOPS export conventions unverified — now half-closed on the READ side.** Five real GROOPS files (ITSG, version tag `20200123`, identical to the writer's) were read on 2026-09-14, so the reader is verified against real output. The WRITER is not: real GROOPS emits a type-name comment, a column legend and a rule that `writeGroopsInstrument` does not, and it writes `1` as the second header integer where the writer writes the column count. An exported file is therefore still not known to be readable by a GROOPS installation. *Original entry:* `writeGroopsInstrument` writes `groops instrument version=20200123`, a two-integer type/dim header, a lone record count and decimal-MJD records, per the known structure. Neither writer nor reader has been checked against a real GROOPS installation. `NonGravForces` WP-34 (its O-19) closes this from the other side | owner | before production export |
 | O-3 | **Three version literals, one fact.** `astrobayer/ci-actions/VERSIONING.md` says `version.m` reads `Contents.m` at runtime and never hardcodes. Here `version.m`, `Contents.m` and `docsrc/functionSpecs.json` each carry the literal, reconciled by `testDocConsistency` and `auditHelp.py` rather than derived from one source (R1). A bump therefore touches 28 stamps plus three literals by hand | owner | next time the version machinery is touched |
 | O-4 | **Tagging is behind and off-standard.** `v1.0.0` is a *lightweight* tag; VERSIONING.md requires an annotated tag plus a GitHub release per version. v1.0.1 is merged with neither. Tags are immutable and are never moved, so `v1.0.0` stays as it is; the correction is forward-only | owner | before anyone depends on a pinned version |
-| O-5 | **Binary L1B is unsupported** and refuses with an explicit error. Only the ASCII products are read | — | if a binary product is ever needed |
+| O-5 | **Superseded in part, 2026-09-22.** Classic GRACE binary products ARE now read (O-1). What remains true is narrower and not a gap: the GRACE-FO releases this toolbox targets publish ASCII only, so there is no binary GRACE-FO product to support | — | if a binary GRACE-FO product ever appears |
 | O-6 | **RL05+ header conventions are unknown.** If PO.DAAC changes them, extend `internal/parseHeaderVariables.m` and add the new files to `tests/realdata/` | owner | when RL05 appears |
-| O-14 | **G-02 (#17) and G-05 (#20) are blocked on bytes no working session can reach.** Both need real files: classic RL02/RL03 L1B (binary records, per O-1) and the official event lists TN-01 SOE / TN-01a SCE. They exist in the owner's DATAPOOL, which a Claude Code session does not see, and **the network policy of the remote execution environment denies `isdc-data.gfz.de`** — measured 2026-09-22, `403` to `CONNECT` from the egress proxy, for both `…/grace/Level-1B/JPL/INSTRUMENT/RL03/` and `…/grace-fo/DOCUMENTS/TECHNICAL_NOTES/`, through `curl` and through the fetch tool alike. `raw.githubusercontent.com` answers, so the policy is a host allow-list and not a broken proxy. Writing either reader from a handbook remembered rather than read is the v1 failure O-1 records, so neither was written. **Discharged by any one of:** the owner adding those hosts to the environment's network policy; the owner pasting one classic ASCII header, a hexdump of its first binary records and the first lines of a TN-01 / TN-01a list into the session; or the work moving to a session that can see the DATAPOOL | owner | before G-02 or G-05 is started again |
+| O-15 | **Classic MAG1B and AHK1B are measured but not named, so they are refused.** MAG1B is 63 bytes per record — `time_intg`, `time_frac` (microseconds), `time_ref`, `GRACE_id`, **13 float32**, `qualflg` — and the first three floats are the magnetic field vector, measured: 18-55 microtesla over the day, which is the Earth's field. The remaining ten could not be named from a documented sibling, this repository bundling no real GRACE-FO MAG1B header. AHK1B is variable-length with a 4-byte `prod_flag`, and its conditional columns carry per-bit value **types** that one file cannot reveal (record lengths 53 and 98 bytes were measured). Both raise `unsupportedClassicProduct` naming exactly this, rather than being decoded on a guess. **Discharged by:** the GRACE Level-1B handbook (JPL D-22027) column tables for these two products, or a real GRACE-FO MAG1B/AHK1B header to carry the names over from | owner | when either document or product is at hand |
 | O-10 | **`neutralDensity` is not in the product table.** The ITSG server publishes it and the README gives two different column layouts for releases 1.0 and 1.5/2.0, but no real file was read, so no entry was written. It parses as a generic GROOPS file and warns `productNotRecognised`. Writing the entry from the README alone is the mistake O-1 records | owner | when a real neutralDensity file exists |
 | O-7 | **CLOSED 2026-09-22 — measured, then decided.** `readL1b` takes **7.801 s** on one real ACT1B day (86 400 records, 13.5 MB), of which `fileread` is 0.059 s: parsing is 99.2 % of the cost. A year extrapolates to **47.5 min**. No fixed-layout `textscan` fast path is built, and not for want of headroom — see section A for the two reasons (47.5 min/year is not a bottleneck and `'CacheDir'` pays it once; and it would be a second parsing path for one of the reader's three record grammars). `ci/benchmarkParse` and its CI step stay, so re-opening it costs one command | — | a campaign run of X-15 measuring parse time as its dominant cost |
+
+Closed: **O-14** (G-02 and G-05 blocked on unreachable bytes) — opened
+and discharged on 2026-09-22. It was opened because the DATAPOOL is
+invisible to a Claude Code session and the environment's network policy
+answers 403 to the ISDC host; it was discharged the same day by the
+owner supplying the sixteen files directly. The obligation did its job:
+it stated a precise condition, and that condition is what was met. The
+network measurement stays recorded in A2, because it will be true again
+next time.
 
 Closed: **O-11** (`readL1bMulti` could not take what `findL1bFiles`
 returns) — fixed 2026-09-22 in this branch as G-02's sibling G-01, issue
@@ -372,6 +400,14 @@ The half of it that remains is O-2's writer side, not this.
 | 2026-09-14 | `readItsgProductMulti` declares `fileNames` unsized and normalises it, rather than copying `readL1bMulti`'s `(1,:)` | `findItsgFiles` returns a `[K x 1]` column, exactly as `findL1bFiles` does. Copying the declaration would have reproduced O-11, where the documented two-line workflow fails for more than one file |
 | 2026-09-18 | The preprocessing concept is the design authority for preprocessing, accelerometer calibration and LRI/KBR processing across the ecosystem. It was drafted here on branch `claude/preproc-concept` and moved to `astrobayer/timeSeriesPreparation` `docs/` at X-00a (timeSeriesPreparation#2); decisions Q1–Q16 are in its section 11 and not restated here. **Consequence for this repository:** no preprocessing code; reader obligations G-01 #16 (= O-11), G-02 #17 (= O-1), G-03 #18 (= O-7), G-04 #19, G-05 #20, G-06 #21 | owner |
 | 2026-09-18 | **Correction, measured after the merge:** PR #15 was merged with a **merge commit** (`de87fbf`, parents `a18e9ad` and `4a6bc8c`), not squashed as planned, and its branch was deleted. The tree is as intended (net change `HANDOVER.md` only; CI on `main` run 35392857232 green), but `main`'s history now contains every concept draft (`2d7a06c` … `4c08cb7`) and the two input zips (AccelBiasScaleToolbox 2.4.2, sigtools 1.3.1; about 2.7 MB). Accepted: removing them would mean rewriting `main`, which the ruleset forbids and nothing requires. The concept's pre-move history stays reachable from `main` up to `4c08cb7` | measured 2026-09-18; the planned squash (concept Q14 item 5) did not happen |
+| 2026-09-22 | The classic binary layouts were derived from the bytes and each checked against a PHYSICAL quantity, not read from the handbook | The handbook was not at hand, and a layout from memory is what O-1 records as the v1 failure. A structural check alone would not have been enough either: a wrong offset yields plausible numbers. The quaternion norm, the orbit radius, the range-rate against the range derivative and the two independent spacecraft masses are oracles the file cannot satisfy by accident — and one of them caught the real error, ACC1B having nine columns where the assumed table had six |
+| 2026-09-22 | Classic MAG1B and AHK1B are REFUSED although their structure was measured | Structure is not a layout. Ten of MAG1B's thirteen columns have no name that any document here supplies, and AHK1B's conditional columns have per-bit types a single file cannot reveal. Returning columns under invented names would be worse than refusing, because a caller cannot tell an invented name from a measured one. O-15 records exactly what is known so the gap closes in minutes when the handbook appears |
+| 2026-09-22 | The classic ASCII variant keeps its `classicExperimental` warning although it now shares the corrected column table | The correction was measured on the BINARY variant. That the ASCII variant of the same product carries the same columns is a sound inference and it is what the shared table assumes, but it is an inference, and no real classic ASCII file has been read here. The warning is the difference between the two, stated |
+| 2026-09-22 | `readL1b` reads BYTES and derives text from them, rather than reading text | A char read applies the file encoding, and an arbitrary binary record is not valid UTF-8: bytes would be replaced or merged and the records destroyed, silently, because the ASCII header would still look perfectly readable. `char()` over a uint8 row is byte-exact, so the text paths see exactly what they saw before |
+| 2026-09-22 | The classic binary dispatch reads the FILE FORMAT field by its RAW key text, not by a sanitised field name | `makeValidName` rewrites "FILE FORMAT 0=BINARY 1=ASCII" in a way that is its business; guessing the result would silently route a binary file through the text parser. Finding the field also required widening the header key pattern, which had never admitted "=" and had been dropping that record — and two others — without a word |
+| 2026-09-22 | `readEventList` returns TN-01a entries as date plus text, and extracts no manoeuvre windows from the prose | CONCEPT 9 is explicit that nothing is inferred that a list states, and the interpretation belongs to X-05. TN-01a is an operators' log written by different people over years; a regex over it would look like structure and behave like a guess. TN-01's declared value count IS structure, and that is parsed exactly — all 3 402 lines of the published file parse under it, measured |
+| 2026-09-22 | A TN-01 row commented out with a leading "x" is kept and flagged, not dropped | Dropping it would lose the record that the value was once there, which is precisely what a caller reconstructing a history needs. `disabled` lets the caller decide, which is the same reason the unparsable line numbers are returned rather than swallowed |
+| 2026-09-22 | The epoch arithmetic moved to `internal/gpsSecondsToMjd`, shared by the ASCII and the classic binary parsers, and it returns the epoch integer too | The 2026-09-14 entry says why in its own words: the formula was once about to live in two files, and a divergence would shift every epoch of one reader with nothing visible to say so. The classic binary parser would have been that second file. The epoch integer 51544 comes back from the helper for the same reason — a second copy is a second thing to get wrong |
 | 2026-09-22 | A record may exceed its declared column count only where the last declared variable says so **in its own comment or long_name**, and then it takes the rest of the line verbatim | Read off real LHK1B: `comment: Entire remaining portion of each record`. Two rules were available and only one is file-driven. "The last column is text" would have keyed on `units: char`, which `sensorname` does not declare, so it would not have fired; "surplus tokens go to the last column" would have weakened the row-integrity check for every product. The header's own sentence is the licence, so the check stays strict everywhere else and a SHORT record is still an error |
 | 2026-09-22 | The shared real-data invariant asserts **non-decreasing** epochs, not strictly increasing | LHK1B is long format — one record per sensor per epoch — and opens with three records sharing 631108800.872776889. Strict monotonicity is a property of the one-record-per-epoch products, not of L1B as such, and asserting it in a shared helper would have made a correct file look corrupt |
 | 2026-09-22 | The LHK1B fix waited one CI round for a header dump instead of being written from the owner's description of the format | The description (sensortype, sensorvalue, sensorname) was right and would have produced a working reader, but by inference. The dump then showed two things the inference did not: the licence is a sentence rather than `units: char`, and the product is long format. Both would have been defects. One round of CI is cheaper than either |
@@ -427,12 +463,23 @@ The half of it that remains is O-2's writer side, not this.
    (G-07, #23). Dropping it is a one-line change in
    `testRealData.resolveFixture` plus the CI step's `cand` list, and
    must not happen until a green run reports `0 via the legacy path`.
-9. **Five of the seven G-items are done; G-02 and G-05 are not, and
-   the reason is not effort.** O-14 records it: the bytes are in the
-   DATAPOOL and the environment's network policy denies the ISDC host.
-   A next session that cannot reach either should say so rather than
-   writing a layout from a handbook — that is exactly the v1 failure.
-10. **gracefoReading gains no preprocessing code from the concept.** Its
+9. **All seven G-items are done.** G-02 and G-05 were blocked on
+   bytes no session could reach (O-14) and were unblocked the same day
+   by the owner supplying sixteen files directly. The lesson to carry
+   forward is the shape of that obligation, not its subject: it named
+   a precise discharge condition, and that condition is what was met.
+10. **The classic layouts are measured, and one of them was wrong.**
+   ACC1B carries NINE observation columns; the table assumed from the
+   handbook had six, the three residual columns missing altogether. If
+   you find yourself about to trust a layout nobody in this repository
+   has read off a file, read O-1's history first — it is closed now,
+   but it was open for two months for good reason.
+11. **Classic qualflg is a byte.** The binary files store it as a
+   single-byte bitmask, not as text. The reader renders it as the same
+   8-character bit string the GRACE-FO products use, so
+   `decodeQualFlags` works on both unchanged. V-8's open question is
+   answered.
+12. **gracefoReading gains no preprocessing code from the concept.** Its
    items are G-01 … G-06 (issues #16–#21). The design, the order of work and
    the procedures live in `astrobayer/timeSeriesPreparation` (`docs/CONCEPT.md`,
    `docs/GUIDE.md`). The concept's history before the move is in this

@@ -81,7 +81,7 @@ function [timeMjd, timeNs, obs, aux] = parseClassicProduct(lines, hdrEnd, ...
 %
 %   Toolbox:  gracefoReading v1.0.2
 %   Created:  2026-08-01
-%   Updated:  2026-09-06
+%   Updated:  2026-09-22
 %   Author:   Matthias Weigelt with support of Anthropic Claude
 
 headerLines = cellstr(lines(1:hdrEnd));
@@ -123,8 +123,12 @@ end
 % attributes: units 'char' for the known character columns
 charCols = {'GRACE_id', 'GRACEFO_id', 'coord_ref', 'time_ref'};
 varAttrs = struct();
+% Same field-name rule as the YAML path: 'ColumnNames' is caller-supplied
+% and may hold anything, and parseDataSection looks the attributes up by
+% the field name this call produces.
+classicFields = gracefoReading.internal.variableFieldNames(varNames);
 for k = 1:numel(varNames)
-    fn = matlab.lang.makeValidName(varNames{k});
+    fn = classicFields{k};
     if any(strcmpi(varNames{k}, charCols))
         varAttrs.(fn) = struct('units', 'char');
     else

@@ -64,7 +64,8 @@ function [time, obs, aux] = readL1bMulti(fileNames, options)
 %                Concatenated observation columns, ordered as
 %                aux.obsNames.
 %     aux  - struct, 1x1
-%                obsNames, variableNames, variableUnits,
+%                obsNames, variableNames, variableFieldNames,
+%                variableUnits,
 %                variableAttributes, timeVariable, timeSystem,
 %                epochDescription, epochMJD taken from the first file;
 %                fileNames [K x 1], products [K x 1], headers [K x 1],
@@ -210,6 +211,7 @@ end
 aux = struct();
 aux.obsNames           = refObsNames;
 aux.variableNames      = auxAll{1}.variableNames;
+aux.variableFieldNames = auxAll{1}.variableFieldNames;
 aux.variableUnits      = auxAll{1}.variableUnits;
 aux.variableAttributes = auxAll{1}.variableAttributes;
 aux.timeVariable       = auxAll{1}.timeVariable;
@@ -224,10 +226,10 @@ aux.numRecordsHeader   = cellfun(@(a) a.numRecordsHeader, auxAll);
 aux.numRecordsActual   = cellfun(@(a) a.numRecordsActual, auxAll);
 aux.numRecordsFlagged  = cellfun(@(a) a.numRecordsFlagged, auxAll);
 
-metaFields = {'obsNames','variableNames','variableUnits','variableAttributes', ...
-    'header','fileName','product','timeVariable','timeSystem','epochDescription', ...
-    'epochMJD','numRecordsHeader','numRecordsActual','numRecordsFlagged', ...
-    'headerFormat','cacheHit','classicHeaderFields'};
+metaFields = {'obsNames','variableNames','variableFieldNames','variableUnits', ...
+    'variableAttributes','header','fileName','product','timeVariable','timeSystem', ...
+    'epochDescription','epochMJD','numRecordsHeader','numRecordsActual', ...
+    'numRecordsFlagged','headerFormat','cacheHit','classicHeaderFields'};
 candidates = setdiff(fieldnames(auxAll{1}), metaFields, 'stable');
 
 for f = 1:numel(candidates)

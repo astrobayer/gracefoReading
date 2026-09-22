@@ -22,8 +22,14 @@ function [time, obs, aux] = readL1b(fileName, options)
 %         MAG1B,
 %       - bit-string flag columns (qualflg, prod_flag) preserved as
 %         character bit patterns and decoded into logical bit matrices,
-%       - prod_flag-controlled variable-length records (e.g. MAS1B);
-%         absent values are returned as NaN,
+%       - prod_flag-controlled variable-length records (MAS1B, and the
+%         accelerometer housekeeping product AHK1B, whose declared
+%         columns are present per record exactly where their bit is
+%         set); absent values are returned as NaN,
+%       - declared names that are not MATLAB identifiers, such as
+%         AHK1B's "TSU Z-": the aux field is renamed under the
+%         variableNameAdjusted warning and stays distinct from its
+%         siblings, rather than colliding with them,
 %       - gzip-compressed input (.gz), decompressed in memory,
 %       - strict row-integrity checking with exact line-number reports,
 %       - optional content-hashed caching of parsed results.
@@ -106,15 +112,20 @@ function [time, obs, aux] = readL1b(fileName, options)
 %                are NaN.
 %     aux  - struct, 1x1
 %                Metadata and non-observation columns. Fields:
-%                obsNames, variableNames, variableUnits,
-%                variableAttributes, timeVariable, timeSystem,
-%                epochDescription, epochMJD, numRecordsHeader,
-%                numRecordsActual, numRecordsFlagged, header, product,
-%                fileName, headerFormat ('yaml' | 'classic'), cacheHit
+%                obsNames, variableNames, variableFieldNames,
+%                variableUnits, variableAttributes, timeVariable,
+%                timeSystem, epochDescription, epochMJD,
+%                numRecordsHeader, numRecordsActual,
+%                numRecordsFlagged, header, product, fileName,
+%                headerFormat ('yaml' | 'classic'), cacheHit
 %                (logical), classicHeaderFields (classic only),
 %                qualflg / qualflgBits, prod_flag / prodFlagBits, and
-%                one field per further auxiliary column. See the HTML
-%                reference page for the full table.
+%                one field per further auxiliary column.
+%                variableFieldNames gives, per declared variable, the
+%                aux field that carries it; it equals variableNames
+%                except where a declared name is not a valid or unique
+%                MATLAB field name. See the HTML reference page for
+%                the full table.
 %
 %   ACCURACY AND LIMITATIONS
 %     - Time in the default "mjd" format is a double pair; around
@@ -162,6 +173,9 @@ function [time, obs, aux] = readL1b(fileName, options)
 %     gracefoReading:readL1b:recordCountMismatch  header/actual count differ
 %     gracefoReading:readL1b:cacheUnavailable     hashing failed; parsed fresh
 %     gracefoReading:readL1b:classicExperimental  classic layout assumed
+%     gracefoReading:readL1b:variableNameAdjusted declared variable name
+%                                                 not usable as a struct
+%                                                 field; aux field renamed
 %
 %   EXAMPLES
 %     % 1. plain read of one daily accelerometer file
@@ -186,7 +200,7 @@ function [time, obs, aux] = readL1b(fileName, options)
 %
 %   Toolbox:  gracefoReading v1.0.2
 %   Created:  2026-08-01
-%   Updated:  2026-09-09
+%   Updated:  2026-09-22
 %   Author:   Matthias Weigelt with support of Anthropic Claude
 
 arguments

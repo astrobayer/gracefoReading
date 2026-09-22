@@ -87,7 +87,7 @@ function [timeMjd, timeNs, obs, aux] = parseDataSection(dataLines, dataLineNos, 
 %
 %   Toolbox:  gracefoReading v1.0.2
 %   Created:  2026-08-01
-%   Updated:  2026-09-06
+%   Updated:  2026-09-22
 %   Author:   Matthias Weigelt with support of Anthropic Claude
 
 nVar = numel(varNames);
@@ -98,16 +98,30 @@ end
 
 % ---- classify columns --------------------------------------------------
 isBitStr = ~cellfun('isempty', regexpi(varNames, 'flag|qualflg', 'once'));
+% One rule, one call: the field names used here are the same ones
+% parseHeaderVariables keyed varAttrs with, so a name that had to be
+% adjusted (AHK1B's "TSU Z-") still finds its attributes.
+[fieldNames, nameAdjusted] = gracefoReading.internal.variableFieldNames(varNames);
 isCharCol = false(1, nVar);
 for k = 1:nVar
-    a = varAttrs.(matlab.lang.makeValidName(varNames{k}));
+    a = varAttrs.(fieldNames{k});
     isCharCol(k) = isfield(a, 'units') && strcmpi(a.units, 'char');
+end
+if any(nameAdjusted)
+    idx = find(nameAdjusted);
+    pairs = arrayfun(@(k) sprintf('"%s" -> aux.%s', varNames{k}, fieldNames{k}), ...
+        idx, 'UniformOutput', false);
+    warning('gracefoReading:readL1b:variableNameAdjusted', ...
+        ['%d of %d declared variable name(s) in %s are not usable as struct ', ...
+         'fields verbatim and were mapped: %s. aux.variableNames and ', ...
+         'aux.obsNames keep the declared names.'], ...
+        numel(idx), nVar, fileName, strjoin(pairs, ', '));
 end
 isIdCol = ~cellfun('isempty', regexpi(varNames, '_id$', 'once'));
 
 % ---- identify time columns --------------------------------------------
 [timeColIdx, timeVarUsed, fracScale] = gracefoReading.internal.resolveTime( ...
-    varNames, varAttrs, timeVarOpt);
+    varNames, varAttrs, timeVarOpt, fieldNames);
 
 % ---- prod_flag layout --------------------------------------------------
 pfIdx = find(strcmpi(varNames, 'prod_flag'), 1);
@@ -240,9 +254,10 @@ aux.numRecordsActual = nRec;
 aux.numRecordsFlagged = 0;
 aux.header = headerLines(:);
 
+aux.variableFieldNames = fieldNames;
 unitStruct = struct();
 for k = 1:nVar
-    fn = matlab.lang.makeValidName(varNames{k});
+    fn = fieldNames{k};
     a = varAttrs.(fn);
     if isfield(a, 'units'), unitStruct.(fn) = a.units; end
 end
@@ -251,7 +266,7 @@ aux.variableAttributes = varAttrs;
 
 for k = 1:nVar
     if ~isAux(k) || any(k == timeColIdx), continue; end
-    fn = matlab.lang.makeValidName(varNames{k});
+    fn = fieldNames{k};
     if isBitStr(k)
         raw = char(colTok{k});
         aux.(fn) = raw;

@@ -19,7 +19,13 @@ classdef testReadL1b < matlab.unittest.TestCase
 %     - 'TimeFormat': mjd, datetime and exact int64 gpsns arithmetic
 %     - column classification: observations, char columns, identifiers,
 %       bit-string flags
-%     - prod_flag variable-length records and NaN filling
+%     - prod_flag variable-length records and NaN filling, for MAS1B
+%       gas masses and for AHK1B-style housekeeping temperatures
+%     - declared names that are not MATLAB identifiers and that
+%       collide under makeValidName (AHK1B's "TSU Y+" / "TSU Y-" /
+%       "TSU Z-"): kept verbatim, mapped to distinct aux fields, and
+%       reported by the variableNameAdjusted warning, which stays
+%       silent on a header whose names are already valid (G-04)
 %     - quality filtering: 'ApplyQualityFlags', selective
 %       'QualityBitMask', and the conflicting-options error
 %     - 'TimeRange' filtering with double and datetime bounds
@@ -46,7 +52,7 @@ classdef testReadL1b < matlab.unittest.TestCase
 %
 %   Toolbox:  gracefoReading v1.0.2
 %   Created:  2026-08-01
-%   Updated:  2026-09-09
+%   Updated:  2026-09-22
 %   Author:   Matthias Weigelt with support of Anthropic Claude
 
     properties
@@ -138,6 +144,44 @@ classdef testReadL1b < matlab.unittest.TestCase
             fprintf(fid, '# End of YAML header\n');
             for k = 1:numel(intg)
                 fprintf(fid, '%d %d G C 00000000 %s', intg(k), fracMicro(k), prodFlags{k});
+                fprintf(fid, ' %.10g', values{k});
+                fprintf(fid, '\n');
+            end
+            fclose(fid);
+        end
+
+        function f = writeAhkLike(testCase, intg, prodFlags, values)
+            % Synthetic AHK1B-style file (V-13, issue #19). Two things
+            % that no other fixture has and that real AHK1B has:
+            %   - prod_flag-controlled variable columns for ordinary
+            %     numeric housekeeping, not only for MAS1B gas masses;
+            %   - declared names that are not MATLAB identifiers and
+            %     that collapse onto one another under makeValidName:
+            %     "TSU_Y+" / "TSU_Y-" / "TSU_Z+" all map to TSU_Y_ or
+            %     TSU_Z_, and the real header carries one name with a
+            %     SPACE, "TSU Z-".
+            % values: cell array, one numeric row vector per record,
+            % as many entries as bits set in prodFlags{k}.
+            f = fullfile(testCase.workDir, 'AHK1B_synth.txt');
+            fid = fopen(f, 'wt');
+            fprintf(fid, 'header:\n  dimensions:\n    num_records: %d\n', numel(intg));
+            fprintf(fid, '  variables:\n');
+            fprintf(fid, '    - time_intg:\n        units: seconds\n');
+            fprintf(fid, '    - time_frac:\n        units: microseconds\n');
+            fprintf(fid, '    - time_ref:\n        units: char\n');
+            fprintf(fid, '    - GRACEFO_id:\n        units: char\n');
+            fprintf(fid, '    - qualflg:\n        comment: column\n');
+            fprintf(fid, ['    - prod_flag:\n        flag_meanings:\n', ...
+                '          - bit 0 = TSU_Y+\n          - bit 1 = TSU_Y-\n', ...
+                '          - bit 2 = TSU_Z+\n          - bit 3 = TSU Z-\n']);
+            names = {'TSU_Y+', 'TSU_Y-', 'TSU_Z+', 'TSU Z-'};
+            for k = 1:numel(names)
+                fprintf(fid, '    - %s:\n        units: degC\n        long_name: %s\n', ...
+                    names{k}, ['temperature ', names{k}]);
+            end
+            fprintf(fid, '# End of YAML header\n');
+            for k = 1:numel(intg)
+                fprintf(fid, '%d 0 G C 00000000 %s', intg(k), prodFlags{k});
                 fprintf(fid, ' %.10g', values{k});
                 fprintf(fid, '\n');
             end
@@ -274,6 +318,53 @@ classdef testReadL1b < matlab.unittest.TestCase
             testCase.verifyEqual(aux.prod_flag, ['101'; '010']);
             testCase.verifyEqual(aux.prodFlagBits, ...
                 logical([1 0 1; 0 1 0]));  % col b = bit b-1
+        end
+
+        function testAhkStyleNamesSurviveAndStayDistinct(testCase)
+            % G-04 / V-13, issue #19. Before 2026-09-22 the header
+            % parser accepted identifier names only, so "TSU Z-" was
+            % dropped and the record then had one token too many; the
+            % three remaining names collapsed onto two fields.
+            names = {'TSU_Y+', 'TSU_Y-', 'TSU_Z+', 'TSU Z-'};
+            f = testCase.writeAhkLike([0; 1], ...
+                {'00001111', '00001001'}, {[21 22 23 24], [25 28]});
+
+            testCase.verifyWarning(@() gracefoReading.readL1b(f), ...
+                'gracefoReading:readL1b:variableNameAdjusted');
+
+            w = warning('off', 'gracefoReading:readL1b:variableNameAdjusted');
+            c = onCleanup(@() warning(w)); %#ok<NASGU>
+            [t, obs, aux] = gracefoReading.readL1b(f);
+
+            testCase.verifySize(t, [2, 2]);
+            % every declared name is kept verbatim, in declaration order
+            testCase.verifyEqual(aux.obsNames, names);
+            testCase.verifyTrue(all(ismember(names, aux.variableNames)));
+            % and each has its OWN field, so nothing was overwritten
+            fn = aux.variableFieldNames(end-3:end);
+            testCase.verifyEqual(numel(unique(fn)), 4, ...
+                'Four colliding names must map to four distinct fields.');
+            for k = 1:4
+                a = aux.variableAttributes.(fn{k});
+                testCase.verifyEqual(a.long_name, ['temperature ', names{k}], ...
+                    'Attributes must follow their own variable.');
+                testCase.verifyEqual(aux.variableUnits.(fn{k}), 'degC');
+            end
+            % prod_flag drives which columns a record carries
+            testCase.verifyEqual(obs(1, :), [21 22 23 24], 'AbsTol', 1e-12);
+            testCase.verifyEqual(obs(2, [1 4]), [25 28], 'AbsTol', 1e-12);
+            testCase.verifyTrue(all(isnan(obs(2, [2 3]))));
+        end
+
+        function testVariableNameAdjustedStaysSilentOnCleanHeaders(testCase)
+            % The other half of the fault injection: the warning must
+            % not fire on a header whose names are already valid and
+            % unique, which is every product read so far.
+            f = testCase.writeActLike([0; 43200]);
+            testCase.verifyWarningFree(@() gracefoReading.readL1b(f));
+            [~, ~, aux] = gracefoReading.readL1b(f);
+            testCase.verifyEqual(aux.variableFieldNames, aux.variableNames, ...
+                'Valid unique names must be their own field names.');
         end
 
         function testProdFlagTokenCountMismatchRaises(testCase)

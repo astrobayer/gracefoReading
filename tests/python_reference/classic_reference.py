@@ -6,8 +6,10 @@ derived here and not from the code they test.
 """
 import struct, re
 
-W = {'char':1, 'uint8':1, 'int16':2, 'int32':4, 'single':4, 'double':8}
-FMT = {'int16':'h', 'int32':'i', 'single':'f', 'double':'d'}
+W = {'char':1, 'uint8':1, 'int16':2, 'uint16':2, 'int32':4, 'uint32':4,
+     'single':4, 'double':8}
+FMT = {'int16':'h', 'uint16':'H', 'int32':'i', 'uint32':'I',
+       'single':'f', 'double':'d'}
 
 def _thruster_names():
     att=[f'thrust_count_att_ctrl_{b}_{t}' for b in (1,2) for t in range(1,7)]
@@ -38,16 +40,27 @@ def layout(product):
               (['biased_range','range_rate','range_accl','iono_corr',
                 'lighttime_corr','lighttime_rate','lighttime_accl',
                 'ant_centr_corr','ant_centr_rate','ant_centr_accl'],'double'),
-              (['K_A_SNR','Ka_A_SNR','K_B_SNR','Ka_B_SNR'],'int16'),
+              (['K_A_SNR','Ka_A_SNR','K_B_SNR','Ka_B_SNR'],'uint16'),
               (['qualflg'],'uint8')]
     elif p=='THR1B':
         spec=[(['time_intg'],'int32'),(['time_frac'],'int32'),(['time_ref'],'char'),
-              (['GRACE_id'],'char'),(_thruster_names(),'int32'),(['qualflg'],'uint8')]
+              (['GRACE_id'],'char'),(_thruster_names(),'uint32'),(['qualflg'],'uint8')]
     elif p=='MAS1B':
         spec=[(['time_intg'],'int32'),(['time_frac'],'int32'),(['time_ref'],'char'),
               (['GRACE_id'],'char'),(['qualflg'],'uint8'),(['prod_flag'],'uint8'),
               (['mass_thr','mass_thr_err','mass_tnk','mass_tnk_err',
                 'gas_mass_thr1','gas_mass_thr2','gas_mass_tnk1','gas_mass_tnk2'],'double')]
+    elif p=='AHK1B':
+        spec=[(['rcvtime_intg'],'int32'),(['rcvtime_frac'],'int32'),
+              (['time_ref'],'char'),(['GRACE_id'],'char'),
+              (['qualflg'],'uint8'),(['prod_flag'],'uint32'),
+              (['lin_accl_x','lin_accl_y','lin_accl_z','ang_accl_x','ang_accl_y',
+                'ang_accl_z','bias_vol'],'double'),
+              (['vd','x1_out','x2_out','x3_out','y1_out','y2_out','z1_out',
+                'tesu','taicu','tisu','v15picu','v15micu','vr5picu','tcicu',
+                'v15psu','v15msu','v48psu','v48msu'],'single'),
+              (['status'],'uint8'),(['icu_blk_nr'],'uint16'),
+              (['Tenhz_count'],'uint8'),(['Mhz_count'],'int32')]
     elif p=='MAG1B':
         spec=[(['time_intg'],'int32'),(['time_frac'],'int32'),(['time_ref'],'char'),
               (['GRACE_id'],'char'),
@@ -63,7 +76,9 @@ def layout(product):
         names+=g; types+=[t]*len(g)
     pf = names.index('prod_flag')+1 if 'prod_flag' in names else 0
     recbytes = 0 if pf else sum(W[t] for t in types)
-    return dict(names=names, types=types, prodFlagIdx=pf, recordBytes=recbytes)
+    nbits = 8*W[types[pf-1]] if pf else 0
+    return dict(names=names, types=types, prodFlagIdx=pf,
+                recordBytes=recbytes, prodFlagBits=nbits)
 
 def split_file(path):
     raw=open(path,'rb').read()
@@ -98,12 +113,15 @@ def decode(path, product):
                       else struct.unpack('>'+FMT[t], b)[0])
                 out[name].append(v); o+=w
             flag=out['prod_flag'][-1]
-            cond=L['names'][pf:]; ct=L['types'][pf]
+            cond=L['names'][pf:]
             vals={}
-            for bit in range(8):
+            for bit in range(L['prodFlagBits']):
                 if flag>>bit & 1:
-                    vals[cond[bit]]=struct.unpack('>'+FMT[ct], data[o:o+W[ct]])[0]
-                    o+=W[ct]
+                    assert bit < len(cond), f'undefined prod_flag bit {bit}'
+                    ct=L['types'][pf+bit]; w=W[ct]
+                    v = data[o] if ct=='uint8' else \
+                        struct.unpack('>'+FMT[ct], data[o:o+w])[0]
+                    vals[cond[bit]]=v; o+=w
             for c in cond:
                 out[c].append(vals.get(c, float('nan')))
         assert o==len(data), (o, len(data))
@@ -121,15 +139,18 @@ if __name__ == '__main__':
                        ('KBR1B_2008-01-01_X_02.dat', 'KBR1B'),
                        ('THR1B_2008-01-01_A_02.dat', 'THR1B'),
                        ('MAS1B_2008-01-01_A_02.dat', 'MAS1B'),
-                       ('MAG1B_2008-01-01_A_02.dat', 'MAG1B')]:
+                       ('MAG1B_2008-01-01_A_02.dat', 'MAG1B'),
+                       ('AHK1B_2008-01-01_A_02.dat', 'AHK1B')]:
         path = os.path.join(root, name)
         if not os.path.isfile(path):
             print(f'{prod}: absent'); continue
         hdr, cols, n = decode(path, prod)
         if 'gps_time' in cols:
             t0 = cols['gps_time'][0] + 43200.0
-        else:
+        elif 'time_intg' in cols:
             t0 = cols['time_intg'][0] + cols['time_frac'][0] * 1e-6 + 43200.0
+        else:
+            t0 = cols['rcvtime_intg'][0] + cols['rcvtime_frac'][0]*1e-6 + 43200.0
         d = math.floor(t0 / 86400)
         print(f'{prod}: {n} records, first epoch MJD {51544 + d} '
               f'{t0 - d * 86400:.6f} s')

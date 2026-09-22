@@ -72,6 +72,12 @@ function [timeMjd, timeNs, obs, aux] = parseClassicBinary(bytes, fileName, timeV
 %       printed.
 %     - A record whose conditional columns are absent returns NaN for
 %       them, as the GRACE-FO products do.
+%     - The conditional columns of a prod_flag product need NOT share
+%       one type, and the flag need not be one byte. MAS1B's flag is a
+%       byte addressing eight doubles; AHK1B's is four bytes
+%       addressing twenty-nine columns across five types. Both widths
+%       and every type come from classicLayout, never from the first
+%       column seen.
 %     - The header's FILESIZE field is not used as a check: it is the
 %       size the producer intended, and a truncated download would
 %       still declare the original. The record-count check above is
@@ -82,6 +88,9 @@ function [timeMjd, timeNs, obs, aux] = parseClassicBinary(bytes, fileName, timeV
 %       no measured layout for this product
 %     gracefoReading:readL1b:classicRecordMismatch
 %       record length or record walk disagrees with the file
+%     gracefoReading:readL1b:classicUndefinedProdFlagBit
+%       a record sets a prod_flag bit the layout does not define, so
+%       the field is present but its width is unknown
 %     gracefoReading:readL1b:noData
 %       header declares no data records
 %
@@ -137,12 +146,10 @@ layout = gracefoReading.internal.classicLayout(product);
 if isempty(fieldnames(layout))
     error('gracefoReading:readL1b:unsupportedClassicProduct', ...
         ['No measured binary layout for classic product "%s". Measured and ', ...
-         'supported: ACC1B, SCA1B, GNV1B, KBR1B, THR1B, MAS1B, MAG1B. ', ...
-         'AHK1B is deliberately absent: its records are variable-length ', ...
-         'and the Level-1B handbook does not tabulate them, so the per-bit ', ...
-         'value types a prod_flag walk needs are not documented anywhere ', ...
-         'available and inventing them is the failure obligation O-1 ', ...
-         'records. See HANDOVER O-15.'], product);
+         'supported: ACC1B, SCA1B, GNV1B, KBR1B, THR1B, MAS1B, MAG1B, ', ...
+         'AHK1B. Any other classic binary product is refused rather than ', ...
+         'decoded on a guess - see gracefoReading.internal.classicLayout ', ...
+         'for what each supported layout was measured against.'], product);
 end
 
 data = bytes(dataStart:end);
@@ -221,14 +228,18 @@ end
 % ========================================================================
 function values = localDecodeVariable(data, layout, nRec, fileName)
 % prod_flag products: the fixed head, then one value per set bit.
+%
+% Neither the flag's width nor the conditional columns' type may be
+% assumed. MAS1B's prod_flag is one byte addressing eight columns that
+% are all double; AHK1B's is FOUR bytes addressing twenty-nine columns
+% of five different types. Both come from layout.
 pf = layout.prodFlagIdx;
 nNames = numel(layout.names);
 headW = 0;
 for k = 1:pf
     headW = headW + localWidth(layout.types{k});
 end
-condType = layout.types{pf+1};
-condW = localWidth(condType);
+nBits = layout.prodFlagBits;
 
 values = cell(1, nNames);
 for k = 1:pf
@@ -262,27 +273,34 @@ for r = 1:nRec
         end
         o = o + w;
     end
-    flagByte = values{pf}(r);
-    setBits = find(bitget(uint8(flagByte), 1:8));      % bit 0 is bit 1 here
-    nSet = numel(setBits);
-    need = nSet * condW;
-    if o + need > numel(data)
-        error('gracefoReading:readL1b:classicRecordMismatch', ...
-            ['%s: record %d declares %d conditional value(s) but the data ', ...
-             'section has only %d byte(s) left.'], ...
-            fileName, r, nSet, numel(data) - o);
-    end
-    if nSet > 0
-        blk = reshape(data(o+1:o+need), condW, nSet);
-        vals = double(typecast(reshape(flipud(blk), [], 1), condType));
-        for b = 1:nSet
-            col = pf + setBits(b);                      % bit i -> column pf+i
-            if col <= nNames
-                values{col}(r) = vals(b);
-            end
+    flagWord = values{pf}(r);
+    setBits = find(bitget(uint32(flagWord), 1:nBits));  % bit 0 is bit 1 here
+    for b = 1:numel(setBits)
+        col = pf + setBits(b);                          % bit i -> column pf+i
+        if col > nNames
+            error('gracefoReading:readL1b:classicUndefinedProdFlagBit', ...
+                ['%s: record %d sets prod_flag bit %d, which %s does not ', ...
+                 'define. The field is present in the record but its width ', ...
+                 'is unknown, so every byte after it would be misread. This ', ...
+                 'is refused rather than guessed at.'], ...
+                fileName, r, setBits(b) - 1, layout.names{pf});
         end
+        t = layout.types{col};
+        w = localWidth(t);
+        if o + w > numel(data)
+            error('gracefoReading:readL1b:classicRecordMismatch', ...
+                ['%s: record %d needs %d more byte(s) for column "%s" but ', ...
+                 'the data section has only %d left.'], ...
+                fileName, r, w, layout.names{col}, numel(data) - o);
+        end
+        raw = data(o+1:o+w);
+        switch t
+            case 'uint8', values{col}(r) = double(raw);
+            otherwise,    values{col}(r) = double(typecast(fliplr(raw), t));
+        end
+        o = o + w;
     end
-    off = o + need;
+    off = o;
 end
 
 if off ~= numel(data)
@@ -308,8 +326,15 @@ isChar = strcmp(layout.types, 'char');
 isId   = ~cellfun('isempty', regexpi(names, '_id$', 'once'));
 
 % time columns
+% AHK1B shares the ACC1A record and therefore calls its split tag
+% rcvtime_intg/rcvtime_frac where THR1B and MAS1B call it time_intg/
+% time_frac. Same meaning, same microsecond fraction, different name.
 iIntg = find(strcmpi(names, 'time_intg'), 1);
 iFrac = find(strcmpi(names, 'time_frac'), 1);
+if isempty(iIntg) || isempty(iFrac)
+    iIntg = find(strcmpi(names, 'rcvtime_intg'), 1);
+    iFrac = find(strcmpi(names, 'rcvtime_frac'), 1);
+end
 iGps  = find(strcmpi(names, 'gps_time'), 1);
 if strlength(timeVarOpt) > 0
     parts = strtrim(split(timeVarOpt, '+'));
@@ -380,7 +405,9 @@ attrs = struct();
 for k = 1:nVar
     a = struct();
     if isChar(k), a.units = 'char'; end
-    if strcmpi(names{k}, 'time_frac'), a.units = 'microseconds'; end
+    if any(strcmpi(names{k}, {'time_frac', 'rcvtime_frac'}))
+        a.units = 'microseconds';
+    end
     attrs.(fieldNames{k}) = a;
 end
 aux.variableAttributes = attrs;
@@ -389,7 +416,7 @@ for k = 1:nVar
     if ~isAux(k) || any(k == timeCols), continue; end
     fn = fieldNames{k};
     if isFlag(k)
-        raw = localBitString(values{k});
+        raw = localBitString(values{k}, 8 * localWidth(layout.types{k}));
         aux.(fn) = raw;
         bitsFn = [regexprep(fn, '_', ''), 'Bits'];
         if strcmpi(fn, 'prod_flag'), bitsFn = 'prodFlagBits'; end
@@ -404,19 +431,22 @@ end
 end
 
 % ========================================================================
-function s = localBitString(v)
-% A byte rendered as the 8-character bit string, bit 0 rightmost - the
-% representation every other part of this toolbox already speaks.
-s = dec2bin(uint8(v), 8);
+function s = localBitString(v, nBits)
+% A flag field rendered as a bit string, bit 0 rightmost - the
+% representation every other part of this toolbox already speaks. The
+% WIDTH comes from the field: classic qualflg is one byte and gives
+% eight characters, AHK1B's prod_flag is four bytes and gives
+% thirty-two, which is what the GRACE-FO product declares as well.
+s = dec2bin(uint32(v), nBits);
 end
 
 % ========================================================================
 function w = localWidth(t)
 switch t
-    case {'char', 'uint8'}, w = 1;
-    case 'int16',           w = 2;
-    case {'int32','single'},w = 4;
-    case 'double',          w = 8;
+    case {'char', 'uint8'},          w = 1;
+    case {'int16','uint16'},         w = 2;
+    case {'int32','uint32','single'},w = 4;
+    case 'double',                   w = 8;
     otherwise
         error('gracefoReading:readL1b:badClassicType', ...
             'Unknown classic field type "%s".', t);

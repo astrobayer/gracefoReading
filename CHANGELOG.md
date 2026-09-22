@@ -74,6 +74,54 @@
   that the run has shown the pool holds it; `testAHK1B` and
   `testLHK1B` still wait for theirs.
 
+### Added — classic AHK1B is read, and O-15 closes completely
+
+- The accelerometer housekeeping product is the last classic binary
+  product this toolbox refused, and the hardest: neither the Level-1B
+  handbook (no chapter-6 entry) nor the ATBD (no record formats at
+  all) describes it. What does is the **JPL GRACE Level-1 read
+  software** (`GraceReadSW_L1`, release 2010-03-31) — the producer's
+  own reference implementation, where `GRACEiolib.h` types `AHK1X_t`
+  as `ACC1A_t` and `ReadACC1AFRecord.c` walks the `prod_flag` bit by
+  bit.
+- Two facts from it are why **no single file could ever have revealed
+  this layout**: `prod_flag` is **four bytes**, addressing 29
+  conditional columns rather than 8, and those columns do **not share
+  a type** — seven `double`, eighteen `single`, then `uint8`,
+  `uint16`, `uint8`, `int32`.
+- Verified rather than trusted. The record walk consumes the data
+  section **to the byte** on four independent files: JPL's own 2003
+  RL00 samples for GRACE A and B, and the RL02 files of 2008-01-01 for
+  A and B. The oracle is the named supply rails, which cannot come out
+  right if any width in the walk is wrong: **+15 V at 14.91, −15 V at
+  −14.90, +5 V at 5.05, +48 V at 50.18, −48 V at −50.39**, with four
+  electronics temperatures between 17 and 52 °C.
+- `parseClassicBinary` now takes the flag width **and every column
+  type** from the layout instead of assuming one byte and one shared
+  type. A record that sets a bit the layout does not define raises the
+  new `gracefoReading:readL1b:classicUndefinedProdFlagBit` — the field
+  is there but its width is unknown, so every byte after it would be
+  misread.
+- AHK1B calls its split tag `rcvtime_intg`/`rcvtime_frac` (it shares
+  the ACC1A record); the time detection accepts both spellings.
+- `AHK1B_2008-01-01_A_02.dat` is bundled, trimmed to 40 records cut so
+  that **both** `prod_flag` patterns of the day appear — 34 short, 6
+  long — which exercises the NaN pattern for absent columns too.
+- **Nothing from the JPL archive is vendored here.** It was used as an
+  offline oracle and is cited; every fixture still comes from the
+  owner's own files.
+
+### Fixed — two integer types were signed where the producer declares them unsigned
+
+- `KBR1B`'s four SNR columns are `uint16_t` and `THR1B`'s 42 counters
+  are `uint32_t`, per the JPL read software. **Neither changes a value
+  in any bundled file** — the SNRs reach 690 of 32 767 and the
+  counters 89 329 647 of 2^31 — so no golden number moved. This is
+  hardening against a large value on some other day.
+- The same archive independently confirmed **all seven** previously
+  measured layouts, struct by struct and name for name, including the
+  MAG1B naming taken from the handbook earlier the same day.
+
 ### Documented — the ACC1B nine-column correction has a second witness
 
 - The GRACE Level-1B **Algorithm Theoretical Basis Document** (JPL

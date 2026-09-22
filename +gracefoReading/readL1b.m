@@ -154,14 +154,11 @@ function [time, obs, aux] = readL1b(fileName, options)
 %       NOT on the same footing:
 %         BINARY (the ".dat" files, header "FILE FORMAT ... : 0") is
 %         read from a MEASURED layout and does not warn. ACC1B, SCA1B,
-%         GNV1B, KBR1B, THR1B, MAS1B and MAG1B were derived from real
-%         RL02 files of 2008-01-01 and each checked against a physical
-%         quantity it must reproduce; classic AHK1B is refused,
-%         because its variable-length records need a per-bit value
-%         type for every prod_flag bit and no document available here
-%         states them. The layouts hold for release 03 as well as 02:
-%         SCA1B and KBR1B, the only products RL03 publishes, were
-%         checked against real RL03 files.
+%         GNV1B, KBR1B, THR1B, MAS1B, MAG1B and AHK1B were derived
+%         from real RL02 files of 2008-01-01 and each checked against
+%         a physical quantity it must reproduce. The layouts hold for
+%         release 03 as well as 02: SCA1B and KBR1B, the only products
+%         RL03 publishes, were checked against real RL03 files.
 %         ASCII (the ".asc" files) still WARNS. Its columns are taken
 %         to be those measured on the binary variant of the same
 %         product, which is an inference and not a measurement: no
@@ -199,6 +196,9 @@ function [time, obs, aux] = readL1b(fileName, options)
 %     gracefoReading:readL1b:noData               no data records
 %     gracefoReading:readL1b:conflictingQualityOptions
 %                                                 both quality options given
+%     gracefoReading:readL1b:classicUndefinedProdFlagBit
+%       a classic record sets a prod_flag bit its layout does not
+%       define; the field's width is unknown, so it is refused
 %     gracefoReading:readL1b:unsupportedClassicProduct
 %                                                 classic file without a known
 %                                                 layout and no 'ColumnNames'

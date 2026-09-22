@@ -1,6 +1,6 @@
 # HANDOVER — gracefoReading
 
-**Revision 3.9 · 2026-09-22 · toolbox v1.1.0**
+**Revision 4.0 · 2026-09-22 · toolbox v1.1.0**
 
 The single point of truth for this repository. Where this document and a
 general engineering habit disagree, this document is right. Read it
@@ -30,9 +30,9 @@ Per-class test counts, for the prediction a next session must make
 *before* running: `testReadL1b` **30**, `testUtilities` 16,
 `testBatchTools` 15, `testItsgProducts` 15, `testRealData` 11,
 `testItsgBatch` 12, `testDataPool` **10** (new, G-06),
-`testClassicProducts` **16** (12 at v1.1.0, +2 for RL03, +2 for MAG1B),
-`testEventLists` **11** (new, G-05), `testDocConsistency` 7,
-`testSourceIntegrity` 5. Sum **148**, of which 147 pass and **1** is
+`testClassicProducts` **18** (12 at v1.1.0, +2 RL03, +2 MAG1B,
++2 AHK1B), `testEventLists` **11** (new, G-05), `testDocConsistency` 7,
+`testSourceIntegrity` 5. Sum **150**, of which 149 pass and **1** is
 the documented incomplete below — `testRealData/testACH1B` stopped
 being incomplete when its fixture was bundled, so the count of
 incompletes went down while the total went up. Predicting the total
@@ -375,9 +375,31 @@ below was read off a real file.
   means a filter removed everything, never that the file was empty.
 - **Classic binary record lengths, measured** (RL02 and RL03 alike):
   ACC1B 78, SCA1B 47, GNV1B 103, KBR1B 93, THR1B 179, MAG1B 63 bytes;
-  MAS1B variable. AHK1B is variable too — 8 700 records over 526 350
-  data bytes is 60.5 bytes each — and is the one classic product the
-  toolbox refuses.
+  MAS1B and AHK1B variable. AHK1B averages 60.5 bytes over the 2008
+  day (8 700 records, 526 350 data bytes) because its `prod_flag`
+  alternates between two patterns.
+- **`prod_flag` is not one shape.** MAS1B's is **one byte** addressing
+  eight columns that are all `double`. AHK1B's is **four bytes**
+  addressing 29 columns of five types (7 `double`, 18 `single`,
+  `uint8`, `uint16`, `uint8`, `int32`). `parseClassicBinary` takes
+  both the flag width and every column type from `classicLayout` and
+  never from the first column it sees; a set bit the layout does not
+  define raises `classicUndefinedProdFlagBit` rather than guessing a
+  width.
+- **AHK1B calls its split time tag `rcvtime_intg`/`rcvtime_frac`**,
+  not `time_intg`/`time_frac`, because it shares the ACC1A record.
+  Same meaning, same microsecond fraction. The time detection accepts
+  both spellings.
+- **The JPL GRACE Level-1 read software (`GraceReadSW_L1`, release
+  2010-03-31) is in hand** as of 2026-09-22 — the producer's own
+  reference implementation, and the authority that closed O-15. Its
+  `GRACEiolib.h` declares one C struct per product, which independently
+  confirmed **all seven** layouts this repository had already measured,
+  name for name, including the MAG1B naming taken from the handbook
+  the same day and ACC1B's nine columns. **Nothing from the archive is
+  vendored into this repository** (owner's decision, 2026-09-22): it is
+  an offline oracle, cited in the documentation, and every fixture
+  still comes from the owner's own files.
 - **The GRACE Level-1B Data Product User Handbook v1.3 (JPL D-22027,
   March 2010) is in hand** as of 2026-09-22 and is the naming source
   for classic MAG1B (section 6.8). Its chapter 6 has format records
@@ -421,6 +443,17 @@ below was read off a real file.
 
 ## D. Conventions
 
+**Two integer types were corrected 2026-09-22** against the JPL read
+software, which declares unsigned what this toolbox had signed:
+`KBR1B`'s four SNR columns are `uint16_t` (were int16) and `THR1B`'s
+42 counters are `uint32_t` (were int32). **Neither changes a value in
+any bundled file** — the SNRs reach 690 of 32 767 and the counters
+89 329 647 of 2^31 — so this is hardening against a large value on
+some other day, not a bug fix, and no golden number moved. Recorded
+because "no test changed" is the kind of claim that needs its reason
+written down.
+
+
 - camelCase; `arguments` block on every public function; error
   identifiers `gracefoReading:<fn>:<id>`; provenance footer
   (`Toolbox:` / `Created:` / `Updated:` / `Author:`) in every help block.
@@ -461,7 +494,7 @@ outside this table claims to be one.
 | O-4 | **CLOSED 2026-09-22.** `v1.1.0` is an **annotated** tag on the merge commit `2c0d7d8` with a GitHub release, which is what VERSIONING.md asks for and what no previous release of this repository had. `v1.0.0` and `v1.0.2` remain lightweight and are left alone: tags are immutable and the correction was always forward-only. Nothing further is owed | — | — |
 | O-5 | **Superseded in part, 2026-09-22.** Classic GRACE binary products ARE now read (O-1). What remains true is narrower and not a gap: the GRACE-FO releases this toolbox targets publish ASCII only, so there is no binary GRACE-FO product to support | — | if a binary GRACE-FO product ever appears |
 | O-6 | **RL05+ header conventions are unknown.** If PO.DAAC changes them, extend `internal/parseHeaderVariables.m` and add the new files to `tests/realdata/` | owner | when RL05 appears |
-| O-15 | **Narrowed to AHK1B alone, 2026-09-22.** MAG1B is read: its 63-byte record was already measured, and the owner then supplied the **GRACE Level-1B Data Product User Handbook v1.3 (JPL D-22027)**, whose section 6.8 (pp. 38-39) names all eighteen columns in record order. That is exactly the discharge condition this row was written with, met as written - the difference from O-1 being that the handbook is now *in hand* rather than *recalled*. The naming was then checked against the numbers: the field magnitude comes out at 18.3-54.5 uT on GRACE A and 19.5-54.4 on GRACE B, magnetorquer currents inside the 120 mA `torque_cal` full scale, `MF_BCal*` the constants 54/54/53. **What remains:** classic **AHK1B** is refused, and the handbook closes the question rather than leaving it open - chapter 6 has **no AHK1B entry**, the product appearing only in the report-file appendix (pp. 47-48), which names its eight `qualflg` bits and nothing else. Its records are variable-length (8 700 records over 526 350 data bytes = 60.5 bytes each), so a `prod_flag` walk needs a per-bit value **type** for every bit and one file cannot reveal them. **Discharged by:** the GRACE Level-1 *Software* Handbook, which the product headers name as their REFERENCE DOCUMENTATION and which is not in hand, or a real GRACE-FO AHK1B header to carry the names and types over from | owner | when either document or product is at hand |
+| O-15 | **CLOSED 2026-09-22.** Both halves. MAG1B was named from the GRACE Level-1B Data Product User Handbook v1.3 (JPL D-22027) section 6.8. AHK1B - the half this row was narrowed to, with the discharge condition "the GRACE Level-1 *Software* Handbook ... or a real GRACE-FO AHK1B header" - was closed by something better than either: the **JPL GRACE Level-1 read software** (`GraceReadSW_L1`, release 2010-03-31), the producer's own reference implementation. `GRACEiolib.h` types `AHK1X_t` as `ACC1A_t` and `ReadACC1AFRecord.c` walks the flag bit by bit, giving the two facts no single file could reveal: `prod_flag` is **four bytes** (29 conditional columns, not 8) and those columns carry **five different types** (7 double, 18 single, uint8, uint16, uint8, int32). Verified, not trusted: the walk consumed the data section **to the byte** on four files - JPL's 2003 RL00 samples for A and B and the RL02 files of 2008-01-01 for A and B - and the named supply rails come out at nominal (+15 V 14.91, -15 V -14.90, +5 V 5.05, +48 V 50.18, -48 V -50.39), which is the oracle, since one wrong width garbles everything after it. The same archive independently confirmed all seven other layouts struct by struct and corrected two integer types (see D). Nothing from it is vendored | - | - |
 | O-10 | **`neutralDensity` is not in the product table.** The ITSG server publishes it and the README gives two different column layouts for releases 1.0 and 1.5/2.0, but no real file was read, so no entry was written. It parses as a generic GROOPS file and warns `productNotRecognised`. Writing the entry from the README alone is the mistake O-1 records | owner | when a real neutralDensity file exists |
 | O-7 | **CLOSED 2026-09-22 — measured, then decided.** `readL1b` takes **7.801 s** on one real ACT1B day (86 400 records, 13.5 MB), of which `fileread` is 0.059 s: parsing is 99.2 % of the cost. A year extrapolates to **47.5 min**. No fixed-layout `textscan` fast path is built, and not for want of headroom — see section A for the two reasons (47.5 min/year is not a bottleneck and `'CacheDir'` pays it once; and it would be a second parsing path for one of the reader's three record grammars). `ci/benchmarkParse` and its CI step stay, so re-opening it costs one command | — | a campaign run of X-15 measuring parse time as its dominant cost |
 

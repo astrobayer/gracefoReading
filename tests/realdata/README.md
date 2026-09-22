@@ -127,7 +127,7 @@ how many records were kept.
 
 # Classic GRACE (RL02, 2008-01-01) — binary products
 
-`testClassicProducts.m` reads these seven bundled files. They are the
+`testClassicProducts.m` reads these eight bundled files. They are the
 evidence that discharged obligation **O-1**: until 2026-09-22 the
 classic column layouts were assumed from the GRACE Level-1B handbook
 and no real classic file existed in this repository.
@@ -139,6 +139,7 @@ and no real classic file existed in this repository.
     THR1B_2008-01-01_A_02.dat     179
     MAS1B_2008-01-01_A_02.dat     variable, prod_flag driven
     MAG1B_2008-01-01_A_02.dat      63
+    AHK1B_2008-01-01_A_02.dat      variable, 4-byte prod_flag driven
 
 **These are trimmed.** Each is the first 40 records of the published
 file, with the `NUMBER OF DATA RECORDS` header record rewritten to 40 —
@@ -174,7 +175,7 @@ regenerate them:
 
     python3 tests/python_reference/classic_reference.py tests/realdata
 
-## MAG1B, and why AHK1B is still refused
+## MAG1B and AHK1B
 
 **MAG1B is supported since 2026-09-22.** Its 63-byte record is
 measured — 86 400 records over a 5 443 200-byte data section is 63.0
@@ -189,17 +190,34 @@ full day — the geomagnetic field at 480 km — the six magnetorquer
 currents stay inside the 120 mA `torque_cal` full scale, and the three
 `MF_BCal*` calibration columns are constants (54, 54, 53).
 
-Classic **AHK1B** is still deliberately not supported, and neither
-document in hand changes that. The handbook's chapter 6 has **no AHK1B
-entry at all**; the ATBD has no record formats whatsoever — searched end
-to end, `prod_flag`, "Data Type" and "Byte Length" appear zero times. The
-product appears only in the report-file appendix, which names its eight
-`qualflg` bits and nothing else. Its records are variable-length —
-8 700 records over 526 350 data bytes is 60.5 bytes each — so a
-`prod_flag` walk needs a per-bit value *type* for every bit, and those
-are documented nowhere available here. One file cannot reveal them.
-Naming them from memory is the failure O-1 exists to prevent, so AHK1B
-is refused with an explicit error.
+**AHK1B is supported since 2026-09-22 too**, and it was the hardest of
+the eight. Neither the handbook (no chapter-6 entry) nor the ATBD (no
+record formats at all) describes it. What does is the **JPL GRACE
+Level-1 read software**, `GraceReadSW_L1` release 2010-03-31 — the
+producer's own reference implementation, where `GRACEiolib.h` types
+`AHK1X_t` as `ACC1A_t` and `ReadACC1AFRecord.c` walks the `prod_flag`
+bit by bit. Nothing from that archive is vendored here: it was used to
+read, and the real files were used to check.
+
+Two things make AHK1B unlike every other classic product, and are why
+no single file could have revealed it:
+
+* its `prod_flag` is **four bytes**, addressing 29 conditional columns
+  rather than 8;
+* those columns do **not share a type** — seven `double`, eighteen
+  `single`, then `uint8`, `uint16`, `uint8`, `int32`.
+
+The walk consumes the data section **to the byte** on four independent
+files: JPL's own 2003 RL00 samples for GRACE A and B, and the RL02
+files of 2008-01-01 for A and B. The oracle is the named supply rails,
+which have to come out at nominal or some width is wrong: +15 V at
+14.91, −15 V at −14.90, +5 V at 5.05, +48 V at 50.18, −48 V at −50.39,
+with four electronics temperatures between 17 and 52 °C.
+
+The bundled extract is deliberately cut to span **both** `prod_flag`
+patterns the day uses: 34 records carry the short set and 6 carry the
+long one that adds the temperatures, the rails and the status byte, so
+the NaN pattern for absent columns is exercised too.
 
 ## Release 03
 

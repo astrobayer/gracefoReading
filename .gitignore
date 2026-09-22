@@ -38,7 +38,7 @@ tests/realdata/*.txt.gz
 
 # The classic GRACE fixtures are binary (".dat"), so no rule above
 # touches them; they are named here so the set is visible in one place.
-# Seven RL02 products of 2008-01-01 plus the two RL03 files, first 40
-# records each, NUMBER OF DATA RECORDS rewritten to match, ~54 KB
+# Eight RL02 products of 2008-01-01 plus the two RL03 files, first 40
+# records each, NUMBER OF DATA RECORDS rewritten to match, ~59 KB
 # together. See tests/realdata/README.md.
 !tests/realdata/*.dat

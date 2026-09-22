@@ -43,11 +43,15 @@ classdef testClassicProducts < matlab.unittest.TestCase
 %     - MAG1B: the magnetometer vector, the six magnetorquer currents
 %       and the calibration columns, with |B| checked against the
 %       geomagnetic field strength at GRACE altitude
+%     - AHK1B: a FOUR-byte prod_flag addressing 29 conditional columns
+%       of five different types, both flag patterns the day uses, the
+%       NaN pattern for the short one, and the ICU/SU supply rails
+%       checked against their nominal voltages
 %     - classic qualflg: a byte in the file, rendered as the same
 %       8-character bit string the GRACE-FO products use, so
 %       decodeQualFlags works on both
 %     - refusals: a truncated file, 'ColumnNames' against a binary
-%       product, and AHK1B, the one classic product with no layout
+%       product, and a classic product with no measured layout
 %
 %   ACCURACY AND LIMITATIONS
 %     - The bundled files are TRIMMED to the first 40 records with
@@ -61,12 +65,16 @@ classdef testClassicProducts < matlab.unittest.TestCase
 %       record layouts are identical across the two, measured. Nothing
 %       here covers the classic ASCII variant, nor the ACT1B
 %       transplant archive.
-%     - MAG1B is the one product whose column NAMES come from a
-%       document rather than from a GRACE-FO sibling: the Level-1B
-%       Data Product User Handbook v1.3, section 6.8. The document is
-%       in hand, not remembered - which is the whole difference from
-%       the situation O-1 records. What the tests below check is that
-%       the file agrees with it.
+%     - MAG1B and AHK1B are the two products whose column NAMES come
+%       from a document rather than from a GRACE-FO sibling: the
+%       Level-1B Data Product User Handbook v1.3 section 6.8, and the
+%       JPL GRACE Level-1 read software (GraceReadSW_L1, release
+%       2010-03-31), whose GRACEiolib.h types AHK1X_t as ACC1A_t and
+%       whose ReadACC1AFRecord.c walks the prod_flag bit by bit. Both
+%       are in hand, not remembered - which is the whole difference
+%       from the situation O-1 records. Nothing from either is
+%       vendored into this repository; what the tests below check is
+%       that the real files agree with them.
 %
 %   EXAMPLE
 %     results = runtests('testClassicProducts');
@@ -412,6 +420,103 @@ classdef testClassicProducts < matlab.unittest.TestCase
             testCase.verifyLessThanOrEqual(max(tq(:)), 120);
         end
 
+        function testAHK1B(testCase)
+            % O-15, second half and last. The accelerometer
+            % housekeeping product is the only classic record whose
+            % conditional columns do NOT share a type, and the only
+            % one whose prod_flag is four bytes rather than one. Both
+            % facts come from the JPL read software; both are checked
+            % here against real bytes.
+            f = testCase.fixture('AHK1B_2008-01-01_A_02.dat');
+            [t, obs, aux] = gracefoReading.readL1b(f);
+
+            testCase.verifyEqual(aux.headerFormat, 'classicBinary');
+            testCase.verifyEqual(aux.product, 'AHK1B');
+            testCase.verifySize(t, [40, 2]);
+            testCase.verifyEqual(aux.timeVariable, 'rcvtime_intg+rcvtime_frac');
+            testCase.verifyEqual(t(1,:),   [54465, 86100.792110], 'AbsTol', 1e-6);
+            testCase.verifyEqual(t(end,:), [54466,    90.844163], 'AbsTol', 1e-6);
+            testCase.verifyEqual(aux.time_ref(1), 'G');
+            testCase.verifyEqual(aux.GRACE_id(1), 'A');
+
+            % A 32-character prod_flag, not 8. This is the assertion
+            % that would have been wrong under every other classic
+            % product's flag width.
+            testCase.verifySize(aux.prod_flag, [40, 32]);
+            testCase.verifyTrue(all(ismember(aux.prod_flag(:), '01')));
+            testCase.verifySize(aux.qualflg, [40, 8]);
+
+            % Exactly the two patterns this day uses: 34 records carry
+            % the short set, 6 carry the long one that adds the
+            % temperatures, the supply rails and the status byte.
+            [bits, ~] = gracefoReading.decodeQualFlags(aux, 'prod_flag');
+            testCase.verifySize(bits, [40, 32]);
+            iTesu = strcmp(aux.obsNames, 'tesu');
+            testCase.verifyEqual(sum(~isnan(obs(:, iTesu))), 6);
+            testCase.verifyEqual(sum(isnan(obs(:, iTesu))), 34);
+            % bit 14 is tesu, and the flag must agree with the data
+            testCase.verifyEqual(bits(:, 15), ~isnan(obs(:, iTesu)));
+
+            % bias_vol (bit 6, double) is in every record; the six
+            % linear/angular acceleration columns never are - AHK1B
+            % carries housekeeping, the accelerations live in ACC1B.
+            iBias = strcmp(aux.obsNames, 'bias_vol');
+            testCase.verifyTrue(all(~isnan(obs(:, iBias))));
+            iLin = strcmp(aux.obsNames, 'lin_accl_x');
+            testCase.verifyTrue(all(isnan(obs(:, iLin))));
+
+            % First record, from the reference decoder. bias_vol is a
+            % double and keeps ~16 digits; vd and x1_out are floats.
+            testCase.verifyEqual(obs(1, iBias), 10.157606470504755, ...
+                'AbsTol', 1e-12);
+            iVd = strcmp(aux.obsNames, 'vd');
+            testCase.verifyEqual(obs(1, iVd), 4.9098706245422363, ...
+                'AbsTol', 1e-9);
+            iBlk = strcmp(aux.obsNames, 'icu_blk_nr');
+            testCase.verifyEqual(obs(1, iBlk), 17090);
+        end
+
+        function testAHK1BSupplyRailsAreAtTheirNominalVoltages(testCase)
+            % The oracle that makes the per-bit TYPE table evidence
+            % rather than assertion. Read one width wrong anywhere in
+            % the walk and every field after it is garbage; these are
+            % named voltages, so they have to come out at their
+            % nominal values or the layout is wrong.
+            f = testCase.fixture('AHK1B_2008-01-01_A_02.dat');
+            [~, obs, aux] = gracefoReading.readL1b(f);
+
+            nominal = {'v15picu',  14.9095,  14.9213
+                       'v15micu', -14.9124, -14.9006
+                       'vr5picu',   5.0543,   5.0745
+                       'v15psu',   14.0135,  14.0250
+                       'v15msu',  -14.0350, -14.0005
+                       'v48psu',   50.1770,  50.2080
+                       'v48msu',  -50.4180, -50.3560};
+            for k = 1:size(nominal, 1)
+                col = obs(:, strcmp(aux.obsNames, nominal{k,1}));
+                col = col(~isnan(col));
+                testCase.verifyEqual(numel(col), 6, sprintf( ...
+                    '%s is present in the six long-format records.', ...
+                    nominal{k,1}));
+                testCase.verifyEqual([min(col), max(col)], ...
+                    [nominal{k,2}, nominal{k,3}], 'AbsTol', 1e-3, ...
+                    sprintf('%s must sit at its nominal rail voltage.', ...
+                    nominal{k,1}));
+            end
+
+            % Four temperatures, all plausible for powered electronics
+            % in orbit, and the proof-mass bias voltage in every record.
+            for name = ["tesu", "taicu", "tisu", "tcicu"]
+                col = obs(:, strcmp(aux.obsNames, name));
+                col = col(~isnan(col));
+                testCase.verifyGreaterThan(min(col), 15);
+                testCase.verifyLessThan(max(col), 60);
+            end
+            bias = obs(:, strcmp(aux.obsNames, 'bias_vol'));
+            testCase.verifyEqual([min(bias), max(bias)], ...
+                [10.1573, 10.1576], 'AbsTol', 1e-3);
+        end
+
         function testClassicQualflgIsABitStringLikeEverywhereElse(testCase)
             % V-8 asked whether classic qualflg is a bit string or a
             % number. Measured: in the binary files it is a single BYTE.
@@ -455,13 +560,11 @@ classdef testClassicProducts < matlab.unittest.TestCase
         end
 
         function testUnmeasuredClassicProductIsRefused(testCase)
-            % AHK1B is deliberately absent from the layout table. Its
-            % records are variable-length (8 700 records over 526 350
-            % data bytes is 60.5 bytes each) and the Level-1B handbook
-            % has no AHK1B entry in chapter 6 at all, so the per-bit
-            % value TYPES a prod_flag walk needs are not documented
-            % anywhere available. Inventing them is what O-1 forbids.
-            f = fullfile(testCase.workDir, 'AHK1B_2008-01-01_A_02.dat');
+            % TNK1B has no layout here: no real file has been read and
+            % no column table was taken from anywhere, so it is
+            % refused rather than decoded on a guess. AHK1B used to
+            % stand here and no longer does - it is measured now.
+            f = fullfile(testCase.workDir, 'TNK1B_2008-01-01_A_02.dat');
             fid = fopen(f, 'w');
             hdr = ['FILE FORMAT 0=BINARY 1=ASCII  : 0', newline, ...
                    'NUMBER OF DATA RECORDS        : 2', newline, ...

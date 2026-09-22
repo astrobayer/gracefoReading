@@ -26,8 +26,16 @@ function layout = classicLayout(product)
 %     memory: the GRACE-FO sibling product, whose YAML header declares
 %     them, or the GRACE Level-1B Data Product User Handbook v1.3
 %     (JPL D-22027, March 2010), whose chapter 6 tabulates the classic
-%     record fields in order. MAG1B is named from the handbook
-%     (section 6.8, pages 38-39) and everything else from its sibling.
+%     record fields in order, or the JPL GRACE Level-1 read software
+%     (GraceReadSW_L1, release 2010-03-31), the producer's own
+%     reference implementation, whose GRACEiolib.h declares one C
+%     struct per product. MAG1B is named from the handbook (section
+%     6.8, pages 38-39), AHK1B from the read software (AHK1X_t is a
+%     typedef of ACC1A_t; ReadACC1AFRecord.c walks the prod_flag bit
+%     by bit), and everything else from its GRACE-FO sibling - which
+%     the read software then independently confirms, struct by
+%     struct, for all seven. Nothing from either document is vendored
+%     into this repository.
 %     Either way the measured magnitudes have to agree with the
 %     assignment; where a name could not be justified that way the
 %     product is refused rather than guessed at.
@@ -43,8 +51,8 @@ function layout = classicLayout(product)
 %     product - string | char, 1x1
 %                Product token from the file name, e.g. "ACC1B".
 %                Options: ACC1B | SCA1B | GNV1B | KBR1B | THR1B |
-%                MAS1B | MAG1B; any other value returns an empty
-%                layout.
+%                MAS1B | MAG1B | AHK1B; any other value returns an
+%                empty layout.
 %                Required, positional.
 %
 %   OUTPUT
@@ -61,9 +69,9 @@ function layout = classicLayout(product)
 %                verified against.
 %
 %   ACCURACY AND LIMITATIONS
-%     - Verified per product on ACC1B/SCA1B/GNV1B/THR1B/MAS1B/MAG1B
-%       for both GRACE A and B, and on the single combined KBR1B
-%       (satellite token X), all of 2008-01-01, release 02:
+%     - Verified per product on ACC1B/SCA1B/GNV1B/THR1B/MAS1B/MAG1B/
+%       AHK1B for both GRACE A and B, and on the single combined
+%       KBR1B (satellite token X), all of 2008-01-01, release 02:
 %         ACC1B  78 B/record; linear accelerations <= 1.3e-6 m/s2 and
 %                angular <= 1e-3 rad/s2, residual columns ~1e-9.
 %                The nine columns are CORROBORATED by the ATBD
@@ -98,16 +106,25 @@ function layout = classicLayout(product)
 %                - the geomagnetic field strength at 480 km. The six
 %                magnetorquer currents stay within 0-120 mA of the
 %                torque_cal full scale, which is 120 all day.
-%     - **Not supported, deliberately**: classic AHK1B. Its records
-%       are variable-length - 8 700 records over 526 350 data bytes is
-%       60.5 bytes each, so they cannot be fixed - and the handbook
-%       has no AHK1B entry in chapter 6 at all: the product appears
-%       only in the report-file appendix, which names the eight
-%       qualflg bits and nothing else. The per-bit value TYPES that a
-%       prod_flag walk needs are therefore not documented anywhere
-%       available here, and one file cannot reveal them. Naming them
-%       from memory is the failure O-1 exists to prevent, so AHK1B
-%       raises unsupportedClassicProduct. See HANDOVER O-15.
+%         AHK1B  variable, and unlike any other classic product in
+%                two ways: prod_flag is FOUR bytes, addressing 29
+%                conditional columns rather than 8, and those columns
+%                do NOT share a type - seven double, eighteen single,
+%                then uint8, uint16, uint8, int32. The record walk
+%                consumed the data section to the byte on four files
+%                (JPL's own 2003 RL00 samples for A and B, and the
+%                RL02 files of 2008-01-01 for A and B), and the named
+%                supply rails come out at nominal: +15 V at 14.91,
+%                -15 V at -14.90, +5 V at 5.05, +48 V at 50.18 and
+%                -48 V at -50.39, with four electronics temperatures
+%                between 17 and 52 C. Read one width wrong anywhere
+%                in that walk and every field after it is garbage, so
+%                the voltages are the oracle.
+%     - **Not supported**: every other classic product, TNK1B, IHK1B,
+%       CLK1B, TIM1B, USO1B and the vector-offset files among them.
+%       No real file of any of them has been read here, so they raise
+%       unsupportedClassicProduct rather than being decoded on a
+%       guess.
 %     - **Release 02 and release 03.** The six products were measured
 %       on RL02. RL03 publishes only SCA1B and KBR1B (plus the ACT1B
 %       transplant archive), and both were checked on 2026-09-22: the
@@ -125,6 +142,13 @@ function layout = classicLayout(product)
 %       and its sca_id uses head codes RL02 does not (1, 4, 5, 6, 7,
 %       8 against 1, 2, 4). Both are properties of the product, not of
 %       the record layout.
+%     - **Two integer types were corrected on 2026-09-22** against the
+%       JPL read software, which declares them unsigned where this
+%       table had them signed: KBR1B's four SNR columns are uint16_t
+%       and THR1B's 42 counters are uint32_t. Neither changes a value
+%       in any bundled file - the SNRs reach 690 of 32 767 and the
+%       counters 89 329 647 of 2^31 - so this is hardening against a
+%       large value in some other day, not a bug fix.
 %     - Classic qualflg is a single BYTE bitmask in the binary files,
 %       not an 8-character bit string; parseClassicBinary renders it
 %       as the same 8-character string the GRACE-FO products use, so
@@ -183,7 +207,7 @@ switch upper(product)
                  {'biased_range','range_rate','range_accl','iono_corr', ...
                   'lighttime_corr','lighttime_rate','lighttime_accl', ...
                   'ant_centr_corr','ant_centr_rate','ant_centr_accl'}, 'double'
-                 {'K_A_SNR','Ka_A_SNR','K_B_SNR','Ka_B_SNR'}, 'int16'
+                 {'K_A_SNR','Ka_A_SNR','K_B_SNR','Ka_B_SNR'}, 'uint16'
                  {'qualflg'}, 'uint8' };
         oracle = 'd(biased_range)/dt matches range_rate to 5.8e-6 m/s; SNR 57-69 dB';
 
@@ -192,7 +216,7 @@ switch upper(product)
                  {'time_frac'}, 'int32'
                  {'time_ref'}, 'char'
                  {'GRACE_id'}, 'char'
-                 localThrusterNames(), 'int32'
+                 localThrusterNames(), 'uint32'
                  {'qualflg'}, 'uint8' };
         oracle = '42 counter columns; fractional time in microseconds';
 
@@ -225,6 +249,36 @@ switch upper(product)
                  {'qualflg'}, 'uint8' };
         oracle = '|B| 18.3-54.5 microtesla; 63 B/record reproduces the file size exactly';
 
+    case 'AHK1B'
+        % The accelerometer housekeeping product, from the JPL GRACE
+        % Level-1 read software (GraceReadSW_L1, release 2010-03-31),
+        % which types AHK1X_t as ACC1A_t and reads it with
+        % ReadACC1AFRecord.c. Two things here are unlike every other
+        % variable-length classic product and are why this one could
+        % not be inferred: prod_flag is FOUR bytes, so there are 32
+        % conditional columns and not 8, and they do NOT share a type
+        % - seven doubles, eighteen floats, then int8/uint16/int8/
+        % int32. Bits 29-31 are undefined; a file that sets one is an
+        % error rather than a guess, because their width is unknown.
+        spec = { {'rcvtime_intg'}, 'int32'
+                 {'rcvtime_frac'}, 'int32'
+                 {'time_ref'}, 'char'
+                 {'GRACE_id'}, 'char'
+                 {'qualflg'}, 'uint8'
+                 {'prod_flag'}, 'uint32'
+                 {'lin_accl_x','lin_accl_y','lin_accl_z', ...
+                  'ang_accl_x','ang_accl_y','ang_accl_z', ...
+                  'bias_vol'}, 'double'
+                 {'vd','x1_out','x2_out','x3_out','y1_out','y2_out', ...
+                  'z1_out','tesu','taicu','tisu','v15picu','v15micu', ...
+                  'vr5picu','tcicu','v15psu','v15msu','v48psu', ...
+                  'v48msu'}, 'single'
+                 {'status'}, 'uint8'
+                 {'icu_blk_nr'}, 'uint16'
+                 {'Tenhz_count'}, 'uint8'
+                 {'Mhz_count'}, 'int32' };
+        oracle = 'ICU/SU rails +-15 V, +5 V and +-48 V at nominal; record walk exact';
+
     otherwise
         layout = struct();
         return
@@ -245,8 +299,13 @@ if isempty(layout.prodFlagIdx)
     layout.prodFlagIdx = 0;
 end
 layout.conditional = false(1, numel(names));
+layout.prodFlagBits = 0;
 if layout.prodFlagIdx > 0
     layout.conditional(layout.prodFlagIdx+1:end) = true;
+    % How many conditional columns the flag can address is a property
+    % of the flag's own width, not a constant: MAS1B's prod_flag is
+    % one byte and AHK1B's is four.
+    layout.prodFlagBits = 8 * localWidth(types{layout.prodFlagIdx});
 end
 layout.oracle = oracle;
 
@@ -261,10 +320,10 @@ end
 % ========================================================================
 function w = localWidth(t)
 switch t
-    case {'char', 'uint8'}, w = 1;
-    case 'int16',           w = 2;
-    case {'int32','single'},w = 4;
-    case 'double',          w = 8;
+    case {'char', 'uint8'},          w = 1;
+    case {'int16','uint16'},         w = 2;
+    case {'int32','uint32','single'},w = 4;
+    case 'double',                   w = 8;
     otherwise
         error('gracefoReading:readL1b:badClassicType', ...
             'Unknown classic field type "%s".', t);

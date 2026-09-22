@@ -1,5 +1,179 @@
 # Changelog — gracefoReading
 
+## Unreleased
+
+### Added — classic MAG1B is read (O-15, first half)
+
+- The magnetometer and magnetorquer product is no longer refused.
+  Its 63-byte record is **measured**: the published GRACE A file of
+  2008-01-01 is 86 400 records over a 5 443 200-byte data section,
+  which is 63.0 bytes each and admits no other field count at these
+  widths, and the first and last epochs equal the header's
+  `TIME FIRST OBS` / `TIME LAST OBS` to the microsecond.
+- Its eighteen columns — `time_intg`, `time_frac`, `time_ref`,
+  `GRACE_id`, `MfvX/Y/Z_RAW`, `torque1A`…`torque3B`, `MF_BCalX/Y/Z`,
+  `torque_cal`, `qualflg` — are **named from the GRACE Level-1B Data
+  Product User Handbook v1.3 (JPL D-22027), section 6.8, pages 38–39**,
+  which is now in hand. That is the difference obligation O-1 turns
+  on: the layouts it flagged were *recalled* from that handbook, these
+  are *read out of* it.
+- The naming is then checked against what the numbers must be: |B| is
+  **18.3–54.5 µT** on GRACE A and 19.5–54.4 µT on GRACE B over the
+  full day — the geomagnetic field strength at 480 km — the six
+  magnetorquer currents stay inside the 120 mA `torque_cal` full
+  scale, and `MF_BCalX/Y/Z` are the constants 54, 54, 53. If the
+  vector were not the first three floats, none of that would hold.
+- `MAG1B_2008-01-01_A_02.dat` is bundled, trimmed to 40 records the
+  same way as the other classic fixtures, and
+  `tests/python_reference/classic_reference.py` decodes it too, so the
+  golden numbers still come from outside the code they test.
+
+### Unchanged — classic AHK1B is still refused
+
+- The handbook does not close this half of O-15 and says so plainly:
+  chapter 6 has **no AHK1B entry at all**. The product appears only in
+  the report-file appendix, which names its eight `qualflg` bits and
+  nothing else.
+- Its records are variable-length — 8 700 records over 526 350 data
+  bytes is 60.5 bytes each — so a `prod_flag` walk needs a per-bit
+  value **type** for every bit, and no document available here states
+  them. One file cannot reveal them. AHK1B therefore keeps raising
+  `unsupportedClassicProduct`, and the refusal test now exercises it
+  rather than MAG1B.
+
+### Added — ACH1B is bundled, so its acceptance row no longer skips (G-04, #19)
+
+- `ACH1B_2020-01-01_D_04.txt`, the hybrid transplant accelerometer,
+  is bundled trimmed to its first 120 records. Satellite **D** and not
+  C: D is the one whose accelerometer failed and therefore the one the
+  ACU + ACS + ACM + AC0 transplant exists for.
+- The **complete** published day was read before the extract was cut:
+  86 400 records, first epoch MJD 58849 0 s, last 86 399 s, twelve
+  declared variables and **nine** observation columns — exactly the
+  columns of classic ACC1B, which is independent confirmation of that
+  measured layout — and `ang_accl_x/y/z` identically **zero in all
+  86 400 records**, the transplant supplying linear accelerations
+  only. `testACH1B` asserts what survives the trim and states the rest
+  as a measurement of the full file.
+- **The row passes on either file, which took a red run to get
+  right.** The fixture lookup is pool first, bundled second, and the
+  owner's pool holds the full published day under the same name: the
+  first version of this row asserted 120 records, read 86 400 and
+  failed on exactly the four length-dependent lines (CI run
+  35707090459). Every value-level assertion passed on the full day —
+  which is itself the strongest confirmation the extract is faithful.
+  What depends on the record count is now derived from it (at 1 Hz
+  from midnight with no gap, the last epoch is `n-1`, a stronger
+  statement on the full day than on the extract) and a length that is
+  neither 120 nor 86 400 is refused outright.
+- `testMAS1B` and `testTHR1B` still hard-code their record counts and
+  would be shadowed the same way. That fails loudly rather than
+  silently, so it is written down in `tests/realdata/README.md` rather
+  than fixed in passing.
+- The CI pool listing names `ACH1B_2020-01-01_D_04.txt` again, now
+  that the run has shown the pool holds it; `testAHK1B` and
+  `testLHK1B` still wait for theirs.
+
+### Added — classic AHK1B is read, and O-15 closes completely
+
+- The accelerometer housekeeping product is the last classic binary
+  product this toolbox refused, and the hardest: neither the Level-1B
+  handbook (no chapter-6 entry) nor the ATBD (no record formats at
+  all) describes it. What does is the **JPL GRACE Level-1 read
+  software** (`GraceReadSW_L1`, release 2010-03-31) — the producer's
+  own reference implementation, where `GRACEiolib.h` types `AHK1X_t`
+  as `ACC1A_t` and `ReadACC1AFRecord.c` walks the `prod_flag` bit by
+  bit.
+- Two facts from it are why **no single file could ever have revealed
+  this layout**: `prod_flag` is **four bytes**, addressing 29
+  conditional columns rather than 8, and those columns do **not share
+  a type** — seven `double`, eighteen `single`, then `uint8`,
+  `uint16`, `uint8`, `int32`.
+- Verified rather than trusted. The record walk consumes the data
+  section **to the byte** on four independent files: JPL's own 2003
+  RL00 samples for GRACE A and B, and the RL02 files of 2008-01-01 for
+  A and B. The oracle is the named supply rails, which cannot come out
+  right if any width in the walk is wrong: **+15 V at 14.91, −15 V at
+  −14.90, +5 V at 5.05, +48 V at 50.18, −48 V at −50.39**, with four
+  electronics temperatures between 17 and 52 °C.
+- `parseClassicBinary` now takes the flag width **and every column
+  type** from the layout instead of assuming one byte and one shared
+  type. A record that sets a bit the layout does not define raises the
+  new `gracefoReading:readL1b:classicUndefinedProdFlagBit` — the field
+  is there but its width is unknown, so every byte after it would be
+  misread.
+- AHK1B calls its split tag `rcvtime_intg`/`rcvtime_frac` (it shares
+  the ACC1A record); the time detection accepts both spellings.
+- `AHK1B_2008-01-01_A_02.dat` is bundled, trimmed to 40 records cut so
+  that **both** `prod_flag` patterns of the day appear — 34 short, 6
+  long — which exercises the NaN pattern for absent columns too.
+- **Nothing from the JPL archive is vendored here.** It was used as an
+  offline oracle and is cited; every fixture still comes from the
+  owner's own files.
+
+### Fixed — two integer types were signed where the producer declares them unsigned
+
+- `KBR1B`'s four SNR columns are `uint16_t` and `THR1B`'s 42 counters
+  are `uint32_t`, per the JPL read software. **Neither changes a value
+  in any bundled file** — the SNRs reach 690 of 32 767 and the
+  counters 89 329 647 of 2^31 — so no golden number moved. This is
+  hardening against a large value on some other day.
+- The same archive independently confirmed **all seven** previously
+  measured layouts, struct by struct and name for name, including the
+  MAG1B naming taken from the handbook earlier the same day.
+
+### Documented — the ACC1B nine-column correction has a second witness
+
+- The GRACE Level-1B **Algorithm Theoretical Basis Document** (JPL
+  D-27672 / GRACE 327-741, v1.2, 2006) is now in hand. Its §3.1.4
+  step 8 says `ACC_1B` carries "the six components of compressed ACC
+  data (3 linear and 3 angular accelerations), the fit residuals and
+  quality flags" — six plus three, from a document that never mentions
+  a byte. That is a third independent line of evidence for the layout
+  correction O-1 turned on, after the bytes themselves and after
+  ACH1B's declared columns.
+- Step 6 explains an asymmetry the bytes showed but did not explain:
+  residuals are compressed minus uncompressed **linear** acceleration
+  at the integer second, which is why there are three `acl_*_res` and
+  not six. Its 10 µm/s² flag threshold matches the GRACE-FO ACH1B
+  header's `qualflg` bit 2 word for word.
+- Appendix G is the authority for `aux.timeSystem = 'GPS'`: GPS time
+  is the corrected receiver time used in all Level-1B data. It also
+  gives the `time_ref` column its meaning (`R` receiver, `G` GPS).
+- **It does not close the AHK1B half of O-15**, and that is recorded
+  so a later session does not re-open the hope: the ATBD carries no
+  record formats at all — `prod_flag`, "Data Type", "Byte Length" and
+  `qualflg` appear zero times in 54 pages, and AHK1B appears twice,
+  both as a file name of `TimeCorrHK`.
+- Documentation only; no code changed.
+
+### Verified — classic release 03 reads under the same layouts
+
+- The 1.1.0 notes said classic RL03 was not read: release 02 was what
+  had been supplied. RL03 publishes only **SCA1B and KBR1B** (plus the
+  ACT1B transplant archive, still not supplied), and both were checked
+  against real files on 2026-09-22. The record lengths are identical to
+  RL02 — 47 and 93 bytes — and the oracles hold.
+- **SCA1B RL03** (2008-01-20): quaternion norm within **9.6e-11** of
+  unity over all 86 398 records.
+- **KBR1B RL03** (2008-01-01) is of the *same day* as the bundled RL02
+  file, which makes the pair the strongest single piece of evidence for
+  that layout. Decoded with the one table, the two independently
+  produced files are **bit-identical** in `biased_range`, `range_rate`,
+  `range_accl`, `iono_corr` and all four SNRs, differing only in the
+  reprocessed `ant_centr_corr` (1.7 µm) and in `qualflg`. A wrong
+  offset could not produce that pattern.
+- Two differences are the product's rather than the layout's: RL03
+  SCA1B samples at 1 Hz where the RL02 file samples at 5 s, and its
+  `sca_id` uses head codes 1, 4, 5, 6, 7 and 8 against RL02's 1, 2, 4.
+- **Scope correction.** The `sca_id` ↔ `qualflg` bit 3 correspondence
+  recorded for the RL02 file holds there and on its full day, as it was
+  always stated — but it does **not** generalise: on the RL03 day it
+  holds in 57 % of records. The limit is now written beside the claim,
+  so it cannot be read as a law of the product.
+- No code changed. Two fixtures and two acceptance points were added,
+  and the documentation now says RL02 **and** RL03 where it said RL02.
+
 ## 1.1.0 — 2026-09-22
 
 Five of the seven reader work packages of the preprocessing concept:

@@ -22,6 +22,10 @@ classdef testClassicProducts < matlab.unittest.TestCase
 %       results = runtests('testClassicProducts'); table(results)
 %
 %   COVERAGE
+%     - release 03 as well as release 02: the same layouts read the
+%       RL03 SCA1B of 2008-01-20 (1 Hz where RL02 is 5 s) and the RL03
+%       KBR1B of 2008-01-01, whose ranging observables are bit-identical
+%       to the RL02 file of the same day
 %     - binary dispatch: a classic header declaring
 %       "FILE FORMAT 0=BINARY 1=ASCII : 0" is read as bytes, and the
 %       measured products do NOT warn classicExperimental any more
@@ -36,6 +40,13 @@ classdef testClassicProducts < matlab.unittest.TestCase
 %     - THR1B: 42 counter columns, microsecond fractional time
 %     - MAS1B: prod_flag-driven variable-length records, NaN for absent
 %       columns, and the thruster- and tank-based masses agreeing
+%     - MAG1B: the magnetometer vector, the six magnetorquer currents
+%       and the calibration columns, with |B| checked against the
+%       geomagnetic field strength at GRACE altitude
+%     - AHK1B: a FOUR-byte prod_flag addressing 29 conditional columns
+%       of five different types, both flag patterns the day uses, the
+%       NaN pattern for the short one, and the ICU/SU supply rails
+%       checked against their nominal voltages
 %     - classic qualflg: a byte in the file, rendered as the same
 %       8-character bit string the GRACE-FO products use, so
 %       decodeQualFlags works on both
@@ -49,9 +60,21 @@ classdef testClassicProducts < matlab.unittest.TestCase
 %       published. FILESIZE and TIME LAST OBS therefore still describe
 %       the full published file, which is deliberate: the reader must
 %       not depend on either.
-%     - One day, release 02, GRACE A (KBR1B is the A+B link, token X).
-%       These tests say nothing about RL03, whose record layout was
-%       not available, nor about the classic ASCII variant.
+%     - Two releases: RL02 for the seven products, and RL03 for the
+%       two products RL03 actually publishes, SCA1B and KBR1B. The
+%       record layouts are identical across the two, measured. Nothing
+%       here covers the classic ASCII variant, nor the ACT1B
+%       transplant archive.
+%     - MAG1B and AHK1B are the two products whose column NAMES come
+%       from a document rather than from a GRACE-FO sibling: the
+%       Level-1B Data Product User Handbook v1.3 section 6.8, and the
+%       JPL GRACE Level-1 read software (GraceReadSW_L1, release
+%       2010-03-31), whose GRACEiolib.h types AHK1X_t as ACC1A_t and
+%       whose ReadACC1AFRecord.c walks the prod_flag bit by bit. Both
+%       are in hand, not remembered - which is the whole difference
+%       from the situation O-1 records. Nothing from either is
+%       vendored into this repository; what the tests below check is
+%       that the real files agree with them.
 %
 %   EXAMPLE
 %     results = runtests('testClassicProducts');
@@ -144,6 +167,13 @@ classdef testClassicProducts < matlab.unittest.TestCase
             % head 4 and 9 from head 1. The first version of this row
             % asserted a constant 4 taken from record 1 and failed -
             % correctly, the reader being right and the test wrong.
+            %
+            % NOTE the scope of the cross-check below. It holds on THIS
+            % file and its full day; it does NOT generalise. The RL03
+            % file of 2008-01-20 uses head codes 1, 4, 5, 6, 7 and 8,
+            % and there the same correspondence holds in only 57 % of
+            % records. It is evidence about these bytes, not a law of
+            % the product.
             testCase.verifyEqual(unique(aux.sca_id)', [1 4]);
             testCase.verifyEqual(aux.sca_id(1), 4);
             testCase.verifyEqual(sum(aux.sca_id == 4), 31);
@@ -248,6 +278,245 @@ classdef testClassicProducts < matlab.unittest.TestCase
             end
         end
 
+        function testSCA1BRelease03(testCase)
+            % RL03, issue #17's remaining caveat. The layouts were
+            % measured on release 02 only, so nothing claimed to read
+            % an RL03 file. Measured 2026-09-22: the record is 47 bytes
+            % there too, and the quaternion oracle holds.
+            f = testCase.fixture('SCA1B_2008-01-20_A_03.dat');
+            [t, obs, aux] = gracefoReading.readL1b(f);
+
+            testCase.verifyEqual(aux.headerFormat, 'classicBinary');
+            testCase.verifySize(t, [40, 2]);
+            testCase.verifyEqual(t(1,:), [54485, 0], 'AbsTol', 1e-9);
+            % RL03 SCA1B is 1 Hz where the RL02 file is 5 s - a
+            % difference in the product, not in the record layout
+            testCase.verifyEqual(t(2,:), [54485, 1], 'AbsTol', 1e-9);
+            testCase.verifyEqual(aux.obsNames, ...
+                {'quatangle','quaticoeff','quatjcoeff','quatkcoeff','qual_rss'});
+            testCase.verifyEqual(obs(1,1), 0.5137397438332172, 'AbsTol', 1e-15);
+            testCase.verifyEqual(obs(1,5), 1.043471818915979e-06, 'AbsTol', 1e-20);
+
+            [ok, stats] = gracefoReading.checkQuaternionNorm(obs, aux, ...
+                'Tolerance', 1e-9);
+            testCase.verifyTrue(all(ok), sprintf( ...
+                'RL03 quaternion norm violations: %d (max dev %.3g)', ...
+                stats.numViolations, stats.maxDeviation));
+
+            % sca_id carries head codes RL02 never shows (7 throughout
+            % this extract; the full day uses 1, 4, 5, 6, 7 and 8).
+            % Recorded because the RL02 file's sca_id / qualflg bit 3
+            % correspondence does NOT generalise - see the note in
+            % testSCA1B.
+            testCase.verifyEqual(unique(aux.sca_id), 7);
+        end
+
+        function testKBR1BRelease03MatchesRelease02(testCase)
+            % The strongest evidence the KBR1B layout is right: two
+            % files of the SAME day, produced independently in two
+            % releases, decoded with one layout. The ranging
+            % observables agree EXACTLY; only the reprocessed
+            % antenna-centre correction differs, and by 1.7 micrometre.
+            % A wrong offset could not produce that pattern.
+            f02 = testCase.fixture('KBR1B_2008-01-01_X_02.dat');
+            f03 = testCase.fixture('KBR1B_2008-01-01_X_03.dat');
+            [t02, o02, a02] = gracefoReading.readL1b(f02);
+            [t03, o03, a03] = gracefoReading.readL1b(f03);
+
+            testCase.verifyEqual(a03.headerFormat, 'classicBinary');
+            testCase.verifyEqual(t03, t02, ...
+                'The two releases tag the same epochs.');
+            testCase.verifyEqual(a03.obsNames, a02.obsNames);
+
+            for name = ["biased_range", "range_rate", "range_accl", ...
+                        "iono_corr", "K_A_SNR", "Ka_A_SNR", "K_B_SNR", "Ka_B_SNR"]
+                i = strcmp(a02.obsNames, name);
+                testCase.verifyEqual(o03(:, i), o02(:, i), sprintf( ...
+                    '%s must be bit-identical between RL02 and RL03.', name));
+            end
+
+            % the one column that was reprocessed
+            iAnt = strcmp(a02.obsNames, 'ant_centr_corr');
+            d = max(abs(o03(:, iAnt) - o02(:, iAnt)));
+            testCase.verifyGreaterThan(d, 0, ...
+                'ant_centr_corr was reprocessed and must differ.');
+            testCase.verifyLessThan(d, 1e-5, ...
+                'and it must differ only at the micrometre level.');
+        end
+
+        function testMAG1B(testCase)
+            % O-15, first half. The magnetometer and magnetorquer
+            % product: 18 fields in 63 bytes, named from the GRACE
+            % Level-1B Data Product User Handbook v1.3 section 6.8
+            % (pp. 38-39), which tabulates them in this order with
+            % these widths. The structural proof is the record length:
+            % the full published file is 86 400 records over a
+            % 5 443 200-byte data section, which is 63.0 bytes each
+            % and admits no other field count at these widths.
+            f = testCase.fixture('MAG1B_2008-01-01_A_02.dat');
+            [t, obs, aux] = gracefoReading.readL1b(f);
+
+            testCase.verifyEqual(aux.headerFormat, 'classicBinary');
+            testCase.verifyEqual(aux.product, 'MAG1B');
+            testCase.verifySize(t, [40, 2]);
+            testCase.verifyEqual(aux.timeVariable, 'time_intg+time_frac');
+
+            % The file opens ONE record before midnight, so the first
+            % epoch is the last second of 2007-12-31 - the day the
+            % header's TIME FIRST OBS names. Both epochs are the
+            % reference decoder's to 1e-6 s.
+            testCase.verifyEqual(t(1,:),   [54465, 86399.787692], 'AbsTol', 1e-6);
+            testCase.verifyEqual(t(end,:), [54466,    38.787683], 'AbsTol', 1e-6);
+
+            % 13 single-precision observation columns; the time frame,
+            % the identifiers and qualflg go to aux.
+            testCase.verifyEqual(aux.obsNames, ...
+                {'MfvX_RAW','MfvY_RAW','MfvZ_RAW', ...
+                 'torque1A','torque2A','torque3A', ...
+                 'torque1B','torque2B','torque3B', ...
+                 'MF_BCalX','MF_BCalY','MF_BCalZ','torque_cal'});
+            testCase.verifySize(obs, [40, 13]);
+            testCase.verifyEqual(aux.time_ref(1), 'G');
+            testCase.verifyEqual(aux.GRACE_id(1), 'A');
+
+            % First record, from the reference decoder. Single
+            % precision widened to double, so ~7 significant digits.
+            testCase.verifyEqual(obs(1, 1:3), ...
+                [13.866063117980957, -4.9530167579650879, -25.6201171875], ...
+                'AbsTol', 1e-9);
+        end
+
+        function testMAG1BFieldStrengthIsGeomagnetic(testCase)
+            % The oracle that makes the handbook's column ORDER
+            % evidence rather than assertion: if MfvX/Y/Z were not the
+            % first three floats, their norm would not be a magnetic
+            % field strength. Measured over the full published day it
+            % is 18.3-54.5 uT on GRACE A and 19.5-54.4 uT on GRACE B -
+            % the geomagnetic field at 480 km. The bundled 40-record
+            % extract covers 40 s of one pass and sits in 28.3-29.9.
+            f = testCase.fixture('MAG1B_2008-01-01_A_02.dat');
+            [~, obs, aux] = gracefoReading.readL1b(f);
+
+            iB = cellfun(@(n) find(strcmp(aux.obsNames, n)), ...
+                {'MfvX_RAW','MfvY_RAW','MfvZ_RAW'});
+            B = sqrt(sum(obs(:, iB).^2, 2));
+            testCase.verifyGreaterThan(min(B), 18);
+            testCase.verifyLessThan(max(B), 56);
+            testCase.verifyEqual([min(B), max(B)], ...
+                [28.305906, 29.885471], 'AbsTol', 1e-5);
+
+            % The calibration columns are constants of the instrument,
+            % not a signal, and torque_cal is the 120 mA full scale the
+            % six current columns never exceed.
+            cal = cellfun(@(n) find(strcmp(aux.obsNames, n)), ...
+                {'MF_BCalX','MF_BCalY','MF_BCalZ','torque_cal'});
+            testCase.verifyEqual(unique(obs(:, cal), 'rows'), ...
+                [54, 54, 53, 120]);
+            iTq = cellfun(@(n) find(strcmp(aux.obsNames, n)), ...
+                {'torque1A','torque2A','torque3A', ...
+                 'torque1B','torque2B','torque3B'});
+            tq = obs(:, iTq);
+            testCase.verifyGreaterThanOrEqual(min(tq(:)), 0);
+            testCase.verifyLessThanOrEqual(max(tq(:)), 120);
+        end
+
+        function testAHK1B(testCase)
+            % O-15, second half and last. The accelerometer
+            % housekeeping product is the only classic record whose
+            % conditional columns do NOT share a type, and the only
+            % one whose prod_flag is four bytes rather than one. Both
+            % facts come from the JPL read software; both are checked
+            % here against real bytes.
+            f = testCase.fixture('AHK1B_2008-01-01_A_02.dat');
+            [t, obs, aux] = gracefoReading.readL1b(f);
+
+            testCase.verifyEqual(aux.headerFormat, 'classicBinary');
+            testCase.verifyEqual(aux.product, 'AHK1B');
+            testCase.verifySize(t, [40, 2]);
+            testCase.verifyEqual(aux.timeVariable, 'rcvtime_intg+rcvtime_frac');
+            testCase.verifyEqual(t(1,:),   [54465, 86100.792110], 'AbsTol', 1e-6);
+            testCase.verifyEqual(t(end,:), [54466,    90.844163], 'AbsTol', 1e-6);
+            testCase.verifyEqual(aux.time_ref(1), 'G');
+            testCase.verifyEqual(aux.GRACE_id(1), 'A');
+
+            % A 32-character prod_flag, not 8. This is the assertion
+            % that would have been wrong under every other classic
+            % product's flag width.
+            testCase.verifySize(aux.prod_flag, [40, 32]);
+            testCase.verifyTrue(all(ismember(aux.prod_flag(:), '01')));
+            testCase.verifySize(aux.qualflg, [40, 8]);
+
+            % Exactly the two patterns this day uses: 34 records carry
+            % the short set, 6 carry the long one that adds the
+            % temperatures, the supply rails and the status byte.
+            [bits, ~] = gracefoReading.decodeQualFlags(aux, 'prod_flag');
+            testCase.verifySize(bits, [40, 32]);
+            iTesu = strcmp(aux.obsNames, 'tesu');
+            testCase.verifyEqual(sum(~isnan(obs(:, iTesu))), 6);
+            testCase.verifyEqual(sum(isnan(obs(:, iTesu))), 34);
+            % bit 14 is tesu, and the flag must agree with the data
+            testCase.verifyEqual(bits(:, 15), ~isnan(obs(:, iTesu)));
+
+            % bias_vol (bit 6, double) is in every record; the six
+            % linear/angular acceleration columns never are - AHK1B
+            % carries housekeeping, the accelerations live in ACC1B.
+            iBias = strcmp(aux.obsNames, 'bias_vol');
+            testCase.verifyTrue(all(~isnan(obs(:, iBias))));
+            iLin = strcmp(aux.obsNames, 'lin_accl_x');
+            testCase.verifyTrue(all(isnan(obs(:, iLin))));
+
+            % First record, from the reference decoder. bias_vol is a
+            % double and keeps ~16 digits; vd and x1_out are floats.
+            testCase.verifyEqual(obs(1, iBias), 10.157606470504755, ...
+                'AbsTol', 1e-12);
+            iVd = strcmp(aux.obsNames, 'vd');
+            testCase.verifyEqual(obs(1, iVd), 4.9098706245422363, ...
+                'AbsTol', 1e-9);
+            iBlk = strcmp(aux.obsNames, 'icu_blk_nr');
+            testCase.verifyEqual(obs(1, iBlk), 17090);
+        end
+
+        function testAHK1BSupplyRailsAreAtTheirNominalVoltages(testCase)
+            % The oracle that makes the per-bit TYPE table evidence
+            % rather than assertion. Read one width wrong anywhere in
+            % the walk and every field after it is garbage; these are
+            % named voltages, so they have to come out at their
+            % nominal values or the layout is wrong.
+            f = testCase.fixture('AHK1B_2008-01-01_A_02.dat');
+            [~, obs, aux] = gracefoReading.readL1b(f);
+
+            nominal = {'v15picu',  14.9095,  14.9213
+                       'v15micu', -14.9124, -14.9006
+                       'vr5picu',   5.0543,   5.0745
+                       'v15psu',   14.0135,  14.0250
+                       'v15msu',  -14.0350, -14.0005
+                       'v48psu',   50.1770,  50.2080
+                       'v48msu',  -50.4180, -50.3560};
+            for k = 1:size(nominal, 1)
+                col = obs(:, strcmp(aux.obsNames, nominal{k,1}));
+                col = col(~isnan(col));
+                testCase.verifyEqual(numel(col), 6, sprintf( ...
+                    '%s is present in the six long-format records.', ...
+                    nominal{k,1}));
+                testCase.verifyEqual([min(col), max(col)], ...
+                    [nominal{k,2}, nominal{k,3}], 'AbsTol', 1e-3, ...
+                    sprintf('%s must sit at its nominal rail voltage.', ...
+                    nominal{k,1}));
+            end
+
+            % Four temperatures, all plausible for powered electronics
+            % in orbit, and the proof-mass bias voltage in every record.
+            for name = ["tesu", "taicu", "tisu", "tcicu"]
+                col = obs(:, strcmp(aux.obsNames, name));
+                col = col(~isnan(col));
+                testCase.verifyGreaterThan(min(col), 15);
+                testCase.verifyLessThan(max(col), 60);
+            end
+            bias = obs(:, strcmp(aux.obsNames, 'bias_vol'));
+            testCase.verifyEqual([min(bias), max(bias)], ...
+                [10.1573, 10.1576], 'AbsTol', 1e-3);
+        end
+
         function testClassicQualflgIsABitStringLikeEverywhereElse(testCase)
             % V-8 asked whether classic qualflg is a bit string or a
             % number. Measured: in the binary files it is a single BYTE.
@@ -291,11 +560,11 @@ classdef testClassicProducts < matlab.unittest.TestCase
         end
 
         function testUnmeasuredClassicProductIsRefused(testCase)
-            % MAG1B and AHK1B are deliberately absent from the layout
-            % table: their structure is known but their column names
-            % (MAG1B) and per-bit value types (AHK1B) are not, and
-            % inventing them is what O-1 forbids.
-            f = fullfile(testCase.workDir, 'MAG1B_2008-01-01_A_02.dat');
+            % TNK1B has no layout here: no real file has been read and
+            % no column table was taken from anywhere, so it is
+            % refused rather than decoded on a guess. AHK1B used to
+            % stand here and no longer does - it is measured now.
+            f = fullfile(testCase.workDir, 'TNK1B_2008-01-01_A_02.dat');
             fid = fopen(f, 'w');
             hdr = ['FILE FORMAT 0=BINARY 1=ASCII  : 0', newline, ...
                    'NUMBER OF DATA RECORDS        : 2', newline, ...

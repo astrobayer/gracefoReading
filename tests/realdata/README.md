@@ -5,6 +5,7 @@ original names. Included with the toolbox (small):
 
     MAS1B_2020-01-01_C_04.txt      (~8 KB)
     THR1B_2020-01-01_C_04.txt      (~95 KB)
+    ACH1B_2020-01-01_D_04.txt      (~25 KB, trimmed - see below)
 
 To enable the full acceptance suite, copy in addition (too large to
 bundle; obtain from PO.DAAC, https://podaac.jpl.nasa.gov/, or the ISDC
@@ -15,13 +16,27 @@ mirror):
     SCA1B_2020-01-01_C_04.txt      (~11 MB)
     KBR1B_2020-01-01_Y_04.txt      (~4 MB)
     LRI1B_2020-01-01_Y_04.txt      (~8 MB)
-    ACH1B_2020-01-01_C_04.txt      hybrid transplant accelerometer (ACX)
     AHK1B_2020-01-01_C_04.txt      accelerometer housekeeping
     LHK1B_2020-01-01_C_04.txt      LRI housekeeping
 
-The last three arrive with the `.ACX` and `.LRI` daily archives rather
-than with `.noLRI`, and they are what the `testACH1B`, `testAHK1B` and
-`testLHK1B` rows wait for.
+These two arrive with the `.LRI` daily archive rather than with
+`.noLRI`, and they are what the `testAHK1B` and `testLHK1B` rows wait
+for. ACH1B, which arrives with `.ACX`, no longer waits: it is bundled.
+
+**A bundled fixture can be shadowed, and one of them was.** The lookup
+is pool first, this folder second, so a full-day file of the same name
+in the pool replaces the trimmed extract. That is exactly what happened
+to ACH1B on CI run 35707090459: the owner's pool holds the full
+published day under the bundled name, the row read 86 400 records where
+it asserted 120, and it failed on exactly the four length-dependent
+lines while agreeing on every value. A fixture that passes only when
+the pool is absent is not an acceptance point, so `testACH1B` now
+**derives** what depends on the record count and refuses any length
+that is neither 120 nor 86 400.
+
+`testMAS1B` and `testTHR1B` still hard-code theirs. They would fail the
+same way, loudly rather than silently, if a full day were put in the
+pool under `MAS1B_2020-01-01_C_04.txt` or `THR1B_2020-01-01_C_04.txt`.
 
 Tests for absent files are skipped automatically (assumption failure),
 so the suite passes either way — it simply becomes stricter with data.
@@ -80,9 +95,39 @@ the server's `README.txt` and `README_referenceFrames.txt`, which is why
 `aux.frameSource` exists — see `readItsgProduct`.
 
 
+# Hybrid transplant accelerometer (ACH1B, GRACE D)
+
+    ACH1B_2020-01-01_D_04.txt      the first 120 records of the
+                                   published day, `num_records`
+                                   rewritten to 120
+
+Satellite **D** and not C: D is the one whose accelerometer failed, and
+therefore the one the ACU + ACS + ACM + AC0 transplant exists for.
+
+The complete published file was read before the extract was cut, and
+three properties come from it rather than from the 120 records:
+
+* 86 400 records, first epoch MJD 58849 0 s, last 86 399 s;
+* twelve declared variables and **nine** observation columns — exactly
+  the columns of classic ACC1B, which is independent confirmation of
+  the classic layout measured below;
+* `ang_accl_x/y/z` are identically **zero in all 86 400 records**. The
+  transplant supplies linear accelerations only; the angular columns
+  are declared, so the reader must still return them.
+
+`testACH1B` passes on either file. Its length-dependent expectations
+are derived from the record count - at 1 Hz from midnight with no gap,
+the last epoch is fixed by the count alone, which is a *stronger*
+statement on the full day than on the extract - and everything else
+(the twelve declared variables, the nine observation columns, the
+satellite identifier, the first record's accelerations, the zero
+angular columns) is asserted outright because it does not depend on
+how many records were kept.
+
+
 # Classic GRACE (RL02, 2008-01-01) — binary products
 
-`testClassicProducts.m` reads these six bundled files. They are the
+`testClassicProducts.m` reads these eight bundled files. They are the
 evidence that discharged obligation **O-1**: until 2026-09-22 the
 classic column layouts were assumed from the GRACE Level-1B handbook
 and no real classic file existed in this repository.
@@ -93,6 +138,8 @@ and no real classic file existed in this repository.
     KBR1B_2008-01-01_X_02.dat      93   (the A+B link, satellite token X)
     THR1B_2008-01-01_A_02.dat     179
     MAS1B_2008-01-01_A_02.dat     variable, prod_flag driven
+    MAG1B_2008-01-01_A_02.dat      63
+    AHK1B_2008-01-01_A_02.dat      variable, 4-byte prod_flag driven
 
 **These are trimmed.** Each is the first 40 records of the published
 file, with the `NUMBER OF DATA RECORDS` header record rewritten to 40 —
@@ -106,6 +153,17 @@ deliberate. The reader must not depend on either — it checks the record
 count against the data section instead — and leaving them as published
 is what proves it does not.
 
+ACC1B's nine columns have a second, documentary witness. The GRACE
+Level-1B **ATBD** (JPL D-27672, §3.1.4 step 8) says `ACC_1B` carries
+"the six components of compressed ACC data (3 linear and 3 angular
+accelerations), the fit residuals and quality flags" — six plus three,
+stated by a document that never mentions a byte. Step 6 says why there
+are *three* residuals and not six: they are compressed minus
+uncompressed **linear** acceleration at the integer second, flagged
+above 10 µm/s², the same threshold the GRACE-FO ACH1B header gives for
+`qualflg` bit 2. The ATBD holds no record formats otherwise, so it
+names nothing here — it only agrees.
+
 The layouts were derived from these files rather than from a handbook,
 and each was checked against a quantity it must reproduce: the
 quaternion norm (SCA1B), the orbit radius and speed (GNV1B), the
@@ -117,13 +175,72 @@ regenerate them:
 
     python3 tests/python_reference/classic_reference.py tests/realdata
 
-Classic **MAG1B** and **AHK1B** are deliberately not supported. Their
-record structure was measured too (MAG1B is 63 bytes with 13 float32
-after the time frame, and |B| comes out at 18–55 µT), but ten of
-MAG1B's thirteen columns could not be named from a documented sibling
-product, and AHK1B's variable columns carry per-bit value *types* that
-a single file cannot reveal. Naming them from memory is the failure O-1
-exists to prevent, so both are refused with an explicit error.
+## MAG1B and AHK1B
+
+**MAG1B is supported since 2026-09-22.** Its 63-byte record is
+measured — 86 400 records over a 5 443 200-byte data section is 63.0
+bytes each, and no other field count fits at these widths — and its
+eighteen columns are **named from the GRACE Level-1B Data Product User
+Handbook v1.3 (JPL D-22027), section 6.8, pages 38–39**, which is in
+hand. That is the whole difference from the situation obligation O-1
+records: the earlier layouts were recalled from that handbook, these
+are read out of it. The measured magnitudes then have to agree, and do:
+|B| is 18.3–54.5 µT on GRACE A and 19.5–54.4 µT on GRACE B over the
+full day — the geomagnetic field at 480 km — the six magnetorquer
+currents stay inside the 120 mA `torque_cal` full scale, and the three
+`MF_BCal*` calibration columns are constants (54, 54, 53).
+
+**AHK1B is supported since 2026-09-22 too**, and it was the hardest of
+the eight. Neither the handbook (no chapter-6 entry) nor the ATBD (no
+record formats at all) describes it. What does is the **JPL GRACE
+Level-1 read software**, `GraceReadSW_L1` release 2010-03-31 — the
+producer's own reference implementation, where `GRACEiolib.h` types
+`AHK1X_t` as `ACC1A_t` and `ReadACC1AFRecord.c` walks the `prod_flag`
+bit by bit. Nothing from that archive is vendored here: it was used to
+read, and the real files were used to check.
+
+Two things make AHK1B unlike every other classic product, and are why
+no single file could have revealed it:
+
+* its `prod_flag` is **four bytes**, addressing 29 conditional columns
+  rather than 8;
+* those columns do **not share a type** — seven `double`, eighteen
+  `single`, then `uint8`, `uint16`, `uint8`, `int32`.
+
+The walk consumes the data section **to the byte** on four independent
+files: JPL's own 2003 RL00 samples for GRACE A and B, and the RL02
+files of 2008-01-01 for A and B. The oracle is the named supply rails,
+which have to come out at nominal or some width is wrong: +15 V at
+14.91, −15 V at −14.90, +5 V at 5.05, +48 V at 50.18, −48 V at −50.39,
+with four electronics temperatures between 17 and 52 °C.
+
+The bundled extract is deliberately cut to span **both** `prod_flag`
+patterns the day uses: 34 records carry the short set and 6 carry the
+long one that adds the temperatures, the rails and the status byte, so
+the NaN pattern for absent columns is exercised too.
+
+## Release 03
+
+RL03 publishes only two of these products (plus the ACT1B transplant
+archive, which is not bundled). Both are here, trimmed the same way:
+
+    SCA1B_2008-01-20_A_03.dat      47 bytes/record, 1 Hz
+    KBR1B_2008-01-01_X_03.dat      93 bytes/record, 5 s
+
+The record layouts are **identical to RL02**, measured. The RL03
+KBR1B is of the same day as the RL02 one, which makes the pair the
+strongest single piece of evidence for that layout: decoded with one
+table, the two files agree **bit for bit** on `biased_range`,
+`range_rate`, `range_accl`, `iono_corr` and all four SNRs, and differ
+only in the reprocessed `ant_centr_corr` — by 1.7 micrometre — and in
+`qualflg`. A wrong offset could not produce that pattern.
+
+Two differences are properties of the product rather than the layout:
+RL03 SCA1B samples at 1 Hz where the RL02 file samples at 5 s, and its
+`sca_id` uses head codes 1, 4, 5, 6, 7 and 8 where RL02 uses 1, 2 and
+4. The `sca_id` ↔ `qualflg` bit 3 correspondence that holds on the
+RL02 file therefore does **not** generalise: on the RL03 day it holds
+in 57 % of records. It is evidence about those bytes, not a law.
 
 # Official event lists (TN-01, TN-01a)
 

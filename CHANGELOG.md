@@ -52,8 +52,19 @@ keeps working.
   difference, so a run where reading the bytes already dominates
   settles O-7 by itself.
 - Asserts nothing and returns an empty result when the pool holds no
-  day file; the CI step that runs it is `continue-on-error`. It is a
-  measurement, not an acceptance point.
+  day file; the CI step that runs it is `continue-on-error` and runs
+  under `always()`, so a red suite cannot swallow the measurement. It
+  is a measurement, not an acceptance point.
+- **Measured** on the self-hosted runner, CI run 35698502947, MATLAB
+  R2026a: one real ACT1B day (86 400 records, 13.5 MB) takes
+  **7.801 s**, of which `fileread` is 0.059 s — parsing is 99.2 % of
+  the cost. A year extrapolates to **47.5 min**.
+- **Decided: no fixed-layout fast path**, and not for want of headroom.
+  47.5 min per product-year is not a bottleneck and `'CacheDir'` pays
+  it once; and it would be a second parsing path covering only one of
+  the reader's three record grammars (fixed columns, `prod_flag`
+  variable columns, rest-of-line). O-7 closes; `ci/benchmarkParse`
+  stays so re-opening it costs one command.
 
 ### Fixed — `readL1bMulti` accepts the column `findL1bFiles` returns (G-01, #16)
 

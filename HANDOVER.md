@@ -21,20 +21,20 @@ gains no preprocessing code from it. Facts live in one place, never in two.
 | | |
 |---|---|
 | Version | 1.1.0 (`gracefoReading.version()`; `Contents.m` and `docsrc/functionSpecs.json` must agree) |
-| Tests | Last measured 114 passed, 2 failed, 3 incomplete over 118 rows — CI run 35696829972, head `84da369`, 2026-09-22, 138.0 s (the buckets sum to 119 because `testRealData/testLHK1B` counts in both). **Both failures are fixed; the prediction for the next run is 119 passed + 0 failed + 2 incomplete = 121 rows** (`testReadL1b` 30, `testRealData` 11, the rest unchanged). **Two** incompletes, not one: run 35697358724's pool report named `ACH1B_2020-01-01_C_04.txt` and `GRACEFO-1_kinematicOrbit_2020-01-01.txt` as the only ABSENT entries, so `testACH1B` and `testFullDayKinematicJitter` both filter themselves out. The first draft of this row said 120 + 0 + 1 and was corrected by counting the pool report rather than by recalling it |
+| Tests | **119 passed, 0 failed, 2 incomplete = 121 total** — CI run 35698502947, head `efd8656`, self-hosted Windows runner, MATLAB R2026a on PCWIN64, 2026-09-22, 195.6 s. GREEN. The prediction was stated as a split, `119 + 0 + 2 = 121`, and matched it exactly, per class. The two incompletes are `testItsgProducts/testFullDayKinematicJitter` and `testRealData/testACH1B`, both named below with the one file each waits for |
 | Static gates | `docsrc/sourceIntegrity.py` 42 files / 0 findings · `docsrc/auditHelp.py` 42 help blocks clean · `python3 docsrc/generate_docs.py` then `git diff --exit-code -- html/` clean, and byte-identical on a second run — all four run 2026-09-22 in a sandbox without MATLAB |
 | Public units | 14 in `+gracefoReading/`, 14 internal in `+gracefoReading/+internal/` |
 | Tag / release | `v1.0.0` (lightweight tag + GitHub release, 2026-09-06). **v1.0.1 and v1.0.2 are merged but v1.0.1 has no release and 1.1.0 is unreleased** — see O-4 |
 
 Per-class test counts, for the prediction a next session must make
-*before* running: `testReadL1b` **27** (+2 for G-04), `testUtilities`
-**16** (+1 for G-01), `testBatchTools` **15** (+1 for G-01),
-`testItsgProducts` 15, `testRealData` **11** (+3 for G-04),
-`testItsgBatch` 12, `testDataPool` **10** (new 2026-09-22, G-06),
-`testDocConsistency` 7, `testSourceIntegrity` 5. Sum **118**, of which
-114 are expected to pass and 4 are the documented incompletes below.
-The last measured total is 101. A run reporting anything else is a
-finding, not a rounding.
+*before* running: `testReadL1b` **30** (+5: two for G-04's header
+names, three for the rest-of-line column), `testUtilities` **16** (+1
+for G-01), `testBatchTools` **15** (+1 for G-01), `testItsgProducts`
+15, `testRealData` **11** (+3 for G-04), `testItsgBatch` 12,
+`testDataPool` **10** (new 2026-09-22, G-06), `testDocConsistency` 7,
+`testSourceIntegrity` 5. Sum **121**, of which 119 pass and 2 are the
+documented incompletes below. The previous measured total is 101. A run
+reporting anything else is a finding, not a rounding.
 
 **Predict the split, not just the sum.** The 2026-09-14 prediction gave
 the per-class sum correctly as 89 and then wrote it as "89 passed and 1
@@ -45,10 +45,13 @@ itself hides that. State the prediction as passed + failed + incomplete
 = total, and check that the three add up before running.
 
 **What the first CI run of the branch measured, and what the prediction
-got wrong.** The prediction assumed AHK1B and LHK1B were absent from the
-pool and would skip. They are **present** — only ACH1B is missing — so
-the two new acceptance points ran against real bytes and did what an
-acceptance point is for: both found something.
+got wrong.** The first prediction assumed AHK1B and LHK1B were absent
+from the pool and would skip. They are **present** — only ACH1B is
+missing — so the two new acceptance points ran against real bytes and
+did what an acceptance point is for: both found something. The *second*
+prediction, made after that was known, matched its run exactly. Kept
+here because the reason a prediction misses is worth more than the
+prediction:
 
 | finding | evidence | whose defect |
 |---|---|---|
@@ -94,14 +97,51 @@ written from a guess. It has been removed again; what it measured:
   `+48V`/`-48V`. Six of its 32 prod_flag bits are set all day
   (TFEEU_REF, Vp, icu_blk_nr, PPS_source, Sync_Qual, statusflag),
   giving twelve tokens per record.
-- **The pool answers every file through the LEGACY path.** All ten
-  present fixtures reported `[pool root (legacy path…)]`, because the
-  repository-level `READING_DATA_POOL` still points at
-  `…\DATAPOOL\RawData\tests\realdata`. G-07's fallback is doing
-  exactly the job it was added for; the next release drops it, and only
-  after a run reports `0 via the legacy path`.
+- **The pool answers every file through the LEGACY path.** Run
+  35698502947 reports `9 of 11 found; 9 via the legacy path`, and
+  prints the fixture folder it tried first as
+  `…\RawData\tests\realdata\RawData\tests\realdata` — the doubled
+  path that the repository-level variable, still pointing at the
+  fixture folder, necessarily produces. G-07's fallback is carrying
+  every real-data acceptance point on this runner. **Deleting the
+  repository variable is therefore a real change, not a formality**:
+  the next run must report the same nine files with `0 via the legacy
+  path`, and only then may the fallback be dropped.
 
-**Four incompletes are expected and are not a regression.** Each has a
+**O-7 is measured, and decided.** CI run 35698502947 on the runner,
+`ACT1B_2020-01-01_C_04.txt`, 14 159 480 B, 86 400 records in 9
+observation columns, 3 repeats, MATLAB R2026a on PCWIN64:
+
+| quantity | measured |
+|---|---|
+| `readL1b`, minimum | **7.801 s** |
+| `readL1b`, median | 7.874 s |
+| `fileread` alone, minimum | **0.059 s — 0.8 % of the total** |
+| throughput | 11 076 records/s, 1.73 MB/s |
+| extrapolated year (365 x the minimum) | **2 847 s = 47.5 min** |
+
+**The decision: no fixed-layout fast path, and the reason is not the
+headroom.** The headroom is real — parsing is 99.2 % of the cost, so a
+typed `textscan` path could in principle win back almost all of it. It
+is not built because:
+
+1. 47.5 minutes for a year of one 1 Hz product is below the threshold
+   where it blocks anything, and `'CacheDir'` already turns every
+   re-read into a load, so that cost is paid once per file.
+2. It would be a **second parsing path for a subset of products**. The
+   reader now handles three distinct record grammars — fixed columns,
+   `prod_flag` variable columns (MAS1B, AHK1B) and the rest-of-line
+   column (LHK1B) — and only the first could use it. One fact in two
+   places is the failure mode this repository has been bitten by twice
+   (the help-block boundaries on 2026-09-06, the datetime epoch on
+   2026-09-14), and a divergence between two parsers would move epochs
+   with nothing visible to say so.
+
+**Re-entry:** if a campaign run of timeSeriesPreparation X-15 measures
+parse time as its dominant cost, re-open with that measurement beside
+this one. `ci/benchmarkParse` stays, so the comparison is one command.
+
+**Two incompletes are expected and are not a regression.** Each has a
 named cause and a one-file fix, and each becomes a pass the moment the
 file is in the pool. Everywhere else in this file "incomplete is a
 finding" still holds.
@@ -280,7 +320,7 @@ outside this table claims to be one.
 | O-6 | **RL05+ header conventions are unknown.** If PO.DAAC changes them, extend `internal/parseHeaderVariables.m` and add the new files to `tests/realdata/` | owner | when RL05 appears |
 | O-14 | **G-02 (#17) and G-05 (#20) are blocked on bytes no working session can reach.** Both need real files: classic RL02/RL03 L1B (binary records, per O-1) and the official event lists TN-01 SOE / TN-01a SCE. They exist in the owner's DATAPOOL, which a Claude Code session does not see, and **the network policy of the remote execution environment denies `isdc-data.gfz.de`** — measured 2026-09-22, `403` to `CONNECT` from the egress proxy, for both `…/grace/Level-1B/JPL/INSTRUMENT/RL03/` and `…/grace-fo/DOCUMENTS/TECHNICAL_NOTES/`, through `curl` and through the fetch tool alike. `raw.githubusercontent.com` answers, so the policy is a host allow-list and not a broken proxy. Writing either reader from a handbook remembered rather than read is the v1 failure O-1 records, so neither was written. **Discharged by any one of:** the owner adding those hosts to the environment's network policy; the owner pasting one classic ASCII header, a hexdump of its first binary records and the first lines of a TN-01 / TN-01a list into the session; or the work moving to a session that can see the DATAPOOL | owner | before G-02 or G-05 is started again |
 | O-10 | **`neutralDensity` is not in the product table.** The ITSG server publishes it and the README gives two different column layouts for releases 1.0 and 1.5/2.0, but no real file was read, so no entry was written. It parses as a generic GROOPS file and warns `productNotRecognised`. Writing the entry from the README alone is the mistake O-1 records | owner | when a real neutralDensity file exists |
-| O-7 | **Line-wise regexp tokenisation has headroom.** An 86400-line day file parses acceptably, but a typed `textscan` fast path exists for fixed-layout products. Profile in MATLAB before optimising — no speed claim has been measured. **2026-09-22 (G-03, #18):** the instrument now exists — `ci/benchmarkParse` and a non-blocking CI step on the runner, which is the only machine with both MATLAB and a real ACT1B day. It reports the total **and** `fileread` alone, because a fast path can only ever win back the difference. **The number itself is still missing**: this branch is tier B, so it arrives with the first CI run of this branch's PR and is recorded here with the run id and the MATLAB release. O-7 closes when that number is in this table and the decision is written beside it | — | read the number out of the CI log of this PR |
+| O-7 | **CLOSED 2026-09-22 — measured, then decided.** `readL1b` takes **7.801 s** on one real ACT1B day (86 400 records, 13.5 MB), of which `fileread` is 0.059 s: parsing is 99.2 % of the cost. A year extrapolates to **47.5 min**. No fixed-layout `textscan` fast path is built, and not for want of headroom — see section A for the two reasons (47.5 min/year is not a bottleneck and `'CacheDir'` pays it once; and it would be a second parsing path for one of the reader's three record grammars). `ci/benchmarkParse` and its CI step stay, so re-opening it costs one command | — | a campaign run of X-15 measuring parse time as its dominant cost |
 
 Closed: **O-11** (`readL1bMulti` could not take what `findL1bFiles`
 returns) — fixed 2026-09-22 in this branch as G-02's sibling G-01, issue

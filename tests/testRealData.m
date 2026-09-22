@@ -170,7 +170,7 @@ classdef testRealData < matlab.unittest.TestCase
             % The second is a DELIBERATE FALLBACK for exactly one
             % release, so that deleting the repository-level variable
             % and switching to the organisation one cannot turn a
-            % green run into eight skipped acceptance points in the
+            % green run into a row of skipped acceptance points in the
             % same step. It goes away with the next release; the CI
             % step that lists the pool reports which of the two
             % answered, so the switch is visible rather than inferred.

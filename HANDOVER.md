@@ -1,6 +1,6 @@
 # HANDOVER — gracefoReading
 
-**Revision 3.4 · 2026-09-18 · toolbox v1.0.2**
+**Revision 3.5 · 2026-09-22 · toolbox v1.1.0**
 
 The single point of truth for this repository. Where this document and a
 general engineering habit disagree, this document is right. Read it
@@ -20,19 +20,21 @@ gains no preprocessing code from it. Facts live in one place, never in two.
 
 | | |
 |---|---|
-| Version | 1.0.2 (`gracefoReading.version()`; `Contents.m` and `docsrc/functionSpecs.json` must agree) |
-| Tests | **100 passed, 0 failed, 1 incomplete — 101 total** — CI run 34873244487, head `7672291`, self-hosted Windows runner, MATLAB R2026a Update 5, 2026-09-14. The incomplete is `testFullDayKinematicJitter`, expected until a full ITSG day is in the pool. The prediction was stated as a split and matched it exactly |
-| Static gates | `docsrc/sourceIntegrity.py` 36 files / 0 findings · `docsrc/auditHelp.py` 36 help blocks clean · `git diff --exit-code -- html/` clean — all three run 2026-09-14 in a sandbox without MATLAB |
-| Public units | 13 in `+gracefoReading/`, 11 internal in `+gracefoReading/+internal/` |
-| Tag / release | `v1.0.0` (lightweight tag + GitHub release, 2026-09-06). **v1.0.1 is merged but not tagged or released** — see O-4 |
+| Version | 1.1.0 (`gracefoReading.version()`; `Contents.m` and `docsrc/functionSpecs.json` must agree) |
+| Tests | **PREDICTED 114 passed + 0 failed + 4 incomplete = 118 total.** Not measured: this branch is tier B and the sandbox has no MATLAB. The CI run on the self-hosted Windows runner is the measurement, and this row is replaced by its numbers and run id before the merge. The last measured figure is 100 + 0 + 1 = 101, CI run 34873244487, 2026-09-14 |
+| Static gates | `docsrc/sourceIntegrity.py` 42 files / 0 findings · `docsrc/auditHelp.py` 42 help blocks clean · `python3 docsrc/generate_docs.py` then `git diff --exit-code -- html/` clean, and byte-identical on a second run — all four run 2026-09-22 in a sandbox without MATLAB |
+| Public units | 14 in `+gracefoReading/`, 14 internal in `+gracefoReading/+internal/` |
+| Tag / release | `v1.0.0` (lightweight tag + GitHub release, 2026-09-06). **v1.0.1 and v1.0.2 are merged but v1.0.1 has no release and 1.1.0 is unreleased** — see O-4 |
 
 Per-class test counts, for the prediction a next session must make
-*before* running: `testReadL1b` **25**, `testUtilities` 15,
-`testBatchTools` **14**, `testItsgProducts` **15** (new 2026-09-14),
-`testRealData` 8, `testItsgBatch` **12** (new 2026-09-14), `testDocConsistency` 7,
-`testSourceIntegrity` 5. Sum **101**, of which 100 pass and 1 is the
-documented incomplete. The last measured total is 89. A run reporting anything
-else is a finding, not a rounding.
+*before* running: `testReadL1b` **27** (+2 for G-04), `testUtilities`
+**16** (+1 for G-01), `testBatchTools` **15** (+1 for G-01),
+`testItsgProducts` 15, `testRealData` **11** (+3 for G-04),
+`testItsgBatch` 12, `testDataPool` **10** (new 2026-09-22, G-06),
+`testDocConsistency` 7, `testSourceIntegrity` 5. Sum **118**, of which
+114 are expected to pass and 4 are the documented incompletes below.
+The last measured total is 101. A run reporting anything else is a
+finding, not a rounding.
 
 **Predict the split, not just the sum.** The 2026-09-14 prediction gave
 the per-class sum correctly as 89 and then wrote it as "89 passed and 1
@@ -42,16 +44,21 @@ arithmetic of the *reconciliation* was wrong, and a sum that agrees with
 itself hides that. State the prediction as passed + failed + incomplete
 = total, and check that the three add up before running.
 
-**One incomplete is expected and is not a regression.**
-`testItsgProducts/testFullDayKinematicJitter` asserts the receiver-clock
-variation of the kinematic products, which first occurs well past record
-60 and so cannot be seen in the bundled fixture. It reads the full
-published day from `READING_DATA_POOL` and skips when it is absent. The
-CI pool currently holds the five PO.DAAC products and no ITSG file, so
-it will report incomplete until
-`GRACEFO-1_kinematicOrbit_2020-01-01.txt` (~2.2 MB, or its `.gz`) is
-copied there. Everywhere else in this file "incomplete is a finding"
-still holds; this one row has a named cause and a one-file fix.
+**Four incompletes are expected and are not a regression.** Each has a
+named cause and a one-file fix, and each becomes a pass the moment the
+file is in the pool. Everywhere else in this file "incomplete is a
+finding" still holds.
+
+| point | waits for | since |
+|---|---|---|
+| `testItsgProducts/testFullDayKinematicJitter` | `GRACEFO-1_kinematicOrbit_2020-01-01.txt` (~2.2 MB, or its `.gz`). It asserts the receiver-clock variation of the kinematic products, which first occurs well past record 60 and so cannot be seen in the bundled fixture | 2026-09-14 |
+| `testRealData/testACH1B` | `ACH1B_2020-01-01_C_04.txt`, from the `.ACX` daily archive | 2026-09-22, G-04 |
+| `testRealData/testAHK1B` | `AHK1B_2020-01-01_C_04.txt`, from the `.noLRI` daily archive | 2026-09-22, G-04 |
+| `testRealData/testLHK1B` | `LHK1B_2020-01-01_C_04.txt`, from the `.LRI` daily archive | 2026-09-22, G-04 |
+
+The CI step "Report which real-data files the pool provides" now names
+all four, so a wrong pool layout and a genuinely absent file are
+distinguishable from the log rather than from the skip count.
 
 **These counts were wrong until 2026-09-14, and the error was only
 caught by making the prediction.** This table said `testReadL1b` 22 and
@@ -206,15 +213,22 @@ outside this table claims to be one.
 
 | id | obligation | owner | re-entry |
 |---|---|---|---|
-| O-1 | **Classic GRACE layouts are ASSUMED, not validated.** The built-in ACC1B/SCA1B/KBR1B/GNV1B column tables in `internal/parseClassicProduct.m` come from the GRACE L1B handbook *from memory*. Every classic read warns `classicExperimental`. Before any scientific use: obtain one real classic file per product, then either confirm the layouts (add the files to `tests/realdata/`, drop the warning) or correct the tables. Classic `qualflg` may be decimal rather than an 8-character bit string — verify. The v1 lesson applies exactly: invented formats fail on real files **Scheduled 2026-09-18 as concept G-02** (Q6: classic GRACE is in scope of the preprocessing pipeline); the owner supplies the real files when that work starts | owner | owner supplies one real classic file per product (G-02) |
+| O-1 | **Classic GRACE layouts are ASSUMED, not validated.** The built-in ACC1B/SCA1B/KBR1B/GNV1B column tables in `internal/parseClassicProduct.m` come from the GRACE L1B handbook *from memory*. Every classic read warns `classicExperimental`. Before any scientific use: obtain one real classic file per product, then either confirm the layouts (add the files to `tests/realdata/`, drop the warning) or correct the tables. Classic `qualflg` may be decimal rather than an 8-character bit string — verify. The v1 lesson applies exactly: invented formats fail on real files **Scheduled 2026-09-18 as concept G-02** (Q6: classic GRACE is in scope of the preprocessing pipeline); the owner supplies the real files when that work starts. **2026-09-19, measured while fetching D-8 (issue #17):** the files exist in the DATAPOOL for 2008-07, 2012-01 and 2017-01, and the problem is larger than a column table — classic RL03 `.dat` files are **binary after an ASCII header** (`FILE FORMAT 0=BINARY 1=ASCII : 0`, `NUMBER OF HEADER RECORDS : 47`), RL03 holds only KBR1B, SCA1B and the transplant, and the full product set is RL02. O-5 (binary L1B unsupported) therefore stands between G-02 and its own data. **2026-09-22:** still not started; see O-14 for why it could not be started from this sandbox | owner | one real classic file per product reachable from the working session (G-02) |
 | O-2 | **GROOPS export conventions unverified — now half-closed on the READ side.** Five real GROOPS files (ITSG, version tag `20200123`, identical to the writer's) were read on 2026-09-14, so the reader is verified against real output. The WRITER is not: real GROOPS emits a type-name comment, a column legend and a rule that `writeGroopsInstrument` does not, and it writes `1` as the second header integer where the writer writes the column count. An exported file is therefore still not known to be readable by a GROOPS installation. *Original entry:* `writeGroopsInstrument` writes `groops instrument version=20200123`, a two-integer type/dim header, a lone record count and decimal-MJD records, per the known structure. Neither writer nor reader has been checked against a real GROOPS installation. `NonGravForces` WP-34 (its O-19) closes this from the other side | owner | before production export |
 | O-3 | **Three version literals, one fact.** `astrobayer/ci-actions/VERSIONING.md` says `version.m` reads `Contents.m` at runtime and never hardcodes. Here `version.m`, `Contents.m` and `docsrc/functionSpecs.json` each carry the literal, reconciled by `testDocConsistency` and `auditHelp.py` rather than derived from one source (R1). A bump therefore touches 28 stamps plus three literals by hand | owner | next time the version machinery is touched |
 | O-4 | **Tagging is behind and off-standard.** `v1.0.0` is a *lightweight* tag; VERSIONING.md requires an annotated tag plus a GitHub release per version. v1.0.1 is merged with neither. Tags are immutable and are never moved, so `v1.0.0` stays as it is; the correction is forward-only | owner | before anyone depends on a pinned version |
 | O-5 | **Binary L1B is unsupported** and refuses with an explicit error. Only the ASCII products are read | — | if a binary product is ever needed |
 | O-6 | **RL05+ header conventions are unknown.** If PO.DAAC changes them, extend `internal/parseHeaderVariables.m` and add the new files to `tests/realdata/` | owner | when RL05 appears |
-| O-11 | **`readL1bMulti` cannot take what `findL1bFiles` returns.** Its `arguments` block declares `fileNames (1,:) string` while `findL1bFiles` returns a `[K x 1]` column, so the two-line workflow printed in both help blocks raises a size-validation error for K > 1. Found while building the ITSG pair, which is declared unsized and normalised instead. Not fixed here: it is an L1B change and this branch is issue #11 | owner | next time `readL1bMulti` is touched, or sooner if a user hits it |
+| O-14 | **G-02 (#17) and G-05 (#20) are blocked on bytes no working session can reach.** Both need real files: classic RL02/RL03 L1B (binary records, per O-1) and the official event lists TN-01 SOE / TN-01a SCE. They exist in the owner's DATAPOOL, which a Claude Code session does not see, and **the network policy of the remote execution environment denies `isdc-data.gfz.de`** — measured 2026-09-22, `403` to `CONNECT` from the egress proxy, for both `…/grace/Level-1B/JPL/INSTRUMENT/RL03/` and `…/grace-fo/DOCUMENTS/TECHNICAL_NOTES/`, through `curl` and through the fetch tool alike. `raw.githubusercontent.com` answers, so the policy is a host allow-list and not a broken proxy. Writing either reader from a handbook remembered rather than read is the v1 failure O-1 records, so neither was written. **Discharged by any one of:** the owner adding those hosts to the environment's network policy; the owner pasting one classic ASCII header, a hexdump of its first binary records and the first lines of a TN-01 / TN-01a list into the session; or the work moving to a session that can see the DATAPOOL | owner | before G-02 or G-05 is started again |
 | O-10 | **`neutralDensity` is not in the product table.** The ITSG server publishes it and the README gives two different column layouts for releases 1.0 and 1.5/2.0, but no real file was read, so no entry was written. It parses as a generic GROOPS file and warns `productNotRecognised`. Writing the entry from the README alone is the mistake O-1 records | owner | when a real neutralDensity file exists |
-| O-7 | **Line-wise regexp tokenisation has headroom.** An 86400-line day file parses acceptably, but a typed `textscan` fast path exists for fixed-layout products. Profile in MATLAB before optimising — no speed claim has been measured | — | if a day file becomes a bottleneck |
+| O-7 | **Line-wise regexp tokenisation has headroom.** An 86400-line day file parses acceptably, but a typed `textscan` fast path exists for fixed-layout products. Profile in MATLAB before optimising — no speed claim has been measured. **2026-09-22 (G-03, #18):** the instrument now exists — `ci/benchmarkParse` and a non-blocking CI step on the runner, which is the only machine with both MATLAB and a real ACT1B day. It reports the total **and** `fileread` alone, because a fast path can only ever win back the difference. **The number itself is still missing**: this branch is tier B, so it arrives with the first CI run of this branch's PR and is recorded here with the run id and the MATLAB release. O-7 closes when that number is in this table and the decision is written beside it | — | read the number out of the CI log of this PR |
+
+Closed: **O-11** (`readL1bMulti` could not take what `findL1bFiles`
+returns) — fixed 2026-09-22 in this branch as G-02's sibling G-01, issue
+#16. The declaration is unsized and normalised on entry, and the
+documented two-line workflow is run end to end by
+`testBatchTools/testFindL1bFilesOutputFeedsMultiDirectly`, which fails
+on the old declaration.
 
 Closed: **O-12 of `NonGravForces`** (issue #6, `readL1bMulti` raised
 `MATLAB:badsubscript` on an all-empty `TimeRange`) — fixed in 1.0.1,
@@ -259,6 +273,14 @@ The half of it that remains is O-2's writer side, not this.
 | 2026-09-14 | `readItsgProductMulti` declares `fileNames` unsized and normalises it, rather than copying `readL1bMulti`'s `(1,:)` | `findItsgFiles` returns a `[K x 1]` column, exactly as `findL1bFiles` does. Copying the declaration would have reproduced O-11, where the documented two-line workflow fails for more than one file |
 | 2026-09-18 | The preprocessing concept is the design authority for preprocessing, accelerometer calibration and LRI/KBR processing across the ecosystem. It was drafted here on branch `claude/preproc-concept` and moved to `astrobayer/timeSeriesPreparation` `docs/` at X-00a (timeSeriesPreparation#2); decisions Q1–Q16 are in its section 11 and not restated here. **Consequence for this repository:** no preprocessing code; reader obligations G-01 #16 (= O-11), G-02 #17 (= O-1), G-03 #18 (= O-7), G-04 #19, G-05 #20, G-06 #21 | owner |
 | 2026-09-18 | **Correction, measured after the merge:** PR #15 was merged with a **merge commit** (`de87fbf`, parents `a18e9ad` and `4a6bc8c`), not squashed as planned, and its branch was deleted. The tree is as intended (net change `HANDOVER.md` only; CI on `main` run 35392857232 green), but `main`'s history now contains every concept draft (`2d7a06c` … `4c08cb7`) and the two input zips (AccelBiasScaleToolbox 2.4.2, sigtools 1.3.1; about 2.7 MB). Accepted: removing them would mean rewriting `main`, which the ruleset forbids and nothing requires. The concept's pre-move history stays reachable from `main` up to `4c08cb7` | measured 2026-09-18; the planned squash (concept Q14 item 5) did not happen |
+| 2026-09-22 | `internal/variableFieldNames` becomes the single point of access for the variable-name → struct-field mapping, applied to the WHOLE ordered list rather than per name | `matlab.lang.makeValidName` is not injective: `+` and `-` both become `_`, so AHK1B's `TSU_Y+` and `TSU_Y-` collapse onto one field and one real temperature column silently overwrites the other. Per-name calls cannot see a collision, and there were four of them in three files — the 2026-09-06 failure mode exactly. The mapping is the identity on every name in every product read so far, so no existing fixture moves |
+| 2026-09-22 | A renamed field is reported by `readL1b:variableNameAdjusted`, and `aux.variableNames` / `aux.obsNames` keep the declared names | R3 — silently changing the name a caller matches on is the same class of defect as silently changing a number. The declared name stays the interface; the field name is a per-file detail, and `aux.variableFieldNames` gives the mapping |
+| 2026-09-22 | The G-04 acceptance rows for ACH1B, AHK1B and LHK1B assert invariants and documented facts, not golden numbers | No one in this repository has read those files. A golden number derived from a file nobody has seen is an assumption dressed as a measurement — O-1 again. The invariants (record count, strict monotonicity, every declared variable reachable under its own field) are what the reader promises for any product, and the last of them is precisely what failed before the `variableFieldNames` change |
+| 2026-09-22 | `verifyDataPool` reports UNLISTED files rather than leaving them out, and an unlisted file does NOT clear the `ok` verdict | "Not checked" and "checked and correct" are different answers. ITSG and ZARM publish no checksums at all (V-15), so a report that showed only verified files would be read as covering the pool. An unlisted file is not a failure either, so it is said out loud without failing the verdict |
+| 2026-09-22 | The digest algorithm is taken from the digest LENGTH, not from the manifest's file name | The same rule `resolveTime` states for units: it is a property of the line, not of the family it sits in. A list called `SHA256SUMS_…` that holds MD5 digests is read as what it contains, and a BSD tag that disagrees with its own digest length names no algorithm at all |
+| 2026-09-22 | `ci/benchmarkParse` reports `fileread` alone beside the total, and is `continue-on-error` in CI | The total alone cannot answer O-7: a fast path can only win back the difference between parsing and reading the bytes. And a measurement that can turn a green suite red would be an acceptance point, which it is not — it asserts nothing |
+| 2026-09-22 | `<ROOT>\<name>` stays a fixture candidate for exactly one release beside `<ROOT>\RawData\tests\realdata\<name>` | Deleting the repository-level variable and switching to the organisation one is one step; without the fallback that step would also turn a green run into a row of skipped acceptance points, and the two causes would be indistinguishable. The CI step prints which candidate answered, so the switch is measured rather than assumed |
+| 2026-09-22 | The `.github/` changes ride in this PR, in their own commit, instead of a separate PR | GUIDE section 1 asks for both "workflow changes stand alone" and "one open PR per repository", and G-07 and G-03 each need a CI step. The commit is isolated and named in the PR body for line-by-line reading, which is what the rule protects. Recorded rather than done quietly |
 | 2026-09-14 | The `'TimeFormat'` mapping moved to `internal/formatEpoch`, called by both readers | the datetime epoch formula was about to exist in two files. That is the 2026-09-06 failure mode exactly, and a divergence would shift every epoch of one reader with nothing visible to say so |
 
 ---
@@ -297,7 +319,18 @@ The half of it that remains is O-2's writer side, not this.
    `testRealData` needs `READING_DATA_POOL`; the full suite needs MATLAB.
    A session with neither can still run all three static gates, and
    should say so rather than reporting "green".
-8. **gracefoReading gains no preprocessing code from the concept.** Its
+8. **`READING_DATA_POOL` is the DATAPOOL ROOT, and the fallback dies
+   next release.** Fixtures resolve below it in `RawData\tests\realdata`.
+   `<ROOT>\<name>` is still accepted, deliberately, for 1.1.0 only
+   (G-07, #23). Dropping it is a one-line change in
+   `testRealData.resolveFixture` plus the CI step's `cand` list, and
+   must not happen until a green run reports `0 via the legacy path`.
+9. **Five of the seven G-items are done; G-02 and G-05 are not, and
+   the reason is not effort.** O-14 records it: the bytes are in the
+   DATAPOOL and the environment's network policy denies the ISDC host.
+   A next session that cannot reach either should say so rather than
+   writing a layout from a handbook — that is exactly the v1 failure.
+10. **gracefoReading gains no preprocessing code from the concept.** Its
    items are G-01 … G-06 (issues #16–#21). The design, the order of work and
    the procedures live in `astrobayer/timeSeriesPreparation` (`docs/CONCEPT.md`,
    `docs/GUIDE.md`). The concept's history before the move is in this

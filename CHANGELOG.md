@@ -92,7 +92,7 @@ keeps working.
   the owner's real pool layout. `<ROOT>\<name>` — the value that
   pointed straight at the fixture folder — stays accepted for **this
   release only**, so that switching from the repository-level variable
-  to the organisation one cannot turn a green run into eight skipped
+  to the organisation one cannot turn a green run into a row of skipped
   acceptance points in the same step.
 - `testRealData.resolveFixture` is the one authority for that layout,
   as `resolvePool` already was for the location; `testItsgProducts` and

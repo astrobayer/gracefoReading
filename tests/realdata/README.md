@@ -23,12 +23,20 @@ These two arrive with the `.LRI` daily archive rather than with
 `.noLRI`, and they are what the `testAHK1B` and `testLHK1B` rows wait
 for. ACH1B, which arrives with `.ACX`, no longer waits: it is bundled.
 
-**A bundled fixture can be shadowed.** The lookup is pool first, this
-folder second, so a full-day file of the same name in the pool replaces
-the trimmed extract - and the record-count assertions of `testMAS1B`,
-`testTHR1B` and `testACH1B` then fail. That is loud rather than silent,
-which is the point, but it is worth knowing before putting a full day
-under one of those three names.
+**A bundled fixture can be shadowed, and one of them was.** The lookup
+is pool first, this folder second, so a full-day file of the same name
+in the pool replaces the trimmed extract. That is exactly what happened
+to ACH1B on CI run 35707090459: the owner's pool holds the full
+published day under the bundled name, the row read 86 400 records where
+it asserted 120, and it failed on exactly the four length-dependent
+lines while agreeing on every value. A fixture that passes only when
+the pool is absent is not an acceptance point, so `testACH1B` now
+**derives** what depends on the record count and refuses any length
+that is neither 120 nor 86 400.
+
+`testMAS1B` and `testTHR1B` still hard-code theirs. They would fail the
+same way, loudly rather than silently, if a full day were put in the
+pool under `MAS1B_2020-01-01_C_04.txt` or `THR1B_2020-01-01_C_04.txt`.
 
 Tests for absent files are skipped automatically (assumption failure),
 so the suite passes either way — it simply becomes stricter with data.
@@ -107,8 +115,14 @@ three properties come from it rather than from the 120 records:
   transplant supplies linear accelerations only; the angular columns
   are declared, so the reader must still return them.
 
-`testACH1B` asserts what survives the trim and states the rest as a
-measurement of the full file.
+`testACH1B` passes on either file. Its length-dependent expectations
+are derived from the record count - at 1 Hz from midnight with no gap,
+the last epoch is fixed by the count alone, which is a *stronger*
+statement on the full day than on the extract - and everything else
+(the twelve declared variables, the nine observation columns, the
+satellite identifier, the first record's accelerations, the zero
+angular columns) is asserted outright because it does not depend on
+how many records were kept.
 
 
 # Classic GRACE (RL02, 2008-01-01) — binary products

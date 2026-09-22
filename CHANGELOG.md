@@ -55,7 +55,23 @@
   86 400 records**, the transplant supplying linear accelerations
   only. `testACH1B` asserts what survives the trim and states the rest
   as a measurement of the full file.
-- The CI pool listing no longer names an ACH1B file; `testAHK1B` and
+- **The row passes on either file, which took a red run to get
+  right.** The fixture lookup is pool first, bundled second, and the
+  owner's pool holds the full published day under the same name: the
+  first version of this row asserted 120 records, read 86 400 and
+  failed on exactly the four length-dependent lines (CI run
+  35707090459). Every value-level assertion passed on the full day —
+  which is itself the strongest confirmation the extract is faithful.
+  What depends on the record count is now derived from it (at 1 Hz
+  from midnight with no gap, the last epoch is `n-1`, a stronger
+  statement on the full day than on the extract) and a length that is
+  neither 120 nor 86 400 is refused outright.
+- `testMAS1B` and `testTHR1B` still hard-code their record counts and
+  would be shadowed the same way. That fails loudly rather than
+  silently, so it is written down in `tests/realdata/README.md` rather
+  than fixed in passing.
+- The CI pool listing names `ACH1B_2020-01-01_D_04.txt` again, now
+  that the run has shown the pool holds it; `testAHK1B` and
   `testLHK1B` still wait for theirs.
 
 ### Verified — classic release 03 reads under the same layouts

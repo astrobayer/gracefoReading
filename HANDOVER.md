@@ -21,7 +21,7 @@ gains no preprocessing code from it. Facts live in one place, never in two.
 | | |
 |---|---|
 | Version | 1.1.0 (`gracefoReading.version()`; `Contents.m` and `docsrc/functionSpecs.json` must agree) |
-| Tests | **144 passed, 0 failed, 2 incomplete = 146 total** — CI run 35704249941, head `8ff0ee0`, self-hosted Windows runner, MATLAB R2026a, 2026-09-22, 197.6 s. GREEN, and the prediction matched on all three numbers. The v1.1.0 release measured 142 + 0 + 2 = 144 on run 35702315239 (`3c2bf28`, merged as `2c0d7d8`); the two added rows are the RL03 acceptance points |
+| Tests | **146 passed, 1 failed, 1 incomplete = 148 total** — CI run 35707090459, head `885bdb0`, self-hosted Windows runner, MATLAB R2026a, 2026-09-22, 204.5 s. RED, on one row: `testRealData/testACH1B`, see the finding below. The total and the two new `testClassicProducts` rows were predicted correctly; the split was not. Before that, run 35704249941 (`8ff0ee0`) measured 144 + 0 + 2 = 146 green, and the v1.1.0 release 142 + 0 + 2 = 144 on run 35702315239 (`3c2bf28`, merged as `2c0d7d8`) |
 | Static gates | `docsrc/sourceIntegrity.py` 50 files / 0 findings · `docsrc/auditHelp.py` 50 help blocks clean · `python3 docsrc/generate_docs.py` then `git diff --exit-code -- html/` clean, and byte-identical on a second run — all four run 2026-09-22 in a sandbox without MATLAB |
 | Public units | 15 in `+gracefoReading/`, 19 internal in `+gracefoReading/+internal/` |
 | Tag / release | **`v1.1.0` is tagged ANNOTATED on the merge commit `2c0d7d8` and released, 2026-09-22 08:13Z** — the first release to meet VERSIONING.md in full. `v1.0.1` is annotated; `v1.0.0` and `v1.0.2` are lightweight and stay so, tags being immutable. O-4 is discharged forward |
@@ -39,6 +39,28 @@ incompletes went down while the total went up. Predicting the total
 alone would have hidden that.
 The previous measured total is 121. A run reporting anything else is a
 finding, not a rounding.
+
+**The ACH1B finding, run 35707090459 — a hazard this session wrote
+down and then walked into.** `testACH1B` was written asserting the
+bundled 120-record extract. The fixture lookup is **pool first,
+bundled second**, and the owner's pool holds the FULL published day
+under the same name, so the row read 86 400 records and failed on
+exactly the four length-dependent lines (`numRecordsHeader`, the size
+of `t`, the last epoch, the zero angular columns). Nothing was wrong
+with the reader or with either file — every value-level assertion
+passed on the full day, including the nine observation columns, the
+satellite identifier and the first record's accelerations, which is
+itself the strongest confirmation of the fixture.
+
+The same hazard had been written into `tests/realdata/README.md` in
+the same push, as a thing to know before putting a full day in the
+pool. Documenting a hazard is not preventing it. The row now DERIVES
+what depends on the record count — at 1 Hz from midnight with no gap
+the last epoch is `n-1`, which is a stronger statement on the full day
+than on the extract — and refuses any length that is neither 120 nor
+86 400. **`testMAS1B` and `testTHR1B` still hard-code theirs** and
+would fail the same way; that is loud rather than silent, and is left
+alone deliberately rather than fixed in passing.
 
 **Predict the split, not just the sum.** The 2026-09-14 prediction gave
 the per-class sum correctly as 89 and then wrote it as "89 passed and 1

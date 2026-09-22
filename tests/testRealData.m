@@ -38,11 +38,15 @@ classdef testRealData < matlab.unittest.TestCase
 %       corresponding file is absent, so a green run does not imply
 %       full-product coverage unless the archive files are present.
 %     - The bundled ACH1B is the first 120 records of the published
-%       GRACE D file with num_records rewritten to match. The golden
-%       numbers below that describe the FULL day - 86 400 records, the
-%       last epoch, the identically zero angular columns - were
-%       measured on the complete file and are stated as such; only
-%       what survives the trim is asserted.
+%       GRACE D file with num_records rewritten to match, and the
+%       owner's pool holds the full day under the same name. Since
+%       the lookup is pool first, bundled second, testACH1B has to
+%       pass on either, so its length-dependent expectations are
+%       DERIVED from the record count rather than hard-coded, and it
+%       refuses any length that is neither. The same shadowing
+%       applies to testMAS1B and testTHR1B, which do hard-code theirs
+%       and would fail loudly if a full day were put in the pool
+%       under those names.
 %     - The five large products are looked up in the data pool named
 %       by the environment variable READING_DATA_POOL before the
 %       bundled tests/realdata folder. That variable is the DATAPOOL
@@ -333,21 +337,43 @@ classdef testRealData < matlab.unittest.TestCase
             %
             % The file is GRACE D, not C: satellite D is the one whose
             % accelerometer failed and therefore the one the transplant
-            % exists for. It is bundled trimmed, so this row no longer
-            % waits on the pool.
+            % exists for. It is bundled trimmed to 120 records, so this
+            % row no longer waits on the pool.
             %
-            % Golden numbers from tests/python_reference and from the
-            % FULL published day, 2026-09-22: 86 400 records, first
-            % epoch MJD 58849 0 s, last 86 399 s, twelve declared
-            % variables, nine observation columns.
+            % It must nevertheless pass on EITHER file. The lookup is
+            % pool first, bundled second, and the owner's pool holds
+            % the full published day under this very name - measured
+            % on the runner, CI run 35707090459, where a first version
+            % of this row asserting 120 records read 86 400 and failed
+            % on exactly the four length-dependent lines. Nothing was
+            % wrong with the reader or with either file: they agreed
+            % on every value. A fixture that only passes when the pool
+            % is absent is not an acceptance point, so what is length
+            % dependent is now DERIVED from the record count and what
+            % is not is asserted outright.
             f = testCase.requireFile('ACH1B_2020-01-01_D_04.txt');
             [t, obs, aux] = gracefoReading.readL1b(f);
             testCase.verifyGenericInvariants(t, obs, aux, 'ACH1B');
 
-            testCase.verifyEqual(aux.numRecordsHeader, 120);
-            testCase.verifySize(t, [120, 2]);
+            n = size(t, 1);
+            testCase.verifyTrue(n == 120 || n == 86400, sprintf( ...
+                ['ACH1B must be either the bundled 120-record extract ', ...
+                 'or the full published day of 86 400 records; this ', ...
+                 'file has %d. A third length means the fixture was ', ...
+                 'cut differently and the numbers below no longer ', ...
+                 'describe it.'], n));
+
+            % True of both, and stronger on the full day than on the
+            % extract: 1 Hz from midnight with no gap anywhere, so the
+            % last epoch is fixed by the record count alone.
+            testCase.verifyEqual(aux.numRecordsHeader, n);
             testCase.verifyEqual(t(1,:),   [58849,   0], 'AbsTol', 1e-9);
-            testCase.verifyEqual(t(end,:), [58849, 119], 'AbsTol', 1e-9);
+            testCase.verifyEqual(t(end,:), [58849, n-1], 'AbsTol', 1e-9);
+
+            % Independent of length: twelve declared variables, nine
+            % observation columns - exactly classic ACC1B's, which is
+            % what makes this file confirmation of that measured
+            % layout rather than only a reader check.
             testCase.verifyEqual(numel(aux.variableNames), 12);
             testCase.verifyEqual(aux.obsNames, ...
                 {'lin_accl_x','lin_accl_y','lin_accl_z', ...
@@ -361,10 +387,10 @@ classdef testRealData < matlab.unittest.TestCase
 
             % The transplant carries LINEAR accelerations only: the
             % three angular columns are declared, so the reader must
-            % return them, and are identically zero - measured over all
-            % 86 400 records of the published day, not only the extract.
+            % return them, and are identically zero - over all 86 400
+            % records of the published day, not only over the extract.
             iAng = 4:6;
-            testCase.verifyEqual(obs(:, iAng), zeros(120, 3));
+            testCase.verifyEqual(obs(:, iAng), zeros(n, 3));
         end
 
         function testAHK1B(testCase)

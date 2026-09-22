@@ -27,7 +27,10 @@ classdef testClassicProducts < matlab.unittest.TestCase
 %       measured products do NOT warn classicExperimental any more
 %     - ACC1B: nine observation columns, including the three residual
 %       columns the assumed layout was missing entirely
-%     - SCA1B: quaternion norm on real attitude data, sca_id, qual_rss
+%     - SCA1B: quaternion norm on real attitude data, qual_rss, and the
+%       star-camera head identifier sca_id cross-checked against
+%       qualflg bit 3 - two independently positioned fields selecting
+%       the same records
 %     - GNV1B: orbit radius and speed, coord_ref
 %     - KBR1B: biased range, the four int16 SNR columns, no satellite id
 %     - THR1B: 42 counter columns, microsecond fractional time
@@ -136,7 +139,26 @@ classdef testClassicProducts < matlab.unittest.TestCase
             testCase.verifyEqual(t(1,:), [54466, 0], 'AbsTol', 1e-9);
             testCase.verifyEqual(aux.obsNames, ...
                 {'quatangle','quaticoeff','quatjcoeff','quatkcoeff','qual_rss'});
-            testCase.verifyEqual(aux.sca_id, repmat(4, 40, 1));
+            % sca_id identifies the star-camera HEAD, and it is not
+            % constant: measured on this fixture, 31 records come from
+            % head 4 and 9 from head 1. The first version of this row
+            % asserted a constant 4 taken from record 1 and failed -
+            % correctly, the reader being right and the test wrong.
+            testCase.verifyEqual(unique(aux.sca_id)', [1 4]);
+            testCase.verifyEqual(aux.sca_id(1), 4);
+            testCase.verifyEqual(sum(aux.sca_id == 4), 31);
+            testCase.verifyEqual(sum(aux.sca_id == 1), 9);
+
+            % And the two fields cross-check each other. sca_id sits at
+            % byte 6 of the record and qualflg at byte 47, decoded
+            % independently, yet "head 1" and qualflg bit 3 select
+            % exactly the same records - here in all 40, and in 16 812
+            % of the full day's 16 818 (the exceptions being the six
+            % records from head 2). A wrong offset on either field
+            % would destroy that correspondence.
+            [bits, ~] = gracefoReading.decodeQualFlags(aux, 'qualflg');
+            testCase.verifyEqual(aux.sca_id == 1, bits(:, 4), ...
+                'sca_id and qualflg bit 3 must select the same records.');
             testCase.verifyEqual(obs(1,1), -0.7631110508696913, 'AbsTol', 1e-15);
             testCase.verifyEqual(obs(1,5), 3.5902978242414106e-05, 'AbsTol', 1e-19);
 

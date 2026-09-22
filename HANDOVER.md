@@ -21,7 +21,7 @@ gains no preprocessing code from it. Facts live in one place, never in two.
 | | |
 |---|---|
 | Version | 1.1.0 (`gracefoReading.version()`; `Contents.m` and `docsrc/functionSpecs.json` must agree) |
-| Tests | Last measured **119 passed, 0 failed, 2 incomplete = 121 total** — CI run 35698502947, head `efd8656`, MATLAB R2026a on PCWIN64, 2026-09-22, GREEN; that prediction matched its run exactly. **G-02 and G-05 then landed on the same branch, so the prediction for the next run is 142 passed + 0 failed + 2 incomplete = 144** (`testClassicProducts` 12 and `testEventLists` 11 are new, `testReadL1b` unchanged at 30; the two incompletes are unchanged) |
+| Tests | Last measured **141 passed, 1 failed, 2 incomplete = 144 total** — CI run 35701780423, head `845861f`, MATLAB R2026a, 2026-09-22, 197.1 s. The **count** was predicted exactly (144) and the split missed by one: `testClassicProducts/testSCA1B` asserted `sca_id` constant at 4, taken from record 1, and it is not constant. The reader was right and the test was wrong — see the note below. Corrected; **the prediction for the next run is 142 passed + 0 failed + 2 incomplete = 144** |
 | Static gates | `docsrc/sourceIntegrity.py` 50 files / 0 findings · `docsrc/auditHelp.py` 50 help blocks clean · `python3 docsrc/generate_docs.py` then `git diff --exit-code -- html/` clean, and byte-identical on a second run — all four run 2026-09-22 in a sandbox without MATLAB |
 | Public units | 15 in `+gracefoReading/`, 19 internal in `+gracefoReading/+internal/` |
 | Tag / release | `v1.0.0` (lightweight tag + GitHub release, 2026-09-06). **v1.0.1 and v1.0.2 are merged but v1.0.1 has no release and 1.1.0 is unreleased** — see O-4 |
@@ -107,6 +107,21 @@ written from a guess. It has been removed again; what it measured:
   repository variable is therefore a real change, not a formality**:
   the next run must report the same nine files with `0 via the legacy
   path`, and only then may the fallback be dropped.
+
+**The one failure of run 35701780423 was the test's, and it taught
+something about the product.** `sca_id` is the star-camera HEAD
+identifier and it is **not constant**: 31 of the fixture's 40 records
+come from head 4 and 9 from head 1, and the full day uses heads 1, 2
+and 4 (12 248 / 6 / 4 564 records). The row asserted a constant taken
+from record 1.
+
+The replacement is stronger than a corrected constant. `sca_id` sits at
+byte 6 of the record and `qualflg` at byte 47, decoded independently of
+each other, yet **"head 1" and qualflg bit 3 select exactly the same
+records** — all 40 in the fixture, and 16 812 of the full day's 16 818,
+the six exceptions being precisely the head-2 records. A wrong offset
+on either field would destroy that correspondence, so the two columns
+now cross-check each other instead of being asserted apart.
 
 **O-7 is measured, and decided.** CI run 35698502947 on the runner,
 `ACT1B_2020-01-01_C_04.txt`, 14 159 480 B, 86 400 records in 9

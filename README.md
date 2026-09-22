@@ -54,9 +54,13 @@ RL04 files of 2020-01-01 (all seven products above).
   release 02 for all eight, and release 03 for the two products RL03
   publishes — these do not warn. AHK1B's `prod_flag` is four bytes
   and its conditional columns carry five different types; both come
-  from the layout, never from the first column seen The **ASCII** variant still warns: its columns are inferred
-  from the binary ones, not measured. `'ColumnNames'` overrides the
-  ASCII layout
+  from the layout, never from the first column seen. The **ASCII**
+  variant no longer warns either: its column order and rendering are
+  *measured* against the producer's own converter, and they are not
+  simply the binary order — MAG1B prints `GRACE_id` before `time_ref`,
+  and AHK1B writes `status` as a bit string. `'ColumnNames'` overrides
+  the layout, and *that* still warns, because those names are the
+  caller's claim about the file
 - `gracefoReading.readEventList` — the official TN-01 sequence-of-events
   and TN-01a spacecraft-events lists as an event table with provenance
   (line number, source, and the operators' text kept verbatim)

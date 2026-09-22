@@ -74,8 +74,8 @@ function [timeMjd, timeNs, obs, aux] = parseDataSection(dataLines, dataLineNos, 
 %   ERRORS
 %     Raised with gracefoReading:readL1b:* identifiers so that the
 %     public function's documented error contract holds regardless of
-%     which internal path produced them: columnMismatch, noData,
-%     noTime, timeVariableNotFound, unknownFracUnit.
+%     which internal path produced them: badBitString, columnMismatch,
+%     noData, noTime, timeVariableNotFound, unknownFracUnit.
 %
 %   EXAMPLE
 %     % internal use only; called by gracefoReading.readL1b:
@@ -103,9 +103,17 @@ isBitStr = ~cellfun('isempty', regexpi(varNames, 'flag|qualflg', 'once'));
 % adjusted (AHK1B's "TSU Z-") still finds its attributes.
 [fieldNames, nameAdjusted] = gracefoReading.internal.variableFieldNames(varNames);
 isCharCol = false(1, nVar);
+isBinText = false(1, nVar);
 for k = 1:nVar
     a = varAttrs.(fieldNames{k});
     isCharCol(k) = isfield(a, 'units') && strcmpi(a.units, 'char');
+    % A column the ASCII variant writes as BIT CHARACTERS but which is
+    % a number: classic AHK1B's `status`. Read as decimal it would be
+    % 10111111 instead of 191, silently. It is decoded back to its
+    % value rather than exposed as a bit string, because it is
+    % CONDITIONAL - absent in most records - and a bit string cannot
+    % represent "absent" the way NaN can.
+    isBinText(k) = isfield(a, 'bitStringNumeric') && a.bitStringNumeric;
 end
 if any(nameAdjusted)
     idx = find(nameAdjusted);
@@ -264,6 +272,19 @@ for k = 1:nVar
     end
     present = ~cellfun('isempty', colTok{k});
     vals = nan(nRec, 1);
+    if isBinText(k)
+        tok = colTok{k}(present);
+        bad = find(~cellfun(@(t) all(ismember(t, '01')), tok), 1);
+        if ~isempty(bad)
+            error('gracefoReading:readL1b:badBitString', ...
+                ['Column "%s" of %s is declared as bit characters but ', ...
+                 'record %d holds "%s". Refusing to guess a number from ', ...
+                 'it.'], varNames{k}, fileName, bad, tok{bad});
+        end
+        vals(present) = cellfun(@(t) bin2dec(t), tok);
+        data(:, k) = vals;
+        continue
+    end
     vals(present) = str2double(colTok{k}(present));
     stillNaN = present & isnan(vals);
     litNaN = present & (strcmpi(colTok{k}, 'nan') | strcmpi(colTok{k}, 'nanf'));

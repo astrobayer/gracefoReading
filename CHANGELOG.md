@@ -2,6 +2,47 @@
 
 ## Unreleased
 
+### Changed — the classic ASCII variant is measured, and stops warning
+
+- `classicExperimental` no longer fires for a built-in layout. The
+  ASCII column order and rendering are now **measured** against the
+  JPL Level-1 read software's own `Bin2AsciiLevel1`, whose output
+  `tests/python_reference/classic_ascii.py` reproduces **byte for
+  byte** on all eight products of its 2003 sample set.
+- The warning was right to exist. "The ASCII columns are the binary
+  ones" is **false in two places**, and both fail silently:
+  - **MAG1B prints `GRACE_id` before `time_ref`** — the opposite of
+    its binary record and of every other classic product. Read in
+    binary order the two characters come back exchanged, and no
+    numeric check would ever notice.
+  - **AHK1B writes `status` as eight bit characters**, not a number:
+    read as a decimal it is 10 111 111 instead of 191.
+- A third defect was found on the way, with no ASCII quirk behind it:
+  AHK1B's split tag is `rcvtime_frac`, and the microsecond rule keyed
+  on the literal name `time_frac`, so the fraction scaled by **1**
+  instead of 1e-6 — every epoch out by a factor of a million, silently.
+  The rule is now the `_frac` suffix.
+- `classicLayout` carries the ASCII deviations (`asciiNames`,
+  `asciiBitString`) so the parser reads them instead of assuming them;
+  `parseClassicProduct` takes the column order, the character columns,
+  the fractional unit and the rendering from there rather than from a
+  hard-coded list.
+- A column declared as bit characters is decoded back to its **number**
+  rather than exposed as a bit string, because AHK1B's `status` is
+  *conditional* — absent in 34 of 40 records — and a bit string cannot
+  express "absent" the way `NaN` can. A token that is not a bit string
+  raises the new `gracefoReading:readL1b:badBitString`.
+- **`ColumnNames` still warns.** Those names are the caller's claim
+  about the file; nothing here has checked them against it, and a
+  wrong order yields plausible numbers rather than an error.
+- Four ASCII fixtures are bundled, generated from the owner's own
+  binary files by the verified writer. Nothing from the JPL archive is
+  vendored.
+- **Known limitation, measured:** the ASCII variant is not lossless for
+  AHK1B's single-precision columns — the producer writes them `%.10g`,
+  so they return within 3.3e-10 relative of the binary value. Its one
+  double column is exact, as is every column of the other products.
+
 ### Added — classic MAG1B is read (O-15, first half)
 
 - The magnetometer and magnetorquer product is no longer refused.
@@ -669,7 +710,10 @@ own commit; these entries are the content, not a release.
   was available. Nothing here claims to read one — the record-length
   self-check is what will say so if its layout differs.
 - **Classic MAG1B and AHK1B** are refused; see O-15 above.
-- **The classic ASCII variant** is still inferred rather than
+- ~~**The classic ASCII variant** is still inferred rather than~~
+  *(Superseded: measured and no longer warning — see Unreleased.)*
+  The entry as written:
+  **The classic ASCII variant** is still inferred rather than
   measured, and still warns.
 - One acceptance point, `testRealData/testACH1B`, stays incomplete
   until `ACH1B_2020-01-01_C_04.txt` reaches the pool.

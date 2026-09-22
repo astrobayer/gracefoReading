@@ -703,10 +703,11 @@ classdef testReadL1b < matlab.unittest.TestCase
             testCase.verifyEqual(numel(dir(fullfile(cacheDir, '*.mat'))), 2);
         end
 
-        function testClassicHeaderExperimental(testCase)
+        function testClassicAsciiHeaderReadsWithoutWarning(testCase)
             % Classic GRACE ACC1B, ASCII variant: KEY : VALUE header,
             % END OF HEADER, and the column layout now shared with the
-            % binary path. That layout was CORRECTED on 2026-09-22: it
+            % binary path - and MEASURED for this variant too since
+            % 2026-09-22, not inferred. That layout was CORRECTED: it
             % carries NINE observation columns, the three residual ones
             % having been missing from the assumed table entirely, so
             % a record has twelve tokens and not nine.
@@ -722,11 +723,12 @@ classdef testReadL1b < matlab.unittest.TestCase
                 '4e-11 5e-11 6e-11 00000000\n']);
             fclose(fid);
 
-            % The ASCII variant still warns: only the BINARY variant was
-            % measured against real files (G-02).
-            [t, obs, aux] = testCase.verifyWarning( ...
-                @() gracefoReading.readL1b(f), ...
-                'gracefoReading:readL1b:classicExperimental');
+            % The ASCII variant no longer warns. Its column order and
+            % rendering were measured against the JPL read software's
+            % own Bin2AsciiLevel1 output, byte for byte on all eight
+            % products - see testClassicProducts.
+            [t, obs, aux] = testCase.verifyWarningFree( ...
+                @() gracefoReading.readL1b(f));
             testCase.verifyEqual(aux.headerFormat, 'classic');
             testCase.verifyEqual(aux.numRecordsHeader, 2);
             testCase.verifyEqual(aux.obsNames, ...
@@ -753,7 +755,9 @@ classdef testReadL1b < matlab.unittest.TestCase
                 @() localReadNoWarn(f), ...
                 'gracefoReading:readL1b:unsupportedClassicProduct');
 
-            % explicit ColumnNames make it readable
+            % Explicit ColumnNames make it readable - and still warn,
+            % because those names are the CALLER's claim about the file
+            % and nothing here has checked them against it.
             [t, obs, aux] = testCase.verifyWarning( ...
                 @() gracefoReading.readL1b(f, ...
                     'ColumnNames', ["gps_time", "myval"]), ...
@@ -779,7 +783,9 @@ classdef testReadL1b < matlab.unittest.TestCase
 end
 
 function varargout = localReadNoWarn(f)
-% call under suppressed classic warning so verifyError sees the error only
+% Suppress the caller-supplied-layout warning so verifyError sees only
+% the error. Kept for the ColumnNames cases; the built-in layouts no
+% longer warn at all.
 ws = warning('off', 'gracefoReading:readL1b:classicExperimental');
 cln = onCleanup(@() warning(ws));
 [varargout{1:nargout}] = gracefoReading.readL1b(f);

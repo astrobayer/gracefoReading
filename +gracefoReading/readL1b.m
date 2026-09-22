@@ -45,7 +45,7 @@ function [time, obs, aux] = readL1b(fileName, options)
 %     section is packed big-endian binary or whitespace-separated
 %     text. Classic headers do not declare their columns, so the
 %     layout comes from a per-product table - measured on real RL02
-%     files for the binary variant, inferred from it for the ASCII one
+%     files, for the binary variant and for the ASCII one alike
 %     - or from the 'ColumnNames' option (ASCII only). See ACCURACY
 %     AND LIMITATIONS for what that distinction means.
 %
@@ -159,10 +159,13 @@ function [time, obs, aux] = readL1b(fileName, options)
 %         a physical quantity it must reproduce. The layouts hold for
 %         release 03 as well as 02: SCA1B and KBR1B, the only products
 %         RL03 publishes, were checked against real RL03 files.
-%         ASCII (the ".asc" files) still WARNS. Its columns are taken
-%         to be those measured on the binary variant of the same
-%         product, which is an inference and not a measurement: no
-%         real classic ASCII file has been read here.
+%         ASCII (the ".asc" files) no longer warns either. Its column
+%         order and rendering are MEASURED against the JPL Level-1
+%         read software's own Bin2AsciiLevel1 output, which is not
+%         the binary order everywhere: MAG1B prints GRACE_id before
+%         time_ref, and AHK1B writes `status` as a bit string. Both
+%         come from classicLayout. A caller-supplied 'ColumnNames'
+%         still warns, because that layout is the caller's.
 %       Classic qualflg was the open question and is now answered: the
 %       binary files store it as a single BYTE bitmask, which the
 %       reader renders as the same 8-character bit string the GRACE-FO
@@ -196,6 +199,9 @@ function [time, obs, aux] = readL1b(fileName, options)
 %     gracefoReading:readL1b:noData               no data records
 %     gracefoReading:readL1b:conflictingQualityOptions
 %                                                 both quality options given
+%     gracefoReading:readL1b:badBitString
+%       a classic ASCII column written as bit characters holds
+%       something that is not a bit string
 %     gracefoReading:readL1b:classicUndefinedProdFlagBit
 %       a classic record sets a prod_flag bit its layout does not
 %       define; the field's width is unknown, so it is refused
@@ -214,8 +220,9 @@ function [time, obs, aux] = readL1b(fileName, options)
 %   WARNINGS
 %     gracefoReading:readL1b:recordCountMismatch  header/actual count differ
 %     gracefoReading:readL1b:cacheUnavailable     hashing failed; parsed fresh
-%     gracefoReading:readL1b:classicExperimental  classic ASCII layout
-%                                                 inferred from the binary one
+%     gracefoReading:readL1b:classicExperimental  classic ASCII read
+%                                                 with caller-supplied
+%                                                 'ColumnNames'
 %     gracefoReading:readL1b:variableNameAdjusted declared variable name
 %                                                 not usable as a struct
 %                                                 field; aux field renamed
@@ -380,12 +387,19 @@ elseif ~isempty(classicEnd)
             rawBytes, fileName, timeVarOpt);
         aux.headerFormat = 'classicBinary';
     else
-        warning('gracefoReading:readL1b:classicExperimental', ...
-            ['Classic GRACE ASCII header detected in %s. The ASCII variant ', ...
-             'is still read with column layouts that have NOT been validated ', ...
-             'against a real ASCII file - only the BINARY variant was ', ...
-             'measured (G-02). Verify results or supply ''ColumnNames''. ', ...
-             'See HANDOVER.md.'], fileName);
+        % The measured layouts now cover the ASCII variant as well, so
+        % it no longer warns. What still does is a CALLER-SUPPLIED
+        % layout: those names are the caller's claim about the file,
+        % not something this toolbox has checked.
+        if ~isempty(columnNames)
+            warning('gracefoReading:readL1b:classicExperimental', ...
+                ['Classic GRACE ASCII file %s is being read with ', ...
+                 '''ColumnNames'' you supplied. Those columns are your ', ...
+                 'claim about the file - this toolbox has not validated ', ...
+                 'them against it, and a wrong order yields plausible ', ...
+                 'numbers rather than an error. The built-in layouts are ', ...
+                 'measured; omit ''ColumnNames'' to use them.'], fileName);
+        end
         [timeMjd, timeNs, obs, aux] = gracefoReading.internal.parseClassicProduct( ...
             lines, classicEnd, fileName, timeVarOpt, columnNames);
         aux.headerFormat = 'classic';

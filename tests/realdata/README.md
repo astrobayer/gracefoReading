@@ -219,6 +219,55 @@ patterns the day uses: 34 records carry the short set and 6 carry the
 long one that adds the temperatures, the rails and the status byte, so
 the NaN pattern for absent columns is exercised too.
 
+## The ASCII variant (`.asc`)
+
+Four of the bundled binaries have an ASCII twin:
+
+    ACC1B_2008-01-01_A_02.asc      an ordinary fixed record
+    MAG1B_2008-01-01_A_02.asc      the column-order deviation
+    MAS1B_2008-01-01_A_02.asc      an 8-bit prod_flag
+    AHK1B_2008-01-01_A_02.asc      a 32-bit prod_flag, bit-string status
+
+**They are generated, not published**, by
+`tests/python_reference/classic_ascii.py` from the bundled binary files
+— the owner's own data, rendered in the producer's own format. That
+generator is **verified byte-identical** to the JPL Level-1 read
+software's `Bin2AsciiLevel1` output on all eight products of its 2003
+sample set, every record, no difference at all:
+
+    python3 tests/python_reference/classic_ascii.py --verify <RELEASE_dir>
+
+Nothing from that archive is in this repository; it is the oracle.
+
+### The ASCII variant is *not* the binary columns as text
+
+That assumption is what the old `classicExperimental` warning was
+hedging, and it was wrong in two places:
+
+* **MAG1B prints `GRACE_id` before `time_ref`** — the opposite of its
+  binary record, and of every other classic product. Read in binary
+  order the two characters come back exchanged, which no numeric check
+  would ever catch. (`WrAsciiMAG1XFRecord.c` passes `string1, string2`
+  where its THR1B sibling, holding the same two variables, passes
+  `string2, string1`.)
+* **AHK1B writes `status` as eight bit characters**, not a number. Read
+  as a decimal it is 10 111 111 instead of 191. The reader decodes it
+  back to its value rather than exposing a bit string, because the
+  column is *conditional* — absent in 34 of the 40 records — and a bit
+  string cannot express "absent" the way `NaN` can.
+
+Both now come from `classicLayout` (`asciiNames`, `asciiBitString`), so
+the ASCII path reads them rather than assuming them.
+
+### One thing the ASCII variant loses
+
+It is **not lossless for AHK1B's single-precision columns**: the
+producer writes them with `%.10g`, so they come back within **3.3e-10**
+relative of the binary value rather than exactly. Its one double column
+(`bias_vol`) uses `%.16g` and is exact, as is every column of the other
+three products. The acceptance test uses those two tolerances and not
+one loose one.
+
 ## Release 03
 
 RL03 publishes only two of these products (plus the ACT1B transplant

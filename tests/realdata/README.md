@@ -125,6 +125,29 @@ product, and AHK1B's variable columns carry per-bit value *types* that
 a single file cannot reveal. Naming them from memory is the failure O-1
 exists to prevent, so both are refused with an explicit error.
 
+## Release 03
+
+RL03 publishes only two of these products (plus the ACT1B transplant
+archive, which is not bundled). Both are here, trimmed the same way:
+
+    SCA1B_2008-01-20_A_03.dat      47 bytes/record, 1 Hz
+    KBR1B_2008-01-01_X_03.dat      93 bytes/record, 5 s
+
+The record layouts are **identical to RL02**, measured. The RL03
+KBR1B is of the same day as the RL02 one, which makes the pair the
+strongest single piece of evidence for that layout: decoded with one
+table, the two files agree **bit for bit** on `biased_range`,
+`range_rate`, `range_accl`, `iono_corr` and all four SNRs, and differ
+only in the reprocessed `ant_centr_corr` — by 1.7 micrometre — and in
+`qualflg`. A wrong offset could not produce that pattern.
+
+Two differences are properties of the product rather than the layout:
+RL03 SCA1B samples at 1 Hz where the RL02 file samples at 5 s, and its
+`sca_id` uses head codes 1, 4, 5, 6, 7 and 8 where RL02 uses 1, 2 and
+4. The `sca_id` ↔ `qualflg` bit 3 correspondence that holds on the
+RL02 file therefore does **not** generalise: on the RL03 day it holds
+in 57 % of records. It is evidence about those bytes, not a law.
+
 # Official event lists (TN-01, TN-01a)
 
 `testEventLists.m` reads these two:

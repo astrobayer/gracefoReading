@@ -22,6 +22,10 @@ classdef testClassicProducts < matlab.unittest.TestCase
 %       results = runtests('testClassicProducts'); table(results)
 %
 %   COVERAGE
+%     - release 03 as well as release 02: the same layouts read the
+%       RL03 SCA1B of 2008-01-20 (1 Hz where RL02 is 5 s) and the RL03
+%       KBR1B of 2008-01-01, whose ranging observables are bit-identical
+%       to the RL02 file of the same day
 %     - binary dispatch: a classic header declaring
 %       "FILE FORMAT 0=BINARY 1=ASCII : 0" is read as bytes, and the
 %       measured products do NOT warn classicExperimental any more
@@ -49,9 +53,11 @@ classdef testClassicProducts < matlab.unittest.TestCase
 %       published. FILESIZE and TIME LAST OBS therefore still describe
 %       the full published file, which is deliberate: the reader must
 %       not depend on either.
-%     - One day, release 02, GRACE A (KBR1B is the A+B link, token X).
-%       These tests say nothing about RL03, whose record layout was
-%       not available, nor about the classic ASCII variant.
+%     - Two releases: RL02 for the six products, and RL03 for the two
+%       products RL03 actually publishes, SCA1B and KBR1B. The record
+%       layouts are identical across the two, measured. Nothing here
+%       covers the classic ASCII variant, nor the ACT1B transplant
+%       archive.
 %
 %   EXAMPLE
 %     results = runtests('testClassicProducts');
@@ -144,6 +150,13 @@ classdef testClassicProducts < matlab.unittest.TestCase
             % head 4 and 9 from head 1. The first version of this row
             % asserted a constant 4 taken from record 1 and failed -
             % correctly, the reader being right and the test wrong.
+            %
+            % NOTE the scope of the cross-check below. It holds on THIS
+            % file and its full day; it does NOT generalise. The RL03
+            % file of 2008-01-20 uses head codes 1, 4, 5, 6, 7 and 8,
+            % and there the same correspondence holds in only 57 % of
+            % records. It is evidence about these bytes, not a law of
+            % the product.
             testCase.verifyEqual(unique(aux.sca_id)', [1 4]);
             testCase.verifyEqual(aux.sca_id(1), 4);
             testCase.verifyEqual(sum(aux.sca_id == 4), 31);
@@ -246,6 +259,72 @@ classdef testClassicProducts < matlab.unittest.TestCase
                 testCase.verifyLessThan(max(abs(obs(both,1) - obs(both,3))), 0.5, ...
                     'Thruster- and tank-based mass must agree to well under a kg.');
             end
+        end
+
+        function testSCA1BRelease03(testCase)
+            % RL03, issue #17's remaining caveat. The layouts were
+            % measured on release 02 only, so nothing claimed to read
+            % an RL03 file. Measured 2026-09-22: the record is 47 bytes
+            % there too, and the quaternion oracle holds.
+            f = testCase.fixture('SCA1B_2008-01-20_A_03.dat');
+            [t, obs, aux] = gracefoReading.readL1b(f);
+
+            testCase.verifyEqual(aux.headerFormat, 'classicBinary');
+            testCase.verifySize(t, [40, 2]);
+            testCase.verifyEqual(t(1,:), [54485, 0], 'AbsTol', 1e-9);
+            % RL03 SCA1B is 1 Hz where the RL02 file is 5 s - a
+            % difference in the product, not in the record layout
+            testCase.verifyEqual(t(2,:), [54485, 1], 'AbsTol', 1e-9);
+            testCase.verifyEqual(aux.obsNames, ...
+                {'quatangle','quaticoeff','quatjcoeff','quatkcoeff','qual_rss'});
+            testCase.verifyEqual(obs(1,1), 0.5137397438332172, 'AbsTol', 1e-15);
+            testCase.verifyEqual(obs(1,5), 1.043471818915979e-06, 'AbsTol', 1e-20);
+
+            [ok, stats] = gracefoReading.checkQuaternionNorm(obs, aux, ...
+                'Tolerance', 1e-9);
+            testCase.verifyTrue(all(ok), sprintf( ...
+                'RL03 quaternion norm violations: %d (max dev %.3g)', ...
+                stats.numViolations, stats.maxDeviation));
+
+            % sca_id carries head codes RL02 never shows (7 throughout
+            % this extract; the full day uses 1, 4, 5, 6, 7 and 8).
+            % Recorded because the RL02 file's sca_id / qualflg bit 3
+            % correspondence does NOT generalise - see the note in
+            % testSCA1B.
+            testCase.verifyEqual(unique(aux.sca_id), 7);
+        end
+
+        function testKBR1BRelease03MatchesRelease02(testCase)
+            % The strongest evidence the KBR1B layout is right: two
+            % files of the SAME day, produced independently in two
+            % releases, decoded with one layout. The ranging
+            % observables agree EXACTLY; only the reprocessed
+            % antenna-centre correction differs, and by 1.7 micrometre.
+            % A wrong offset could not produce that pattern.
+            f02 = testCase.fixture('KBR1B_2008-01-01_X_02.dat');
+            f03 = testCase.fixture('KBR1B_2008-01-01_X_03.dat');
+            [t02, o02, a02] = gracefoReading.readL1b(f02);
+            [t03, o03, a03] = gracefoReading.readL1b(f03);
+
+            testCase.verifyEqual(a03.headerFormat, 'classicBinary');
+            testCase.verifyEqual(t03, t02, ...
+                'The two releases tag the same epochs.');
+            testCase.verifyEqual(a03.obsNames, a02.obsNames);
+
+            for name = ["biased_range", "range_rate", "range_accl", ...
+                        "iono_corr", "K_A_SNR", "Ka_A_SNR", "K_B_SNR", "Ka_B_SNR"]
+                i = strcmp(a02.obsNames, name);
+                testCase.verifyEqual(o03(:, i), o02(:, i), sprintf( ...
+                    '%s must be bit-identical between RL02 and RL03.', name));
+            end
+
+            % the one column that was reprocessed
+            iAnt = strcmp(a02.obsNames, 'ant_centr_corr');
+            d = max(abs(o03(:, iAnt) - o02(:, iAnt)));
+            testCase.verifyGreaterThan(d, 0, ...
+                'ant_centr_corr was reprocessed and must differ.');
+            testCase.verifyLessThan(d, 1e-5, ...
+                'and it must differ only at the micrometre level.');
         end
 
         function testClassicQualflgIsABitStringLikeEverywhereElse(testCase)

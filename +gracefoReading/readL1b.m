@@ -158,7 +158,9 @@ function [time, obs, aux] = readL1b(fileName, options)
 %         files of 2008-01-01 and each checked against a physical
 %         quantity it must reproduce; classic MAG1B and AHK1B are
 %         refused, because their structure is known but their column
-%         names and per-bit value types are not.
+%         names and per-bit value types are not. The layouts hold for
+%         release 03 as well as 02: SCA1B and KBR1B, the only products
+%         RL03 publishes, were checked against real RL03 files.
 %         ASCII (the ".asc" files) still WARNS. Its columns are taken
 %         to be those measured on the binary variant of the same
 %         product, which is an inference and not a measurement: no

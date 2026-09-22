@@ -74,9 +74,23 @@ function layout = classicLayout(product)
 %       carry per-bit TYPES that one file cannot reveal. Naming them
 %       from memory is the failure O-1 exists to prevent, so both
 %       raise unsupportedClassicProduct. See HANDOVER O-15.
-%     - Release 02 only. RL03 files were not supplied; if their record
-%       layout differs, this table is wrong for them and the record
-%       length self-check in parseClassicBinary is what will say so.
+%     - **Release 02 and release 03.** The six products were measured
+%       on RL02. RL03 publishes only SCA1B and KBR1B (plus the ACT1B
+%       transplant archive), and both were checked on 2026-09-22: the
+%       record lengths are identical, 47 and 93 bytes, and the oracles
+%       hold - the RL03 SCA1B of 2008-01-20 keeps its quaternion norm
+%       to 9.6e-11 over 86 398 records, and the RL03 KBR1B of
+%       2008-01-01 is BIT-IDENTICAL to the RL02 file of the same day
+%       in every ranging observable and all four SNRs, differing only
+%       in the reprocessed antenna-centre correction (1.7 micrometre)
+%       and in qualflg. Two independently produced files agreeing that
+%       way under one layout is stronger evidence than either alone.
+%       The ACT1B transplant archive was not supplied and is not
+%       claimed.
+%     - RL03 SCA1B samples at 1 Hz where the RL02 file samples at 5 s,
+%       and its sca_id uses head codes RL02 does not (1, 4, 5, 6, 7,
+%       8 against 1, 2, 4). Both are properties of the product, not of
+%       the record layout.
 %     - Classic qualflg is a single BYTE bitmask in the binary files,
 %       not an 8-character bit string; parseClassicBinary renders it
 %       as the same 8-character string the GRACE-FO products use, so

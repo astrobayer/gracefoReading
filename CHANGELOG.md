@@ -1,5 +1,34 @@
 # Changelog — gracefoReading
 
+## Unreleased
+
+### Verified — classic release 03 reads under the same layouts
+
+- The 1.1.0 notes said classic RL03 was not read: release 02 was what
+  had been supplied. RL03 publishes only **SCA1B and KBR1B** (plus the
+  ACT1B transplant archive, still not supplied), and both were checked
+  against real files on 2026-09-22. The record lengths are identical to
+  RL02 — 47 and 93 bytes — and the oracles hold.
+- **SCA1B RL03** (2008-01-20): quaternion norm within **9.6e-11** of
+  unity over all 86 398 records.
+- **KBR1B RL03** (2008-01-01) is of the *same day* as the bundled RL02
+  file, which makes the pair the strongest single piece of evidence for
+  that layout. Decoded with the one table, the two independently
+  produced files are **bit-identical** in `biased_range`, `range_rate`,
+  `range_accl`, `iono_corr` and all four SNRs, differing only in the
+  reprocessed `ant_centr_corr` (1.7 µm) and in `qualflg`. A wrong
+  offset could not produce that pattern.
+- Two differences are the product's rather than the layout's: RL03
+  SCA1B samples at 1 Hz where the RL02 file samples at 5 s, and its
+  `sca_id` uses head codes 1, 4, 5, 6, 7 and 8 against RL02's 1, 2, 4.
+- **Scope correction.** The `sca_id` ↔ `qualflg` bit 3 correspondence
+  recorded for the RL02 file holds there and on its full day, as it was
+  always stated — but it does **not** generalise: on the RL03 day it
+  holds in 57 % of records. The limit is now written beside the claim,
+  so it cannot be read as a law of the product.
+- No code changed. Two fixtures and two acceptance points were added,
+  and the documentation now says RL02 **and** RL03 where it said RL02.
+
 ## 1.1.0 — 2026-09-22
 
 Five of the seven reader work packages of the preprocessing concept:

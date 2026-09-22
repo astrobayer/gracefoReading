@@ -1,6 +1,6 @@
 # HANDOVER — gracefoReading
 
-**Revision 3.6 · 2026-09-22 · toolbox v1.1.0**
+**Revision 3.7 · 2026-09-22 · toolbox v1.1.0**
 
 The single point of truth for this repository. Where this document and a
 general engineering habit disagree, this document is right. Read it
@@ -21,18 +21,19 @@ gains no preprocessing code from it. Facts live in one place, never in two.
 | | |
 |---|---|
 | Version | 1.1.0 (`gracefoReading.version()`; `Contents.m` and `docsrc/functionSpecs.json` must agree) |
-| Tests | **142 passed, 0 failed, 2 incomplete = 144 total** — CI run 35702315239, head `3c2bf28`, self-hosted Windows runner, MATLAB R2026a on PCWIN64, 2026-09-22, 196.6 s. GREEN. The prediction was stated as a split and matched it on all three numbers. The two incompletes are `testItsgProducts/testFullDayKinematicJitter` and `testRealData/testACH1B`, each one named file from passing |
+| Tests | **142 passed, 0 failed, 2 incomplete = 144 total** — CI run 35702315239, head `3c2bf28`, MATLAB R2026a, 2026-09-22, 196.6 s, GREEN; the prediction matched on all three numbers. Merged as `2c0d7d8`. **The RL03 branch adds two rows: the prediction is 144 passed + 0 failed + 2 incomplete = 146** |
 | Static gates | `docsrc/sourceIntegrity.py` 50 files / 0 findings · `docsrc/auditHelp.py` 50 help blocks clean · `python3 docsrc/generate_docs.py` then `git diff --exit-code -- html/` clean, and byte-identical on a second run — all four run 2026-09-22 in a sandbox without MATLAB |
 | Public units | 15 in `+gracefoReading/`, 19 internal in `+gracefoReading/+internal/` |
-| Tag / release | `v1.0.0` (lightweight tag + GitHub release, 2026-09-06). **v1.0.1 and v1.0.2 are merged but v1.0.1 has no release and 1.1.0 is unreleased** — see O-4 |
+| Tag / release | **`v1.1.0` is tagged ANNOTATED on the merge commit `2c0d7d8` and released, 2026-09-22 08:13Z** — the first release to meet VERSIONING.md in full. `v1.0.1` is annotated; `v1.0.0` and `v1.0.2` are lightweight and stay so, tags being immutable. O-4 is discharged forward |
 
 Per-class test counts, for the prediction a next session must make
 *before* running: `testReadL1b` **30**, `testUtilities` 16,
 `testBatchTools` 15, `testItsgProducts` 15, `testRealData` 11,
 `testItsgBatch` 12, `testDataPool` **10** (new, G-06),
-`testClassicProducts` **12** (new, G-02), `testEventLists` **11**
-(new, G-05), `testDocConsistency` 7, `testSourceIntegrity` 5. Sum
-**144**, of which 142 pass and 2 are the documented incompletes below.
+`testClassicProducts` **14** (12 at v1.1.0, +2 for RL03),
+`testEventLists` **11** (new, G-05), `testDocConsistency` 7,
+`testSourceIntegrity` 5. Sum **146**, of which 144 pass and 2 are the
+documented incompletes below.
 The previous measured total is 121. A run reporting anything else is a
 finding, not a rounding.
 
@@ -123,6 +124,32 @@ records** — all 40 in the fixture, and 16 812 of the full day's 16 818,
 the six exceptions being precisely the head-2 records. A wrong offset
 on either field would destroy that correspondence, so the two columns
 now cross-check each other instead of being asserted apart.
+
+**Release 03 reads under the same layouts, measured 2026-09-22.** The
+v1.1.0 record said classic RL03 was not read, release 02 being what had
+been supplied. Two RL03 files then arrived, and RL03 publishes only two
+products anyway (plus the ACT1B transplant archive, still not supplied):
+
+- **SCA1B RL03**, 2008-01-20: 47 bytes per record as in RL02, and the
+  quaternion norm holds to **9.6e-11** over all 86 398 records.
+- **KBR1B RL03**, 2008-01-01 — the *same day* as the bundled RL02 file.
+  Decoded with the one layout, the two independently produced files are
+  **bit-identical** in `biased_range`, `range_rate`, `range_accl`,
+  `iono_corr` and all four SNRs, and differ only in the reprocessed
+  `ant_centr_corr` (1.7 micrometre) and in `qualflg`. A wrong offset
+  could not produce that pattern; this pair is the strongest single
+  piece of evidence for the KBR1B layout.
+
+Two differences are the product's, not the layout's: RL03 SCA1B samples
+at 1 Hz where the RL02 file samples at 5 s, and its `sca_id` uses head
+codes 1, 4, 5, 6, 7 and 8 against RL02's 1, 2 and 4.
+
+**And a correction to scope, not to fact.** The `sca_id` <-> `qualflg`
+bit 3 correspondence recorded below holds on the RL02 file and its full
+day, as stated. It does **not** generalise: on the RL03 day it holds in
+57 % of records. Nothing written earlier claimed otherwise - it was
+always scoped to that file - but a future session could easily read it
+as a law of the product, so the limit is now written down beside it.
 
 **O-7 is measured, and decided.** CI run 35698502947 on the runner,
 `ACT1B_2020-01-01_C_04.txt`, 14 159 480 B, 86 400 records in 9
@@ -357,7 +384,7 @@ outside this table claims to be one.
 | O-1 | **CLOSED 2026-09-22 — the classic layouts are measured.** The owner supplied the RL02 products of 2008-01-01 for GRACE A and B, and the binary layouts of ACC1B, SCA1B, GNV1B, KBR1B, THR1B and MAS1B were derived from those bytes: for each, the declared record count times the derived record length reproduces the data section **exactly**, the first epoch equals the header's TIME FIRST OBS, and a physical quantity was checked (quaternion norm within 1e-6 of unity in all 16 818 + 17 222 SCA1B records; orbit radius 6827-6862 km; range-rate against the derivative of the biased range to 5.8e-6 m/s; thruster- and tank-based spacecraft mass agreeing to 4 g). The assumed table was **wrong**: ACC1B has nine observation columns, not six — the three residual columns were missing entirely. `classicExperimental` no longer fires for the binary variant. What remains is O-15 and the ASCII variant, which is still inferred | — | — |
 | O-2 | **GROOPS export conventions unverified — now half-closed on the READ side.** Five real GROOPS files (ITSG, version tag `20200123`, identical to the writer's) were read on 2026-09-14, so the reader is verified against real output. The WRITER is not: real GROOPS emits a type-name comment, a column legend and a rule that `writeGroopsInstrument` does not, and it writes `1` as the second header integer where the writer writes the column count. An exported file is therefore still not known to be readable by a GROOPS installation. *Original entry:* `writeGroopsInstrument` writes `groops instrument version=20200123`, a two-integer type/dim header, a lone record count and decimal-MJD records, per the known structure. Neither writer nor reader has been checked against a real GROOPS installation. `NonGravForces` WP-34 (its O-19) closes this from the other side | owner | before production export |
 | O-3 | **Three version literals, one fact.** `astrobayer/ci-actions/VERSIONING.md` says `version.m` reads `Contents.m` at runtime and never hardcodes. Here `version.m`, `Contents.m` and `docsrc/functionSpecs.json` each carry the literal, reconciled by `testDocConsistency` and `auditHelp.py` rather than derived from one source (R1). A bump therefore touches 28 stamps plus three literals by hand | owner | next time the version machinery is touched |
-| O-4 | **Tagging is behind and off-standard.** `v1.0.0` is a *lightweight* tag; VERSIONING.md requires an annotated tag plus a GitHub release per version. v1.0.1 is merged with neither. Tags are immutable and are never moved, so `v1.0.0` stays as it is; the correction is forward-only | owner | before anyone depends on a pinned version |
+| O-4 | **CLOSED 2026-09-22.** `v1.1.0` is an **annotated** tag on the merge commit `2c0d7d8` with a GitHub release, which is what VERSIONING.md asks for and what no previous release of this repository had. `v1.0.0` and `v1.0.2` remain lightweight and are left alone: tags are immutable and the correction was always forward-only. Nothing further is owed | — | — |
 | O-5 | **Superseded in part, 2026-09-22.** Classic GRACE binary products ARE now read (O-1). What remains true is narrower and not a gap: the GRACE-FO releases this toolbox targets publish ASCII only, so there is no binary GRACE-FO product to support | — | if a binary GRACE-FO product ever appears |
 | O-6 | **RL05+ header conventions are unknown.** If PO.DAAC changes them, extend `internal/parseHeaderVariables.m` and add the new files to `tests/realdata/` | owner | when RL05 appears |
 | O-15 | **Classic MAG1B and AHK1B are measured but not named, so they are refused.** MAG1B is 63 bytes per record — `time_intg`, `time_frac` (microseconds), `time_ref`, `GRACE_id`, **13 float32**, `qualflg` — and the first three floats are the magnetic field vector, measured: 18-55 microtesla over the day, which is the Earth's field. The remaining ten could not be named from a documented sibling, this repository bundling no real GRACE-FO MAG1B header. AHK1B is variable-length with a 4-byte `prod_flag`, and its conditional columns carry per-bit value **types** that one file cannot reveal (record lengths 53 and 98 bytes were measured). Both raise `unsupportedClassicProduct` naming exactly this, rather than being decoded on a guess. **Discharged by:** the GRACE Level-1B handbook (JPL D-22027) column tables for these two products, or a real GRACE-FO MAG1B/AHK1B header to carry the names over from | owner | when either document or product is at hand |

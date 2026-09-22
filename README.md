@@ -49,10 +49,12 @@ RL04 files of 2020-01-01 (all seven products above).
 - **Classic GRACE (2002–2017)**: auto-detected key-value headers, and
   the header's own `FILE FORMAT` record decides the variant.
   **Binary** `.dat` products (ACC1B, SCA1B, GNV1B, KBR1B, THR1B,
-  MAS1B) are read from layouts *measured* on real files and each
-  checked against a physical quantity it must reproduce — release 02
-  for all six, and release 03 for the two products RL03 publishes —
-  these do not warn. The **ASCII** variant still warns: its columns are inferred
+  MAS1B, MAG1B) are read from layouts *measured* on real files and
+  each checked against a physical quantity it must reproduce —
+  release 02 for all seven, and release 03 for the two products RL03
+  publishes — these do not warn. Classic **AHK1B** is refused: its
+  records are variable-length and no document available here states
+  the per-bit value types a `prod_flag` walk needs. The **ASCII** variant still warns: its columns are inferred
   from the binary ones, not measured. `'ColumnNames'` overrides the
   ASCII layout
 - `gracefoReading.readEventList` — the official TN-01 sequence-of-events

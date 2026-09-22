@@ -15,8 +15,10 @@ function [timeMjd, timeNs, obs, aux] = parseClassicProduct(lines, hdrEnd, ...
 %     products. Internal function - the public interface is
 %     gracefoReading.readL1b, which warns on every classic read.
 %
-%     Built-in layouts: ACC1B, SCA1B, KBR1B, GNV1B. Any other classic
-%     product requires explicit column names.
+%     Built-in layouts: ACC1B, SCA1B, GNV1B, KBR1B, THR1B, MAS1B and
+%     MAG1B, taken from gracefoReading.internal.classicLayout - the
+%     same table the binary path uses. Any other classic product,
+%     AHK1B included, requires explicit column names.
 %
 %   INPUT
 %     lines - string, [L x 1]
@@ -108,8 +110,8 @@ else
     if isempty(fieldnames(layout))
         error('gracefoReading:readL1b:unsupportedClassicProduct', ...
             ['No classic column layout for product "%s" (known: ACC1B, ', ...
-             'SCA1B, GNV1B, KBR1B, THR1B, MAS1B). Supply the layout via ', ...
-             'the ''ColumnNames'' option.'], product);
+             'SCA1B, GNV1B, KBR1B, THR1B, MAS1B, MAG1B). Supply the ', ...
+             'layout via the ''ColumnNames'' option.'], product);
     end
     varNames = layout.names;
 end

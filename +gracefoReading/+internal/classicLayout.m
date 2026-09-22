@@ -22,16 +22,22 @@ function layout = classicLayout(product)
 %     see ACCURACY AND LIMITATIONS for each product's oracle.
 %
 %     The field TYPES and OFFSETS are therefore evidence. The field
-%     NAMES are carried over from the GRACE-FO sibling product, whose
-%     YAML header declares them, and the measured magnitudes agree
-%     with that assignment; where a name could not be justified that
-%     way the product is refused rather than guessed at.
+%     NAMES come from one of two DOCUMENTED sources and never from
+%     memory: the GRACE-FO sibling product, whose YAML header declares
+%     them, or the GRACE Level-1B Data Product User Handbook v1.3
+%     (JPL D-22027, March 2010), whose chapter 6 tabulates the classic
+%     record fields in order. MAG1B is named from the handbook
+%     (section 6.8, pages 38-39) and everything else from its sibling.
+%     Either way the measured magnitudes have to agree with the
+%     assignment; where a name could not be justified that way the
+%     product is refused rather than guessed at.
 %
 %   INPUT
 %     product - string | char, 1x1
 %                Product token from the file name, e.g. "ACC1B".
 %                Options: ACC1B | SCA1B | GNV1B | KBR1B | THR1B |
-%                MAS1B; any other value returns an empty layout.
+%                MAS1B | MAG1B; any other value returns an empty
+%                layout.
 %                Required, positional.
 %
 %   OUTPUT
@@ -48,9 +54,9 @@ function layout = classicLayout(product)
 %                verified against.
 %
 %   ACCURACY AND LIMITATIONS
-%     - Verified per product on ACC1B/SCA1B/GNV1B/THR1B/MAS1B for both
-%       GRACE A and B, and on the single combined KBR1B (satellite
-%       token X), all of 2008-01-01, release 02:
+%     - Verified per product on ACC1B/SCA1B/GNV1B/THR1B/MAS1B/MAG1B
+%       for both GRACE A and B, and on the single combined KBR1B
+%       (satellite token X), all of 2008-01-01, release 02:
 %         ACC1B  78 B/record; linear accelerations <= 1.3e-6 m/s2 and
 %                angular <= 1e-3 rad/s2, residual columns ~1e-9.
 %         SCA1B  47 B/record; quaternion norm within 1e-6 of unity in
@@ -66,14 +72,24 @@ function layout = classicLayout(product)
 %                to the byte, and the thruster-based and tank-based
 %                spacecraft masses agree to 4 g (476.855 / 476.851 kg)
 %                with the GRACE-FO prod_flag bit meanings applied.
-%     - **Not supported, deliberately**: classic MAG1B and AHK1B. The
-%       structure of MAG1B was measured (63 B/record, 13 float32 after
-%       the time frame, |B| 18-55 microtesla, so the first three are
-%       the field vector) but ten of its thirteen columns could not be
-%       named from a documented sibling, and AHK1B's variable columns
-%       carry per-bit TYPES that one file cannot reveal. Naming them
-%       from memory is the failure O-1 exists to prevent, so both
-%       raise unsupportedClassicProduct. See HANDOVER O-15.
+%         MAG1B  63 B/record; 86 400 records x 63 B reproduces the
+%                5 443 200-byte data section exactly, the first and
+%                last epochs equal the header's TIME FIRST/LAST OBS to
+%                the microsecond, and |B| comes out at 18.3-54.5 uT
+%                (median 38.9) on GRACE A and 19.5-54.4 uT on GRACE B
+%                - the geomagnetic field strength at 480 km. The six
+%                magnetorquer currents stay within 0-120 mA of the
+%                torque_cal full scale, which is 120 all day.
+%     - **Not supported, deliberately**: classic AHK1B. Its records
+%       are variable-length - 8 700 records over 526 350 data bytes is
+%       60.5 bytes each, so they cannot be fixed - and the handbook
+%       has no AHK1B entry in chapter 6 at all: the product appears
+%       only in the report-file appendix, which names the eight
+%       qualflg bits and nothing else. The per-bit value TYPES that a
+%       prod_flag walk needs are therefore not documented anywhere
+%       available here, and one file cannot reveal them. Naming them
+%       from memory is the failure O-1 exists to prevent, so AHK1B
+%       raises unsupportedClassicProduct. See HANDOVER O-15.
 %     - **Release 02 and release 03.** The six products were measured
 %       on RL02. RL03 publishes only SCA1B and KBR1B (plus the ACT1B
 %       transplant archive), and both were checked on 2026-09-22: the
@@ -173,6 +189,23 @@ switch upper(product)
                   'gas_mass_thr1','gas_mass_thr2', ...
                   'gas_mass_tnk1','gas_mass_tnk2'}, 'double' };
         oracle = 'thruster- and tank-based spacecraft mass agree to 4 g';
+
+    case 'MAG1B'
+        % Named from the handbook, section 6.8 (pp. 38-39), which
+        % tabulates these eighteen fields in exactly this order with
+        % exactly these widths. Nothing here is inferred from a
+        % sibling: GRACE-FO publishes no MAG1B of this shape.
+        spec = { {'time_intg'}, 'int32'
+                 {'time_frac'}, 'int32'
+                 {'time_ref'}, 'char'
+                 {'GRACE_id'}, 'char'
+                 {'MfvX_RAW','MfvY_RAW','MfvZ_RAW'}, 'single'
+                 {'torque1A','torque2A','torque3A', ...
+                  'torque1B','torque2B','torque3B'}, 'single'
+                 {'MF_BCalX','MF_BCalY','MF_BCalZ'}, 'single'
+                 {'torque_cal'}, 'single'
+                 {'qualflg'}, 'uint8' };
+        oracle = '|B| 18.3-54.5 microtesla; 63 B/record reproduces the file size exactly';
 
     otherwise
         layout = struct();

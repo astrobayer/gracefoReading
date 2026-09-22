@@ -48,6 +48,14 @@ def layout(product):
               (['GRACE_id'],'char'),(['qualflg'],'uint8'),(['prod_flag'],'uint8'),
               (['mass_thr','mass_thr_err','mass_tnk','mass_tnk_err',
                 'gas_mass_thr1','gas_mass_thr2','gas_mass_tnk1','gas_mass_tnk2'],'double')]
+    elif p=='MAG1B':
+        spec=[(['time_intg'],'int32'),(['time_frac'],'int32'),(['time_ref'],'char'),
+              (['GRACE_id'],'char'),
+              (['MfvX_RAW','MfvY_RAW','MfvZ_RAW'],'single'),
+              (['torque1A','torque2A','torque3A',
+                'torque1B','torque2B','torque3B'],'single'),
+              (['MF_BCalX','MF_BCalY','MF_BCalZ'],'single'),
+              (['torque_cal'],'single'),(['qualflg'],'uint8')]
     else:
         return None
     names=[]; types=[]
@@ -112,7 +120,8 @@ if __name__ == '__main__':
                        ('GNV1B_2008-01-01_A_02.dat', 'GNV1B'),
                        ('KBR1B_2008-01-01_X_02.dat', 'KBR1B'),
                        ('THR1B_2008-01-01_A_02.dat', 'THR1B'),
-                       ('MAS1B_2008-01-01_A_02.dat', 'MAS1B')]:
+                       ('MAS1B_2008-01-01_A_02.dat', 'MAS1B'),
+                       ('MAG1B_2008-01-01_A_02.dat', 'MAG1B')]:
         path = os.path.join(root, name)
         if not os.path.isfile(path):
             print(f'{prod}: absent'); continue

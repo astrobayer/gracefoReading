@@ -40,11 +40,14 @@ classdef testClassicProducts < matlab.unittest.TestCase
 %     - THR1B: 42 counter columns, microsecond fractional time
 %     - MAS1B: prod_flag-driven variable-length records, NaN for absent
 %       columns, and the thruster- and tank-based masses agreeing
+%     - MAG1B: the magnetometer vector, the six magnetorquer currents
+%       and the calibration columns, with |B| checked against the
+%       geomagnetic field strength at GRACE altitude
 %     - classic qualflg: a byte in the file, rendered as the same
 %       8-character bit string the GRACE-FO products use, so
 %       decodeQualFlags works on both
 %     - refusals: a truncated file, 'ColumnNames' against a binary
-%       product, and a classic product with no measured layout
+%       product, and AHK1B, the one classic product with no layout
 %
 %   ACCURACY AND LIMITATIONS
 %     - The bundled files are TRIMMED to the first 40 records with
@@ -53,11 +56,17 @@ classdef testClassicProducts < matlab.unittest.TestCase
 %       published. FILESIZE and TIME LAST OBS therefore still describe
 %       the full published file, which is deliberate: the reader must
 %       not depend on either.
-%     - Two releases: RL02 for the six products, and RL03 for the two
-%       products RL03 actually publishes, SCA1B and KBR1B. The record
-%       layouts are identical across the two, measured. Nothing here
-%       covers the classic ASCII variant, nor the ACT1B transplant
-%       archive.
+%     - Two releases: RL02 for the seven products, and RL03 for the
+%       two products RL03 actually publishes, SCA1B and KBR1B. The
+%       record layouts are identical across the two, measured. Nothing
+%       here covers the classic ASCII variant, nor the ACT1B
+%       transplant archive.
+%     - MAG1B is the one product whose column NAMES come from a
+%       document rather than from a GRACE-FO sibling: the Level-1B
+%       Data Product User Handbook v1.3, section 6.8. The document is
+%       in hand, not remembered - which is the whole difference from
+%       the situation O-1 records. What the tests below check is that
+%       the file agrees with it.
 %
 %   EXAMPLE
 %     results = runtests('testClassicProducts');
@@ -327,6 +336,82 @@ classdef testClassicProducts < matlab.unittest.TestCase
                 'and it must differ only at the micrometre level.');
         end
 
+        function testMAG1B(testCase)
+            % O-15, first half. The magnetometer and magnetorquer
+            % product: 18 fields in 63 bytes, named from the GRACE
+            % Level-1B Data Product User Handbook v1.3 section 6.8
+            % (pp. 38-39), which tabulates them in this order with
+            % these widths. The structural proof is the record length:
+            % the full published file is 86 400 records over a
+            % 5 443 200-byte data section, which is 63.0 bytes each
+            % and admits no other field count at these widths.
+            f = testCase.fixture('MAG1B_2008-01-01_A_02.dat');
+            [t, obs, aux] = gracefoReading.readL1b(f);
+
+            testCase.verifyEqual(aux.headerFormat, 'classicBinary');
+            testCase.verifyEqual(aux.product, 'MAG1B');
+            testCase.verifySize(t, [40, 2]);
+            testCase.verifyEqual(aux.timeVariable, 'time_intg+time_frac');
+
+            % The file opens ONE record before midnight, so the first
+            % epoch is the last second of 2007-12-31 - the day the
+            % header's TIME FIRST OBS names. Both epochs are the
+            % reference decoder's to 1e-6 s.
+            testCase.verifyEqual(t(1,:),   [54465, 86399.787692], 'AbsTol', 1e-6);
+            testCase.verifyEqual(t(end,:), [54466,    38.787683], 'AbsTol', 1e-6);
+
+            % 13 single-precision observation columns; the time frame,
+            % the identifiers and qualflg go to aux.
+            testCase.verifyEqual(aux.obsNames, ...
+                {'MfvX_RAW','MfvY_RAW','MfvZ_RAW', ...
+                 'torque1A','torque2A','torque3A', ...
+                 'torque1B','torque2B','torque3B', ...
+                 'MF_BCalX','MF_BCalY','MF_BCalZ','torque_cal'});
+            testCase.verifySize(obs, [40, 13]);
+            testCase.verifyEqual(aux.time_ref(1), 'G');
+            testCase.verifyEqual(aux.GRACE_id(1), 'A');
+
+            % First record, from the reference decoder. Single
+            % precision widened to double, so ~7 significant digits.
+            testCase.verifyEqual(obs(1, 1:3), ...
+                [13.866063117980957, -4.9530167579650879, -25.6201171875], ...
+                'AbsTol', 1e-9);
+        end
+
+        function testMAG1BFieldStrengthIsGeomagnetic(testCase)
+            % The oracle that makes the handbook's column ORDER
+            % evidence rather than assertion: if MfvX/Y/Z were not the
+            % first three floats, their norm would not be a magnetic
+            % field strength. Measured over the full published day it
+            % is 18.3-54.5 uT on GRACE A and 19.5-54.4 uT on GRACE B -
+            % the geomagnetic field at 480 km. The bundled 40-record
+            % extract covers 40 s of one pass and sits in 28.3-29.9.
+            f = testCase.fixture('MAG1B_2008-01-01_A_02.dat');
+            [~, obs, aux] = gracefoReading.readL1b(f);
+
+            iB = cellfun(@(n) find(strcmp(aux.obsNames, n)), ...
+                {'MfvX_RAW','MfvY_RAW','MfvZ_RAW'});
+            B = sqrt(sum(obs(:, iB).^2, 2));
+            testCase.verifyGreaterThan(min(B), 18);
+            testCase.verifyLessThan(max(B), 56);
+            testCase.verifyEqual([min(B), max(B)], ...
+                [28.305906, 29.885471], 'AbsTol', 1e-5);
+
+            % The calibration columns are constants of the instrument,
+            % not a signal, and torque_cal is the 120 mA full scale the
+            % six current columns never exceed.
+            cal = cellfun(@(n) find(strcmp(aux.obsNames, n)), ...
+                {'MF_BCalX','MF_BCalY','MF_BCalZ','torque_cal'});
+            testCase.verifyEqual(unique(obs(:, cal), 'rows'), ...
+                [54, 54, 53, 120]);
+            iTq = cellfun(@(n) find(strcmp(aux.obsNames, n)), ...
+                {'torque1A','torque2A','torque3A', ...
+                 'torque1B','torque2B','torque3B'});
+            tq = obs(:, iTq);
+            testCase.verifyGreaterThanOrEqual(min(tq(:)), 0);
+            testCase.verifyLessThanOrEqual(max(tq(:)), 120);
+        end
+
         function testClassicQualflgIsABitStringLikeEverywhereElse(testCase)
             % V-8 asked whether classic qualflg is a bit string or a
             % number. Measured: in the binary files it is a single BYTE.
@@ -370,11 +455,13 @@ classdef testClassicProducts < matlab.unittest.TestCase
         end
 
         function testUnmeasuredClassicProductIsRefused(testCase)
-            % MAG1B and AHK1B are deliberately absent from the layout
-            % table: their structure is known but their column names
-            % (MAG1B) and per-bit value types (AHK1B) are not, and
-            % inventing them is what O-1 forbids.
-            f = fullfile(testCase.workDir, 'MAG1B_2008-01-01_A_02.dat');
+            % AHK1B is deliberately absent from the layout table. Its
+            % records are variable-length (8 700 records over 526 350
+            % data bytes is 60.5 bytes each) and the Level-1B handbook
+            % has no AHK1B entry in chapter 6 at all, so the per-bit
+            % value TYPES a prod_flag walk needs are not documented
+            % anywhere available. Inventing them is what O-1 forbids.
+            f = fullfile(testCase.workDir, 'AHK1B_2008-01-01_A_02.dat');
             fid = fopen(f, 'w');
             hdr = ['FILE FORMAT 0=BINARY 1=ASCII  : 0', newline, ...
                    'NUMBER OF DATA RECORDS        : 2', newline, ...

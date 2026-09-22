@@ -1,6 +1,6 @@
 # HANDOVER — gracefoReading
 
-**Revision 3.8 · 2026-09-22 · toolbox v1.1.0**
+**Revision 3.9 · 2026-09-22 · toolbox v1.1.0**
 
 The single point of truth for this repository. Where this document and a
 general engineering habit disagree, this document is right. Read it
@@ -385,6 +385,33 @@ below was read off a real file.
   THR1B, TIM1B, TNK1B, USO1B and the vector-offset products — and for
   **AHK1B it has none**. That absence is a fact about the document,
   established by reading it, not an assumption about it.
+- **The Level-1B ATBD (JPL D-27672 / GRACE 327-741, v1.2, 2006) is
+  also in hand** as of 2026-09-22, and what it is NOT is as worth
+  recording as what it is. It carries **no record formats**: searched
+  end to end, `prod_flag`, "Data Type", "Byte Length" and `qualflg`
+  appear **zero** times, and AHK1B appears twice, both as a file name
+  of `TimeCorrHK`. It therefore does **not** discharge the AHK1B half
+  of O-15, and a later session should not re-open that hope.
+  What it does give:
+  - §3.1.4 step 8 **corroborates the nine-column ACC1B layout** — the
+    correction that was O-1's headline finding — by saying ACC_1B
+    carries the six compressed components *plus* the fit residuals
+    plus flags. Third independent line of evidence, after the bytes
+    and after ACH1B's declared columns.
+  - §3.1.4 step 6 says residuals are compressed minus uncompressed
+    **linear** acceleration, flagged above 10 µm/s². That is why
+    there are three `acl_*_res` and not six, and the threshold
+    matches the ACH1B header's `qualflg` bit 2 word for word.
+  - Appendix G defines the three time frames and states that **GPS
+    time is the corrected receiver time used in all Level-1B data** —
+    the authority for `aux.timeSystem = 'GPS'`, and the meaning of
+    the `time_ref` column (`R` receiver, `G` GPS).
+  - §7.1 names `TimeCorrHK` as the producer of AHK1B, IHK1B, MAG1B,
+    MAS1B, THR1B and TNK1B, matching the `SOFTWARE VERSION` line of
+    the real MAG1B and AHK1B headers.
+  - Its appendices (B CRN-class filter, D KBR combinations, E
+    light-time correction, J SCA combination) are design authority
+    for **timeSeriesPreparation**, not for this reader.
 - **ACH1B declares the same nine observation columns as classic
   ACC1B**, measured on the real GRACE D file of 2020-01-01. Its
   `ang_accl_x/y/z` are identically zero in all 86 400 records: the

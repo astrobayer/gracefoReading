@@ -152,6 +152,17 @@ deliberate. The reader must not depend on either — it checks the record
 count against the data section instead — and leaving them as published
 is what proves it does not.
 
+ACC1B's nine columns have a second, documentary witness. The GRACE
+Level-1B **ATBD** (JPL D-27672, §3.1.4 step 8) says `ACC_1B` carries
+"the six components of compressed ACC data (3 linear and 3 angular
+accelerations), the fit residuals and quality flags" — six plus three,
+stated by a document that never mentions a byte. Step 6 says why there
+are *three* residuals and not six: they are compressed minus
+uncompressed **linear** acceleration at the integer second, flagged
+above 10 µm/s², the same threshold the GRACE-FO ACH1B header gives for
+`qualflg` bit 2. The ATBD holds no record formats otherwise, so it
+names nothing here — it only agrees.
+
 The layouts were derived from these files rather than from a handbook,
 and each was checked against a quantity it must reproduce: the
 quaternion norm (SCA1B), the orbit radius and speed (GNV1B), the
@@ -178,8 +189,10 @@ full day — the geomagnetic field at 480 km — the six magnetorquer
 currents stay inside the 120 mA `torque_cal` full scale, and the three
 `MF_BCal*` calibration columns are constants (54, 54, 53).
 
-Classic **AHK1B** is still deliberately not supported, and the handbook
-does not change that: chapter 6 has **no AHK1B entry at all**. The
+Classic **AHK1B** is still deliberately not supported, and neither
+document in hand changes that. The handbook's chapter 6 has **no AHK1B
+entry at all**; the ATBD has no record formats whatsoever — searched end
+to end, `prod_flag`, "Data Type" and "Byte Length" appear zero times. The
 product appears only in the report-file appendix, which names its eight
 `qualflg` bits and nothing else. Its records are variable-length —
 8 700 records over 526 350 data bytes is 60.5 bytes each — so a

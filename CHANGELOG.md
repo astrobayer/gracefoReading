@@ -74,6 +74,31 @@
   that the run has shown the pool holds it; `testAHK1B` and
   `testLHK1B` still wait for theirs.
 
+### Documented — the ACC1B nine-column correction has a second witness
+
+- The GRACE Level-1B **Algorithm Theoretical Basis Document** (JPL
+  D-27672 / GRACE 327-741, v1.2, 2006) is now in hand. Its §3.1.4
+  step 8 says `ACC_1B` carries "the six components of compressed ACC
+  data (3 linear and 3 angular accelerations), the fit residuals and
+  quality flags" — six plus three, from a document that never mentions
+  a byte. That is a third independent line of evidence for the layout
+  correction O-1 turned on, after the bytes themselves and after
+  ACH1B's declared columns.
+- Step 6 explains an asymmetry the bytes showed but did not explain:
+  residuals are compressed minus uncompressed **linear** acceleration
+  at the integer second, which is why there are three `acl_*_res` and
+  not six. Its 10 µm/s² flag threshold matches the GRACE-FO ACH1B
+  header's `qualflg` bit 2 word for word.
+- Appendix G is the authority for `aux.timeSystem = 'GPS'`: GPS time
+  is the corrected receiver time used in all Level-1B data. It also
+  gives the `time_ref` column its meaning (`R` receiver, `G` GPS).
+- **It does not close the AHK1B half of O-15**, and that is recorded
+  so a later session does not re-open the hope: the ATBD carries no
+  record formats at all — `prod_flag`, "Data Type", "Byte Length" and
+  `qualflg` appear zero times in 54 pages, and AHK1B appears twice,
+  both as a file name of `TimeCorrHK`.
+- Documentation only; no code changed.
+
 ### Verified — classic release 03 reads under the same layouts
 
 - The 1.1.0 notes said classic RL03 was not read: release 02 was what

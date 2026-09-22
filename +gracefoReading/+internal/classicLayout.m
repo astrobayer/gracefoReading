@@ -32,6 +32,13 @@ function layout = classicLayout(product)
 %     assignment; where a name could not be justified that way the
 %     product is refused rather than guessed at.
 %
+%     A third document corroborates rather than names: the GRACE
+%     Algorithm Theoretical Basis Document for Level-1B Data
+%     Processing (JPL D-27672 / GRACE 327-741, v1.2, 2006). It holds
+%     no record formats at all - no field widths, no types, no
+%     prod_flag - but it states what each module WRITES, which is an
+%     independent check on a column count. See the ACC1B entry below.
+%
 %   INPUT
 %     product - string | char, 1x1
 %                Product token from the file name, e.g. "ACC1B".
@@ -59,6 +66,17 @@ function layout = classicLayout(product)
 %       (satellite token X), all of 2008-01-01, release 02:
 %         ACC1B  78 B/record; linear accelerations <= 1.3e-6 m/s2 and
 %                angular <= 1e-3 rad/s2, residual columns ~1e-9.
+%                The nine columns are CORROBORATED by the ATBD
+%                (D-27672 section 3.1.4 step 8), which says ACC_1B
+%                carries "the six components of compressed ACC data
+%                (3 linear and 3 angular accelerations), the fit
+%                residuals and quality flags" - six plus three, from
+%                a document that never mentions a byte. Step 6 adds
+%                why there are THREE residuals and not six: they are
+%                compressed minus uncompressed LINEAR acceleration at
+%                the integer second, with the quality flag set above
+%                10 micron/s2 - the same threshold the GRACE-FO
+%                ACH1B header states for qualflg bit 2.
 %         SCA1B  47 B/record; quaternion norm within 1e-6 of unity in
 %                every one of 16 818 (A) and 17 222 (B) records.
 %         GNV1B  103 B/record; |r| 6827-6862 km and |v| ~7.6 km/s.

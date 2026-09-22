@@ -998,6 +998,10 @@
       "purpose": "Verify a data pool against its published checksums"
     },
     {
+      "name": "readEventList",
+      "purpose": "Read an official GRACE/GRACE-FO event list (TN-01, TN-01a)"
+    },
+    {
       "name": "readGroopsInstrument",
       "purpose": "Read a GROOPS ASCII instrument file",
       "syntax": [

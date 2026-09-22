@@ -16,6 +16,8 @@
 %   gracefoReading.findGaps              - Detect sampling gaps and contiguous segments.
 %   gracefoReading.verifyDataPool        - Verify a data pool against the
 %                                          checksums its sources published.
+%   gracefoReading.readEventList         - Read the official TN-01 / TN-01a
+%                                          event lists into an event table.
 %
 % Utilities
 %   gracefoReading.decodeQualFlags       - Decode bit-string quality/product flags
@@ -29,7 +31,10 @@
 % "help gracefoReading.<functionName>" for plain text.
 %
 % Validated against real GRACE-FO RL04 files (ACT1B, GNV1B, SCA1B,
-% THR1B, KBR1B, LRI1B, MAS1B); see tests/testRealData.m.
+% THR1B, KBR1B, LRI1B, MAS1B, AHK1B, LHK1B); see tests/testRealData.m.
+% Classic GRACE RL02 binary products (ACC1B, SCA1B, GNV1B, KBR1B,
+% THR1B, MAS1B) are validated against real 2008 files; see
+% tests/testClassicProducts.m.
 %
 %   Toolbox:  gracefoReading v1.1.0
 %   Created:  2026-08-01

@@ -46,9 +46,17 @@ RL04 files of 2020-01-01 (all seven products above).
 - `gracefoReading.checkQuaternionNorm` — SCA1B sanity check
 - `gracefoReading.writeGroopsInstrument` / `readGroopsInstrument` —
   GROOPS ASCII export and import
-- **Classic GRACE (2002–2017), experimental**: auto-detected key-value
-  headers; built-in layouts for ACC1B/SCA1B/KBR1B/GNV1B (unvalidated —
-  every read warns), `'ColumnNames'` override for anything else
+- **Classic GRACE (2002–2017)**: auto-detected key-value headers, and
+  the header's own `FILE FORMAT` record decides the variant.
+  **Binary** `.dat` products (ACC1B, SCA1B, GNV1B, KBR1B, THR1B,
+  MAS1B) are read from layouts *measured* on real RL02 files and each
+  checked against a physical quantity it must reproduce — these do not
+  warn. The **ASCII** variant still warns: its columns are inferred
+  from the binary ones, not measured. `'ColumnNames'` overrides the
+  ASCII layout
+- `gracefoReading.readEventList` — the official TN-01 sequence-of-events
+  and TN-01a spacecraft-events lists as an event table with provenance
+  (line number, source, and the operators' text kept verbatim)
 - `gracefoReading.version` — programmatic version checks
 
 ## Verify the installation

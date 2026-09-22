@@ -30,6 +30,10 @@ function [time, obs, aux] = readL1b(fileName, options)
 %         AHK1B's "TSU Z-": the aux field is renamed under the
 %         variableNameAdjusted warning and stays distinct from its
 %         siblings, rather than colliding with them,
+%       - a trailing free-text column that the header declares as the
+%         remaining portion of each record (LHK1B's sensorname): it
+%         absorbs the rest of the line, spaces and all, instead of
+%         being counted as extra columns,
 %       - gzip-compressed input (.gz), decompressed in memory,
 %       - strict row-integrity checking with exact line-number reports,
 %       - optional content-hashed caching of parsed results.
@@ -153,6 +157,18 @@ function [time, obs, aux] = readL1b(fileName, options)
 %     - Caching trusts the SHA-256 content digest; if no JVM is
 %       available the digest cannot be computed and the file is parsed
 %       normally after a cacheUnavailable warning.
+%
+%     - A record may carry MORE whitespace-separated tokens than the
+%       header declares variables only when the last declared variable
+%       says so itself, in its comment or long_name, as LHK1B's
+%       sensorname does ("Entire remaining portion of each record").
+%       That column then takes the rest of the line verbatim,
+%       internal spacing included, and is returned as text in aux.
+%       Every other surplus token is still columnMismatch with its
+%       line number, and a record SHORT of the declared count is an
+%       error either way. The rule is the header's sentence, never the
+%       column's position, and it does not apply to a file that also
+%       declares prod_flag.
 %
 %   ERRORS
 %     gracefoReading:readL1b:badHeader            no recognized header end marker

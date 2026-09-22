@@ -86,6 +86,29 @@ keeps working.
   `aux.obsNames` keep the declared names, which is what callers match
   on.
 
+### Fixed — LHK1B could not be read at all (G-04, #19)
+
+- The long-format housekeeping products end in a free-text column that
+  the header declares as taking what is left of the line. Real
+  `LHK1B_2020-01-01_C_04` says so in its own words —
+  `comment: Entire remaining portion of each record` — and 2 886 of its
+  1 169 274 records use it: `fpga_state: science_state` and
+  `mode: science` carry a space, so the record holds nine
+  whitespace-separated tokens where eight columns are declared. The
+  reader raised `columnMismatch` on file line 537 and the product was
+  unreadable.
+- A last column that makes that claim, in its `comment` or
+  `long_name`, now takes the rest of the line **verbatim**, internal
+  spacing included, and is returned as text in `aux`. The rule is the
+  header's sentence, never the column's position: `sensorname` declares
+  no `units: char`, so a rule keyed on character columns would not have
+  fired. Every other surplus token is still `columnMismatch` with its
+  line number, a record short of the declared count is still an error,
+  and the rule does not apply to a file that also declares `prod_flag`.
+- Measured, not assumed: the rule was written after a temporary CI step
+  dumped the real header on the runner, because the format could not be
+  reached from the working session.
+
 ### Changed — `READING_DATA_POOL` is the DATAPOOL root (G-07, #23)
 
 - Fixtures resolve as `<ROOT>\RawData\tests\realdata\<name>`, matching

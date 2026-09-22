@@ -108,10 +108,17 @@ classdef testRealData < matlab.unittest.TestCase
             testCase.verifyEqual(aux.timeSystem, 'GPS');
             testCase.verifyEqual(aux.epochMJD, 51544);
 
-            % strictly increasing epochs, day-of-second in range
+            % Non-decreasing epochs, day-of-second in range. NOT strictly
+            % increasing: measured 2026-09-22, the long-format
+            % housekeeping products carry one record per SENSOR per
+            % epoch, so real LHK1B opens with three records all tagged
+            % 631108800.872776889 (pztInLoopStatus, pztOutOfLoopStatus,
+            % quadDc0). Strictness is a property of the one-record-per-
+            % epoch products and is asserted where it is known to hold,
+            % not here.
             secs = (t(:,1) - t(1,1)) * 86400 + (t(:,2) - t(1,2));
-            testCase.verifyTrue(all(diff(secs) > 0), ...
-                'Epochs of a real product must be strictly increasing.');
+            testCase.verifyTrue(all(diff(secs) >= 0), ...
+                'Epochs of a real product must never go backwards.');
             testCase.verifyGreaterThanOrEqual(min(t(:,2)), 0);
             testCase.verifyLessThan(max(t(:,2)), 86400);
 
@@ -337,8 +344,17 @@ classdef testRealData < matlab.unittest.TestCase
             [t, obs, aux] = gracefoReading.readL1b(f);
             testCase.verifyGenericInvariants(t, obs, aux, 'AHK1B');
 
+            % Golden numbers, MEASURED on the runner 2026-09-22 (CI runs
+            % 35696829972 and 35697358724) and not before: the file is
+            % 864 077 records over 36 declared variables, with a
+            % 32-character prod_flag of which six bits are set all day
+            % (TFEEU_REF, Vp, icu_blk_nr, PPS_source, Sync_Qual,
+            % statusflag), giving twelve tokens per record.
+            testCase.verifyEqual(aux.numRecordsActual, 864077);
+            testCase.verifyEqual(numel(aux.variableNames), 36);
             testCase.verifyTrue(isfield(aux, 'prod_flag'), ...
                 'AHK1B is documented (R-2 pp. 31-32) as prod_flag driven.');
+            testCase.verifyEqual(size(aux.prod_flag, 2), 32);
             % MEASURED 2026-09-22, CI run 35696829972: real AHK1B is
             % 864 077 records with a THIRTY-TWO character prod_flag,
             % where ACT1B and MAS1B carry eight. This assertion said 8
@@ -355,10 +371,34 @@ classdef testRealData < matlab.unittest.TestCase
                 'decodeQualFlags must report one row per bit of the column.');
             testCase.verifyEqual(bits(:, 1), aux.prod_flag(:, end) == '1', ...
                 'Bit 0 is the rightmost character of the raw bit string.');
-            % the accelerometer sensor-unit temperatures are there
-            testCase.verifyTrue(any(contains(aux.variableNames, 'TSU', ...
-                'IgnoreCase', true)), ...
-                'AHK1B is documented to carry the TSU temperatures.');
+            % The four sensor-unit temperatures, declared exactly as
+            % V-13 measured them - the last with a SPACE. This is the
+            % real-file evidence for the header-parser half of G-04:
+            % under the pattern used until 2026-09-22, "TSU Z-" was not
+            % a variable at all.
+            declared = string(aux.variableNames);
+            for want = ["TSU_Y+", "TSU_Y-", "TSU_Z+", "TSU Z-"]
+                testCase.verifyTrue(any(declared == want), sprintf( ...
+                    'AHK1B declares %s; the header parser must keep it.', want));
+            end
+
+            % And the evidence for the field-name half. makeValidName is
+            % not injective, and this one file has THREE colliding pairs:
+            % TSU_Y+/TSU_Y-, +15V/-15V and +48V/-48V all collapse under
+            % it. Every declared variable must still own a field.
+            testCase.verifyEqual(numel(unique(aux.variableFieldNames)), ...
+                numel(aux.variableNames), ...
+                'Colliding declared names must map to distinct aux fields.');
+            for pair = ["+15V" "-15V"; "+48V" "-48V"; "TSU_Y+" "TSU_Y-"]'
+                i1 = find(declared == pair(1), 1);
+                i2 = find(declared == pair(2), 1);
+                testCase.verifyNotEmpty(i1, sprintf('%s not declared', pair(1)));
+                testCase.verifyNotEmpty(i2, sprintf('%s not declared', pair(2)));
+                if isempty(i1) || isempty(i2), continue; end
+                testCase.verifyNotEqual(aux.variableFieldNames{i1}, ...
+                    aux.variableFieldNames{i2}, sprintf( ...
+                    '%s and %s must not share one field.', pair(1), pair(2)));
+            end
         end
 
         function testLHK1B(testCase)
@@ -369,9 +409,31 @@ classdef testRealData < matlab.unittest.TestCase
             f = testCase.requireFile('LHK1B_2020-01-01_C_04.txt');
             [t, obs, aux] = gracefoReading.readL1b(f);
             testCase.verifyGenericInvariants(t, obs, aux, 'LHK1B');
-            testCase.verifyTrue(any(contains(aux.variableNames, 'TEMP', ...
-                'IgnoreCase', true)), ...
-                'LHK1B is documented to carry LRI temperatures.');
+
+            % Golden numbers, MEASURED on the runner 2026-09-22 (CI run
+            % 35697358724). The long format the owner described on issue
+            % #19, read off the header: eight columns ending in a
+            % free-text name the header itself calls the remaining
+            % portion of the record.
+            testCase.verifyEqual(aux.numRecordsActual, 1169274);
+            testCase.verifyEqual(aux.variableNames, ...
+                {'time_intg','time_frac','time_ref','GRACEFO_id', ...
+                 'qualflg','sensortype','sensorvalue','sensorname'});
+            testCase.verifyEqual(aux.obsNames, {'sensorvalue'});
+
+            % The finding this row exists for: 2 886 of those records
+            % carry a SPACE in the sensor name, so the record has nine
+            % whitespace-separated tokens where the header declares
+            % eight. Until 2026-09-22 the first of them, file line 537,
+            % raised columnMismatch and the product could not be read.
+            testCase.verifyClass(aux.sensorname, 'cell');
+            testCase.verifyEqual(numel(aux.sensorname), 1169274);
+            withSpace = contains(string(aux.sensorname), " ");
+            testCase.verifyEqual(sum(withSpace), 2886, ...
+                'The number of space-bearing sensor names is a golden number.');
+            testCase.verifyTrue(any(string(aux.sensorname) == ...
+                "fpga_state: science_state"));
+            testCase.verifyTrue(any(string(aux.sensorname) == "mode: science"));
         end
 
         function testMultiFileMixedProductsRejected(testCase)

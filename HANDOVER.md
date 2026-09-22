@@ -21,7 +21,7 @@ gains no preprocessing code from it. Facts live in one place, never in two.
 | | |
 |---|---|
 | Version | 1.1.0 (`gracefoReading.version()`; `Contents.m` and `docsrc/functionSpecs.json` must agree) |
-| Tests | **Measured 114 passed, 2 failed, 3 incomplete over 118 rows** — CI run 35696829972, head `84da369`, self-hosted Windows runner, 2026-09-22, 138.0 s. The three buckets sum to 119 because `testRealData/testLHK1B` errored partway and is counted in both. Predicted was 114 + 0 + 4 = 118: **the passed count matched exactly** and the split did not, informatively — see the note below. RED, and the two failures are the subject of the next commit |
+| Tests | Last measured 114 passed, 2 failed, 3 incomplete over 118 rows — CI run 35696829972, head `84da369`, 2026-09-22, 138.0 s (the buckets sum to 119 because `testRealData/testLHK1B` counts in both). **Both failures are fixed; the prediction for the next run is 119 passed + 0 failed + 2 incomplete = 121 rows** (`testReadL1b` 30, `testRealData` 11, the rest unchanged). **Two** incompletes, not one: run 35697358724's pool report named `ACH1B_2020-01-01_C_04.txt` and `GRACEFO-1_kinematicOrbit_2020-01-01.txt` as the only ABSENT entries, so `testACH1B` and `testFullDayKinematicJitter` both filter themselves out. The first draft of this row said 120 + 0 + 1 and was corrected by counting the pool report rather than by recalling it |
 | Static gates | `docsrc/sourceIntegrity.py` 42 files / 0 findings · `docsrc/auditHelp.py` 42 help blocks clean · `python3 docsrc/generate_docs.py` then `git diff --exit-code -- html/` clean, and byte-identical on a second run — all four run 2026-09-22 in a sandbox without MATLAB |
 | Public units | 14 in `+gracefoReading/`, 14 internal in `+gracefoReading/+internal/` |
 | Tag / release | `v1.0.0` (lightweight tag + GitHub release, 2026-09-06). **v1.0.1 and v1.0.2 are merged but v1.0.1 has no release and 1.1.0 is unreleased** — see O-4 |
@@ -52,12 +52,54 @@ acceptance point is for: both found something.
 
 | finding | evidence | whose defect |
 |---|---|---|
-| Real **AHK1B is 864 077 records with a 32-character `prod_flag`**, where ACT1B and MAS1B carry eight | `verifySize([864077x32 logical],[864077 8]) failed` | **the test's.** It asserted 8, imported from a sibling product — the one inference `resolveTime`'s rule forbids. The file itself read correctly, so the G-04 reader work is verified on real AHK1B: 864 077 variable-column records, a non-identifier name among them, parsed. Fixed by reading the width off the file |
-| Real **LHK1B cannot be read at all**: `readL1b:columnMismatch`, "Data line 537 has 9 whitespace-separated token(s), expected 8 (from 8 declared variables)" | run 35696829972 | **the reader's.** A genuine G-04 finding. LHK1B/IHK1B are long-format (sensortype, sensorvalue, sensorname, measured by the owner on issue #19), so a sensorname containing a space is the obvious reading — and acting on "obvious" is what O-1 forbids. A temporary CI step now prints the declared names and every record whose token count disagrees, so the fix is written from the bytes |
+| Real **AHK1B is 864 077 records over 36 declared variables, with a 32-character `prod_flag`**, where ACT1B and MAS1B carry eight | `verifySize([864077x32 logical],[864077 8]) failed` | **the test's.** It asserted 8, imported from a sibling product — the one inference `resolveTime`'s rule forbids. The file itself read correctly, so the G-04 reader work is verified on real AHK1B. Fixed by reading the width off the file |
+| Real **LHK1B could not be read at all**: `readL1b:columnMismatch`, "Data line 537 has 9 whitespace-separated token(s), expected 8 (from 8 declared variables)" | run 35696829972, then the header itself on run 35697358724 | **the reader's.** A genuine G-04 finding, now fixed — see the rest-of-line rule below |
 
 **The G-03 measurement was lost to an unrelated failure.** Its step read
 `if: ${{ vars.READING_DATA_POOL != '' }}`, and a failed suite step skips
 a step without `always()`. Corrected; O-7 still waits for the number.
+
+**What the second run read off the real housekeeping files.** A
+temporary CI step dumped both headers rather than letting the fix be
+written from a guess. It has been removed again; what it measured:
+
+- **LHK1B declares eight columns** — `time_intg`, `time_frac`
+  (nanoseconds), `time_ref`, `GRACEFO_id`, `qualflg`, `sensortype`,
+  `sensorvalue`, `sensorname` — over **1 169 274 records**, of which
+  **1 166 388 carry eight tokens and 2 886 carry nine**. The header
+  answers why in its own words:
+
+  ```
+      - sensorname:
+          comment: Entire remaining portion of each record
+          long_name: Sensor name.  Max number of characters = 1,000
+  ```
+
+  The nine-token records are `fpga_state: science_state` and
+  `mode: science` — a sensor name with a space. Note that `sensorname`
+  declares **no `units: char`**, so a rule keyed on character columns
+  would not have fired: the licence is the sentence, and only reading
+  the file produced it.
+- **LHK1B is long format**: one record per sensor per epoch, so its
+  first three records share the tag 631108800.872776889. Epochs are
+  non-decreasing, **not** strictly increasing, and the shared invariant
+  helper said "strictly" — a third defect, found by reading the dumped
+  records rather than by another red run.
+- **AHK1B declares 36 variables**, among them `TSU_Y+`, `TICUN`,
+  `TSU_Y-`, `TSU_Z+`, **`TSU Z-`** (with the space), `+3.3V`, `+5V`,
+  `+15V`, `-15V`, `+48V`, `-48V`. That is the real-file evidence for
+  both halves of the G-04 change at once: the old header pattern would
+  have dropped `TSU Z-`, and `makeValidName` collapses **three** pairs
+  in this one file — `TSU_Y+`/`TSU_Y-`, `+15V`/`-15V` and
+  `+48V`/`-48V`. Six of its 32 prod_flag bits are set all day
+  (TFEEU_REF, Vp, icu_blk_nr, PPS_source, Sync_Qual, statusflag),
+  giving twelve tokens per record.
+- **The pool answers every file through the LEGACY path.** All ten
+  present fixtures reported `[pool root (legacy path…)]`, because the
+  repository-level `READING_DATA_POOL` still points at
+  `…\DATAPOOL\RawData\tests\realdata`. G-07's fallback is doing
+  exactly the job it was added for; the next release drops it, and only
+  after a run reports `0 via the legacy path`.
 
 **Four incompletes are expected and are not a regression.** Each has a
 named cause and a one-file fix, and each becomes a pass the moment the
@@ -68,8 +110,10 @@ finding" still holds.
 |---|---|---|
 | `testItsgProducts/testFullDayKinematicJitter` | `GRACEFO-1_kinematicOrbit_2020-01-01.txt` (~2.2 MB, or its `.gz`). It asserts the receiver-clock variation of the kinematic products, which first occurs well past record 60 and so cannot be seen in the bundled fixture | 2026-09-14 |
 | `testRealData/testACH1B` | `ACH1B_2020-01-01_C_04.txt`, from the `.ACX` daily archive | 2026-09-22, G-04 |
-| `testRealData/testAHK1B` | `AHK1B_2020-01-01_C_04.txt`, from the `.noLRI` daily archive | 2026-09-22, G-04 |
-| `testRealData/testLHK1B` | `LHK1B_2020-01-01_C_04.txt`, from the `.LRI` daily archive | 2026-09-22, G-04 |
+
+`testRealData/testAHK1B` and `testRealData/testLHK1B` were predicted to
+join this table and did not: the pool holds both (126 MB and 63 MB).
+They run, and each carries golden numbers measured on 2026-09-22.
 
 The CI step "Report which real-data files the pool provides" now names
 all four, so a wrong pool layout and a genuinely absent file are
@@ -288,6 +332,9 @@ The half of it that remains is O-2's writer side, not this.
 | 2026-09-14 | `readItsgProductMulti` declares `fileNames` unsized and normalises it, rather than copying `readL1bMulti`'s `(1,:)` | `findItsgFiles` returns a `[K x 1]` column, exactly as `findL1bFiles` does. Copying the declaration would have reproduced O-11, where the documented two-line workflow fails for more than one file |
 | 2026-09-18 | The preprocessing concept is the design authority for preprocessing, accelerometer calibration and LRI/KBR processing across the ecosystem. It was drafted here on branch `claude/preproc-concept` and moved to `astrobayer/timeSeriesPreparation` `docs/` at X-00a (timeSeriesPreparation#2); decisions Q1–Q16 are in its section 11 and not restated here. **Consequence for this repository:** no preprocessing code; reader obligations G-01 #16 (= O-11), G-02 #17 (= O-1), G-03 #18 (= O-7), G-04 #19, G-05 #20, G-06 #21 | owner |
 | 2026-09-18 | **Correction, measured after the merge:** PR #15 was merged with a **merge commit** (`de87fbf`, parents `a18e9ad` and `4a6bc8c`), not squashed as planned, and its branch was deleted. The tree is as intended (net change `HANDOVER.md` only; CI on `main` run 35392857232 green), but `main`'s history now contains every concept draft (`2d7a06c` … `4c08cb7`) and the two input zips (AccelBiasScaleToolbox 2.4.2, sigtools 1.3.1; about 2.7 MB). Accepted: removing them would mean rewriting `main`, which the ruleset forbids and nothing requires. The concept's pre-move history stays reachable from `main` up to `4c08cb7` | measured 2026-09-18; the planned squash (concept Q14 item 5) did not happen |
+| 2026-09-22 | A record may exceed its declared column count only where the last declared variable says so **in its own comment or long_name**, and then it takes the rest of the line verbatim | Read off real LHK1B: `comment: Entire remaining portion of each record`. Two rules were available and only one is file-driven. "The last column is text" would have keyed on `units: char`, which `sensorname` does not declare, so it would not have fired; "surplus tokens go to the last column" would have weakened the row-integrity check for every product. The header's own sentence is the licence, so the check stays strict everywhere else and a SHORT record is still an error |
+| 2026-09-22 | The shared real-data invariant asserts **non-decreasing** epochs, not strictly increasing | LHK1B is long format — one record per sensor per epoch — and opens with three records sharing 631108800.872776889. Strict monotonicity is a property of the one-record-per-epoch products, not of L1B as such, and asserting it in a shared helper would have made a correct file look corrupt |
+| 2026-09-22 | The LHK1B fix waited one CI round for a header dump instead of being written from the owner's description of the format | The description (sensortype, sensorvalue, sensorname) was right and would have produced a working reader, but by inference. The dump then showed two things the inference did not: the licence is a sentence rather than `units: char`, and the product is long format. Both would have been defects. One round of CI is cheaper than either |
 | 2026-09-22 | `internal/variableFieldNames` becomes the single point of access for the variable-name → struct-field mapping, applied to the WHOLE ordered list rather than per name | `matlab.lang.makeValidName` is not injective: `+` and `-` both become `_`, so AHK1B's `TSU_Y+` and `TSU_Y-` collapse onto one field and one real temperature column silently overwrites the other. Per-name calls cannot see a collision, and there were four of them in three files — the 2026-09-06 failure mode exactly. The mapping is the identity on every name in every product read so far, so no existing fixture moves |
 | 2026-09-22 | A renamed field is reported by `readL1b:variableNameAdjusted`, and `aux.variableNames` / `aux.obsNames` keep the declared names | R3 — silently changing the name a caller matches on is the same class of defect as silently changing a number. The declared name stays the interface; the field name is a per-file detail, and `aux.variableFieldNames` gives the mapping |
 | 2026-09-22 | The G-04 acceptance rows for ACH1B, AHK1B and LHK1B assert invariants and documented facts, not golden numbers | No one in this repository has read those files. A golden number derived from a file nobody has seen is an assumption dressed as a measurement — O-1 again. The invariants (record count, strict monotonicity, every declared variable reachable under its own field) are what the reader promises for any product, and the last of them is precisely what failed before the `variableFieldNames` change |

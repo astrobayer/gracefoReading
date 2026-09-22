@@ -119,6 +119,43 @@ if any(nameAdjusted)
 end
 isIdCol = ~cellfun('isempty', regexpi(varNames, '_id$', 'once'));
 
+% ---- rest-of-line column ----------------------------------------------
+% LHK1B and the other long-format housekeeping products end in a free-text
+% column that the header itself describes as taking what is left of the
+% line. Real LHK1B of 2020-01-01 declares:
+%
+%     - sensorname:
+%         comment: Entire remaining portion of each record
+%         long_name: Sensor name.  Max number of characters = 1,000
+%
+% and 2 886 of its 1 169 274 records use that licence: "fpga_state:
+% science_state" and "mode: science" carry a SPACE, so the record has one
+% whitespace-separated token more than the header declares columns. Until
+% 2026-09-22 that raised columnMismatch on line 537 and the product could
+% not be read at all (issue #19).
+%
+% The rule is read off the file, not assumed from the position: only a
+% last column whose own comment or long_name says it takes the remaining
+% portion absorbs the surplus. It cannot be inferred from "units: char"
+% either - sensorname does not declare units at all.
+restIdx = 0;
+if ~hasProdFlagName(varNames) && nVar >= 2
+    aLast = varAttrs.(fieldNames{nVar});
+    claim = '';
+    if isfield(aLast, 'comment'),   claim = [claim, ' ', aLast.comment];   end
+    if isfield(aLast, 'long_name'), claim = [claim, ' ', aLast.long_name]; end
+    if ~isempty(regexpi(claim, 'remaining\s+portion', 'once'))
+        restIdx = nVar;
+    end
+end
+hasRestOfLine = restIdx > 0;
+if hasRestOfLine
+    % Free text by construction: never numeric, and never a bit string
+    % even if the name happened to contain "flag".
+    isCharCol(restIdx) = true;
+    isBitStr(restIdx) = false;
+end
+
 % ---- identify time columns --------------------------------------------
 [timeColIdx, timeVarUsed, fracScale] = gracefoReading.internal.resolveTime( ...
     varNames, varAttrs, timeVarOpt, fieldNames);
@@ -152,6 +189,18 @@ if hasProdFlag
                  '(%d fixed + %d set prod_flag bits). File may be corrupted.'], ...
                 dataLineNos(r), tokenCounts(r), expected, nFixed, sum(pf == '1'));
         end
+    end
+elseif hasRestOfLine
+    % Surplus tokens are the last column's text, so only a SHORTFALL is a
+    % defect here. The check stays strict in that direction.
+    badIdx = find(tokenCounts < nVar, 1);
+    if ~isempty(badIdx)
+        error('gracefoReading:readL1b:columnMismatch', ...
+            ['Data line %d has %d whitespace-separated token(s); at least %d ', ...
+             'expected (%d declared variables, the last of which the header ', ...
+             'declares as the remaining portion of the record). File may be ', ...
+             'truncated or corrupted.'], ...
+            dataLineNos(badIdx), tokenCounts(badIdx), nVar, nVar);
     end
 else
     badIdx = find(tokenCounts ~= nVar, 1);
@@ -189,6 +238,17 @@ if hasProdFlag
             end
         end
     end
+elseif hasRestOfLine
+    % The leading columns are ordinary tokens; the last one is the rest of
+    % the raw line, sliced at the end of token nVar-1 so that its internal
+    % spacing survives verbatim. vertcat cannot be used here: with a
+    % variable token count the rows are not one matrix.
+    for k = 1:nVar-1
+        colTok{k} = cellfun(@(tk) tk{k}, tokens, 'UniformOutput', false);
+    end
+    tokEnds = regexp(cellstr(dataLines), '\S+', 'end');
+    cut = cellfun(@(e) e(nVar-1), tokEnds);
+    colTok{nVar} = cellstr(strtrim(extractAfter(string(dataLines(:)), cut(:))));
 else
     tokMat = vertcat(tokens{:});
     for k = 1:nVar, colTok{k} = tokMat(:, k); end
@@ -285,4 +345,13 @@ for k = 1:nVar
         end
     end
 end
+end
+
+% ========================================================================
+function tf = hasProdFlagName(varNames)
+% A file driven by prod_flag already has a rule for its variable columns;
+% the rest-of-line rule is for the products that have no prod_flag at all.
+% No known product declares both, and one that did would need reading
+% before it could be handled.
+tf = any(strcmpi(varNames, 'prod_flag'));
 end

@@ -19,6 +19,10 @@ classdef testReadL1b < matlab.unittest.TestCase
 %     - 'TimeFormat': mjd, datetime and exact int64 gpsns arithmetic
 %     - column classification: observations, char columns, identifiers,
 %       bit-string flags
+%     - the rest-of-line column the long-format housekeeping products
+%       declare ("Entire remaining portion of each record"): its spaces
+%       survive verbatim, a surplus token under a header that makes no
+%       such claim is still refused, and a short record still is (G-04)
 %     - prod_flag variable-length records and NaN filling, for MAS1B
 %       gas masses and for AHK1B-style housekeeping temperatures
 %     - declared names that are not MATLAB identifiers and that
@@ -184,6 +188,45 @@ classdef testReadL1b < matlab.unittest.TestCase
                 fprintf(fid, '%d 0 G C 00000000 %s', intg(k), prodFlags{k});
                 fprintf(fid, ' %.10g', values{k});
                 fprintf(fid, '\n');
+            end
+            fclose(fid);
+        end
+
+        function f = writeLhkLike(testCase, records, declareRemaining)
+            % Synthetic LHK1B-style file (issue #19). The long-format
+            % housekeeping products end in a free-text column that the
+            % real header describes as
+            %     comment: Entire remaining portion of each record
+            % and 2 886 of the 1 169 274 records of the real
+            % LHK1B_2020-01-01_C_04 use that licence, carrying a SPACE
+            % in the sensor name. declareRemaining false writes the
+            % same records with that sentence removed, which is the
+            % fault injection: the surplus token must then still be
+            % refused.
+            f = fullfile(testCase.workDir, 'LHK1B_synth.txt');
+            fid = fopen(f, 'wt');
+            fprintf(fid, 'header:\n  dimensions:\n    num_records: %d\n', numel(records));
+            fprintf(fid, '  variables:\n');
+            fprintf(fid, '    - time_intg:\n        units: seconds\n');
+            fprintf(fid, '    - time_frac:\n        units: nanoseconds\n');
+            fprintf(fid, '    - time_ref:\n        units: char\n');
+            fprintf(fid, '    - GRACEFO_id:\n        units: char\n');
+            fprintf(fid, '    - qualflg:\n        comment: column\n');
+            fprintf(fid, '    - sensortype:\n        units: char\n');
+            fprintf(fid, ['    - sensorvalue:\n', ...
+                '        long_name: Value of observation\n']);
+            if declareRemaining
+                fprintf(fid, ['    - sensorname:\n', ...
+                    '        comment: Entire remaining portion of each record\n', ...
+                    '        long_name: Sensor name.  Max number of characters = 1,000\n']);
+            else
+                fprintf(fid, ['    - sensorname:\n', ...
+                    '        long_name: Sensor name\n']);
+            end
+            fprintf(fid, '# End of YAML header\n');
+            for k = 1:numel(records)
+                fprintf(fid, '%d %d G C 00000000 ? %d %s\n', ...
+                    631108800 + k - 1, 100000 * k, 40 + k, records{k});
             end
             fclose(fid);
         end
@@ -365,6 +408,54 @@ classdef testReadL1b < matlab.unittest.TestCase
             [~, ~, aux] = gracefoReading.readL1b(f);
             testCase.verifyEqual(aux.variableFieldNames, aux.variableNames, ...
                 'Valid unique names must be their own field names.');
+        end
+
+        function testRestOfLineColumnAbsorbsItsSpaces(testCase)
+            % G-04, issue #19. Read off the real LHK1B header, whose
+            % last column declares itself "Entire remaining portion of
+            % each record". Before 2026-09-22 the surplus token raised
+            % columnMismatch and the product could not be read at all.
+            names = {'pztInLoopStatus', 'fpga_state: science_state', ...
+                     'mode:  science'};
+            f = testCase.writeLhkLike(names, true);
+
+            [t, obs, aux] = gracefoReading.readL1b(f);
+            testCase.verifySize(t, [3, 2]);
+            % sensorvalue is the only observation; everything else is aux
+            testCase.verifyEqual(aux.obsNames, {'sensorvalue'});
+            testCase.verifyEqual(obs, [41; 42; 43], 'AbsTol', 1e-12);
+            % the text comes back VERBATIM, internal spacing included
+            testCase.verifyEqual(aux.sensorname, names(:));
+            testCase.verifyEqual(aux.sensortype, repmat('?', 3, 1));
+            % and the leading columns are unaffected by the surplus
+            testCase.verifyEqual(aux.GRACEFO_id, repmat('C', 3, 1));
+            % gps 631108800 = 2020-01-01, MJD 58849 (epoch rule in
+            % HANDOVER C, derived and not guessed)
+            testCase.verifyEqual(t(:,1), repmat(58849, 3, 1));
+        end
+
+        function testSurplusTokenWithoutTheDeclarationStillErrors(testCase)
+            % The other half of the fault injection. The rule is the
+            % header's sentence, not the column's position: the same
+            % records under a header that does not claim the remaining
+            % portion must still be refused, with the line number.
+            names = {'pztInLoopStatus', 'fpga_state: science_state'};
+            f = testCase.writeLhkLike(names, false);
+            testCase.verifyError(@() gracefoReading.readL1b(f), ...
+                'gracefoReading:readL1b:columnMismatch');
+        end
+
+        function testRestOfLineStillRefusesAShortRecord(testCase)
+            % Surplus tokens are text; a SHORTFALL is still corruption.
+            f = testCase.writeLhkLike({'pztInLoopStatus'}, true);
+            txt = fileread(f);
+            txt = strrep(txt, '631108800 100000 G C 00000000 ? 41 pztInLoopStatus', ...
+                          '631108800 100000 G C 00000000 ? 41');
+            % 'w', not 'wt': txt already carries the platform's line
+            % endings from fileread, and text mode would double the CR
+            fid = fopen(f, 'w'); fwrite(fid, txt); fclose(fid);
+            testCase.verifyError(@() gracefoReading.readL1b(f), ...
+                'gracefoReading:readL1b:columnMismatch');
         end
 
         function testProdFlagTokenCountMismatchRaises(testCase)

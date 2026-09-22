@@ -15,7 +15,9 @@ classdef testRealData < matlab.unittest.TestCase
 %
 %   COVERAGE
 %     - real header dialect: "variables:" with "- varname:" entries
-%     - the pool products that only the runner holds: ACH1B, the
+%     - the hybrid transplant accelerometer ACH1B of GRACE D, bundled
+%       trimmed, including its identically zero angular columns
+%     - the pool products that only the runner holds: the
 %       accelerometer housekeeping AHK1B and the LRI housekeeping
 %       LHK1B (G-04); these skip until the files are in the pool
 %     - fractional time declared in microseconds (THR1B, MAS1B)
@@ -30,11 +32,17 @@ classdef testRealData < matlab.unittest.TestCase
 %     - Expected values were produced by the Python reference reader
 %       and are hard-coded here; they describe the bundled files of
 %       2020-01-01 and are not claims about other days or releases.
-%     - Only the small products (MAS1B, THR1B) are bundled by default
-%       to keep the toolbox small; tests for the large products skip
-%       themselves when the corresponding file is absent, so a green
-%       run does not imply full-product coverage unless the archive
-%       files are present.
+%     - Only the small products (MAS1B, THR1B, and the trimmed ACH1B
+%       extract) are bundled by default to keep the toolbox small;
+%       tests for the large products skip themselves when the
+%       corresponding file is absent, so a green run does not imply
+%       full-product coverage unless the archive files are present.
+%     - The bundled ACH1B is the first 120 records of the published
+%       GRACE D file with num_records rewritten to match. The golden
+%       numbers below that describe the FULL day - 86 400 records, the
+%       last epoch, the identically zero angular columns - were
+%       measured on the complete file and are stated as such; only
+%       what survives the trim is asserted.
 %     - The five large products are looked up in the data pool named
 %       by the environment variable READING_DATA_POOL before the
 %       bundled tests/realdata folder. That variable is the DATAPOOL
@@ -321,13 +329,42 @@ classdef testRealData < matlab.unittest.TestCase
             % accelerometer product used by gravity RL06.3
             % (ACH = ACU + ACS + ACM + AC0). It is an ordinary RL04
             % YAML product, so what this row verifies is the GENERIC
-            % READER on the real bytes, not a layout: the golden
-            % numbers of this file are added when it is in the pool
-            % and has been read, exactly as the other rows here were
-            % derived from the Python reference before being written.
-            f = testCase.requireFile('ACH1B_2020-01-01_C_04.txt');
+            % READER on the real bytes, not a layout.
+            %
+            % The file is GRACE D, not C: satellite D is the one whose
+            % accelerometer failed and therefore the one the transplant
+            % exists for. It is bundled trimmed, so this row no longer
+            % waits on the pool.
+            %
+            % Golden numbers from tests/python_reference and from the
+            % FULL published day, 2026-09-22: 86 400 records, first
+            % epoch MJD 58849 0 s, last 86 399 s, twelve declared
+            % variables, nine observation columns.
+            f = testCase.requireFile('ACH1B_2020-01-01_D_04.txt');
             [t, obs, aux] = gracefoReading.readL1b(f);
             testCase.verifyGenericInvariants(t, obs, aux, 'ACH1B');
+
+            testCase.verifyEqual(aux.numRecordsHeader, 120);
+            testCase.verifySize(t, [120, 2]);
+            testCase.verifyEqual(t(1,:),   [58849,   0], 'AbsTol', 1e-9);
+            testCase.verifyEqual(t(end,:), [58849, 119], 'AbsTol', 1e-9);
+            testCase.verifyEqual(numel(aux.variableNames), 12);
+            testCase.verifyEqual(aux.obsNames, ...
+                {'lin_accl_x','lin_accl_y','lin_accl_z', ...
+                 'ang_accl_x','ang_accl_y','ang_accl_z', ...
+                 'acl_x_res','acl_y_res','acl_z_res'});
+            testCase.verifyEqual(aux.GRACEFO_id(1), 'D');
+            testCase.verifyEqual(aux.timeVariable, 'gps_time');
+            testCase.verifyEqual(obs(1, 1:3), ...
+                [3.146952561383804e-07, 1.125335240065487e-05, ...
+                 -1.781514495161417e-07], 'AbsTol', 1e-20);
+
+            % The transplant carries LINEAR accelerations only: the
+            % three angular columns are declared, so the reader must
+            % return them, and are identically zero - measured over all
+            % 86 400 records of the published day, not only the extract.
+            iAng = 4:6;
+            testCase.verifyEqual(obs(:, iAng), zeros(120, 3));
         end
 
         function testAHK1B(testCase)

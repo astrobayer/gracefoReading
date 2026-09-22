@@ -29,8 +29,16 @@ tests/realdata/*.txt.gz
 !tests/realdata/TN-01_SOE.txt
 !tests/realdata/TN-01a_SCE.txt
 
-# The six classic GRACE fixtures are binary (".dat"), so no rule above
+# The hybrid transplant accelerometer fixture (G-04, issue #19) is the
+# first 120 records of the published GRACE D file, ~25 KB. Same trap as
+# the two above: the "*.txt" rule would drop it silently and the only
+# symptom would be testACH1B failing in CI on a file that is present in
+# every working tree.
+!tests/realdata/ACH1B_2020-01-01_D_04.txt
+
+# The classic GRACE fixtures are binary (".dat"), so no rule above
 # touches them; they are named here so the set is visible in one place.
-# First 40 records each, NUMBER OF DATA RECORDS rewritten to match,
-# ~38 KB together. See tests/realdata/README.md.
+# Seven RL02 products of 2008-01-01 plus the two RL03 files, first 40
+# records each, NUMBER OF DATA RECORDS rewritten to match, ~54 KB
+# together. See tests/realdata/README.md.
 !tests/realdata/*.dat

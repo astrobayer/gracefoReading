@@ -3,7 +3,14 @@ function scan29()
 %   Not for merge. Prints header facts, the zero-time TIM1B records, the
 %   near-zero eps_time CLK1B records and base64 extracts of the files.
 pool = string(getenv("READING_DATA_POOL"));
+% This repository's variable still points at the legacy fixture folder
+% <ROOT>\RawData\tests\realdata (scan round 1 found nothing); go to the root.
+legacy = fullfile("RawData", "tests", "realdata");
+if endsWith(pool, legacy)
+    pool = extractBefore(pool, strlength(pool) - strlength(legacy));
+end
 day = fullfile(pool, "GRACEFO", "L1B", "RL04", "2020", "2020-01-02");
+fprintf('SCAN folder %s exists=%d\n', day, isfolder(day));
 for name = ["CLK1B_2020-01-02_C_04.txt", "CLK1B_2020-01-02_D_04.txt", ...
             "TIM1B_2020-01-02_C_04.txt", "TIM1B_2020-01-02_D_04.txt"]
     try

@@ -54,6 +54,13 @@ classdef testClassicProducts < matlab.unittest.TestCase
 %       column, for ACC1B / MAG1B / MAS1B / AHK1B: the MAG1B
 %       time_ref / GRACE_id swap, AHK1B's bit-string `status` and its
 %       rcvtime_frac microseconds, and that none of them warns
+%     - units and qualflg meanings (1.3.0), which no classic header
+%       carries, from the product tables of the GRACE Level-1B handbook
+%       (D-22027 v1.3, chapter 6): ACC1B, THR1B and KBR1B units; ACC1B,
+%       KBR1B and SCA1B meanings read back through decodeQualFlags, the
+%       SCA1B one being the bit already cross-checked against sca_id;
+%       the ASCII and binary variants describing their columns alike;
+%       AHK1B, which has no handbook table, stating no units
 %     - refusals: a truncated file, 'ColumnNames' against a binary
 %       product, and a classic product with no measured layout
 %
@@ -86,7 +93,7 @@ classdef testClassicProducts < matlab.unittest.TestCase
 %
 %   Toolbox:  gracefoReading v1.2.0
 %   Created:  2026-09-22
-%   Updated:  2026-09-22
+%   Updated:  2026-09-27
 %   Author:   Matthias Weigelt with support of Anthropic Claude
 
     properties
@@ -685,6 +692,77 @@ classdef testClassicProducts < matlab.unittest.TestCase
             fclose(fid);
             testCase.verifyError(@() gracefoReading.readL1b(f), ...
                 'gracefoReading:readL1b:unsupportedClassicProduct');
+        end
+
+        function testClassicUnitsFromHandbook(testCase)
+            % 1.3.0: the units classic headers lack, from D-22027 ch. 6
+            % (6.2 ACC1B, 6.11 THR1B, 6.7 KBR1B), spelled as the GRACE-FO
+            % headers spell the same quantity.
+            [~, ~, a] = gracefoReading.readL1b(testCase.fixture('ACC1B_2008-01-01_A_02.dat'));
+            u = a.variableUnits;
+            testCase.verifyEqual({u.gps_time, u.lin_accl_x, u.ang_accl_z, u.acl_y_res}, ...
+                {'seconds', 'm/s2', 'rad/s2', 'm/s2'});
+            testCase.verifyEqual(u.GRACE_id, 'char');
+
+            [~, ~, t] = gracefoReading.readL1b(testCase.fixture('THR1B_2008-01-01_A_02.dat'));
+            u = t.variableUnits;
+            testCase.verifyEqual({u.time_intg, u.time_frac, u.on_time_att_ctrl_1_1, ...
+                u.on_time_orb_ctrl_2, u.accum_dur_att_ctrl}, ...
+                {'seconds', 'microseconds', 'milliseconds', 'milliseconds', 'milliseconds'});
+            testCase.verifyFalse(isfield(u, 'thrust_count_att_ctrl_1_1'), ...
+                'A thrust count has no unit in the handbook.');
+
+            [~, ~, k] = gracefoReading.readL1b(testCase.fixture('KBR1B_2008-01-01_X_02.dat'));
+            u = k.variableUnits;
+            testCase.verifyEqual({u.biased_range, u.range_rate, u.range_accl, u.K_A_SNR}, ...
+                {'m', 'm/s', 'm/s2', '0.1 dB-Hz'});
+        end
+
+        function testClassicQualflgMeaningsFromHandbook(testCase)
+            % 1.3.0: decodeQualFlags reported every classic bit as
+            % "(not documented)". SCA1B bit 3 is the bit the sca_id test
+            % above cross-checks, so its meaning is anchored in the data.
+            [~, ~, a] = gracefoReading.readL1b(testCase.fixture('ACC1B_2008-01-01_A_02.dat'));
+            [~, r] = gracefoReading.decodeQualFlags(a);
+            testCase.verifyEqual(r.meaning([1 6 8])', [ ...
+                "Proof mass voltage out of nominal range", ...
+                "filled data > 15s from fit center", "filled data < 5s from fit center"]);
+
+            [~, ~, k] = gracefoReading.readL1b(testCase.fixture('KBR1B_2008-01-01_X_02.dat'));
+            [~, r] = gracefoReading.decodeQualFlags(k);
+            testCase.verifyEqual(r.meaning(1), "phase break");
+            testCase.verifyEqual(r.meaning(7), "filled data > 5s from fit center");
+
+            [~, ~, c] = gracefoReading.readL1b(testCase.fixture('SCA1B_2008-01-01_A_02.dat'));
+            [bits, r] = gracefoReading.decodeQualFlags(c);
+            testCase.verifyEqual(r.meaning(4), "data from 1 star camera only");
+            testCase.verifyEqual(c.sca_id == 1, bits(:, 4));
+            testCase.verifyFalse(any(r.meaning == "(not documented)"));
+        end
+
+        function testClassicAsciiAndBinaryDescribeAlike(testCase)
+            % Metamorphic: the two variants of one product, read by two
+            % parsers, must describe their columns identically.
+            for nm = ["ACC1B", "MAG1B", "MAS1B"]
+                [~, ~, b] = gracefoReading.readL1b(testCase.fixture(nm + "_2008-01-01_A_02.dat"));
+                [~, ~, s] = gracefoReading.readL1b(testCase.fixture(nm + "_2008-01-01_A_02.asc"));
+                testCase.verifyEqual(orderfields(s.variableUnits), ...
+                    orderfields(b.variableUnits), nm);
+                testCase.verifyEqual(s.variableAttributes.qualflg.flag_meanings, ...
+                    b.variableAttributes.qualflg.flag_meanings, nm);
+            end
+            [~, r] = gracefoReading.decodeQualFlags(b, 'prod_flag');     % MAS1B
+            testCase.verifyEqual(r.meaning(7), "gas mass tank 1 (tank obs)");
+        end
+
+        function testAhk1bStatesNoUnits(testCase)
+            % AHK1B has no table in D-22027 chapter 6; the read software
+            % it is named from states no units. Nothing is guessed.
+            [~, ~, a] = gracefoReading.readL1b(testCase.fixture('AHK1B_2008-01-01_A_02.dat'));
+            u = a.variableUnits;
+            testCase.verifyEqual(u.rcvtime_frac, 'microseconds');
+            testCase.verifyFalse(isfield(u, 'lin_accl_x'));
+            testCase.verifyFalse(isfield(a.variableAttributes.qualflg, 'flag_meanings'));
         end
 
         function testTimeRangeAndQualityStillApply(testCase)

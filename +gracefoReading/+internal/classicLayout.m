@@ -71,7 +71,13 @@ function layout = classicLayout(product)
 %                equals names except for MAG1B; asciiBitString
 %                (cellstr) columns the ASCII variant renders as a bit
 %                string beyond qualflg and prod_flag; oracle (char)
-%                the physical check this layout was verified against.
+%                the physical check this layout was verified against;
+%                units (cellstr [1 x C]) the unit of each column, ''
+%                where the handbook gives none; flagMeanings (struct)
+%                per flag column ('qualflg', MAS1B 'prod_flag') a
+%                cellstr of "bit N = text" lines, the form a GRACE-FO
+%                header lists them in; unitSource (char) the handbook
+%                section both come from.
 %
 %   ACCURACY AND LIMITATIONS
 %     - Verified per product on ACC1B/SCA1B/GNV1B/THR1B/MAS1B/MAG1B/
@@ -154,6 +160,18 @@ function layout = classicLayout(product)
 %       in any bundled file - the SNRs reach 690 of 32 767 and the
 %       counters 89 329 647 of 2^31 - so this is hardening against a
 %       large value in some other day, not a bug fix.
+%     - **Units and flag meanings (release 1.3.0)** are not in any
+%       classic header. They come from the same handbook, chapter 6,
+%       one table per product: 6.2 ACC1B, 6.5 GNV1B, 6.7 KBR1B, 6.8
+%       MAG1B, 6.9 MAS1B, 6.10 SCA1B, 6.11 THR1B, each with a Units
+%       column and the qualflg bit list (MAS1B also prod_flag). The
+%       spelling follows the GRACE-FO headers for the quantities they
+%       share (the handbook's "s" is "seconds", "millisec" is
+%       "milliseconds"), so a caller meets one vocabulary; the others
+%       keep the handbook's (0.1 dB-Hz, microT, mA). MAG1B's time_frac
+%       has no unit in 6.8 and is given microseconds, as its siblings
+%       6.9 and 6.11 state for the same column. AHK1B has no chapter-6
+%       table and gets no units beyond that: stated, not guessed.
 %     - Classic qualflg is a single BYTE bitmask in the binary files,
 %       not an 8-character bit string; parseClassicBinary renders it
 %       as the same 8-character string the GRACE-FO products use, so
@@ -171,7 +189,7 @@ function layout = classicLayout(product)
 %
 %   Toolbox:  gracefoReading v1.2.0
 %   Created:  2026-09-22
-%   Updated:  2026-09-22
+%   Updated:  2026-09-27
 %   Author:   Matthias Weigelt with support of Anthropic Claude
 
 arguments
@@ -185,6 +203,8 @@ end
 % "ASCII prints exactly the binary order, numbers as numbers".
 asciiSwapPair = {};      % two columns the ASCII writer emits swapped
 asciiBits = {};          % columns ASCII renders as a bit string
+units = cell(0, 2);      % {name, unit} from the product's handbook table
+meanings = struct();     % flag column -> "bit N = text" lines
 
 switch upper(product)
     case 'ACC1B'
@@ -195,6 +215,20 @@ switch upper(product)
                   'acl_x_res','acl_y_res','acl_z_res'}, 'double'
                  {'qualflg'}, 'uint8' };
         oracle = 'accelerations within instrument range; residual columns ~1e-9';
+        unitSource = 'D-22027 v1.3 section 6.2';
+        units = {'gps_time','seconds'; 'lin_accl_x','m/s2'; 'lin_accl_y','m/s2'; ...
+                 'lin_accl_z','m/s2'; 'ang_accl_x','rad/s2'; 'ang_accl_y','rad/s2'; ...
+                 'ang_accl_z','rad/s2'; 'acl_x_res','m/s2'; 'acl_y_res','m/s2'; ...
+                 'acl_z_res','m/s2'};
+        meanings.qualflg = { ...
+            'bit 0 = Proof mass voltage out of nominal range'
+            'bit 1 = Not Defined'
+            'bit 2 = if any linear ACC component has fit residual > 10 microns/s2'
+            'bit 3 = extrapolated clock correction >5s but < 15s from fit center'
+            'bit 4 = extrapolated clock correction < 5s from fit center'
+            'bit 5 = filled data > 15s from fit center'
+            'bit 6 = filled data > 5s but < 15s from fit center'
+            'bit 7 = filled data < 5s from fit center'};
 
     case 'SCA1B'
         spec = { {'gps_time'}, 'int32'
@@ -204,6 +238,17 @@ switch upper(product)
                  {'qual_rss'}, 'double'
                  {'qualflg'}, 'uint8' };
         oracle = 'quaternion norm within 1e-6 of unity in every record';
+        unitSource = 'D-22027 v1.3 section 6.10';
+        units = {'gps_time','seconds'};        % quaternion and qual_rss: N/A
+        meanings.qualflg = { ...
+            'bit 0 = filled data at T'
+            'bit 1 = filled data at T + 1 sec'
+            'bit 2 = filled data at T + 2 sec'
+            'bit 3 = data from 1 star camera only'
+            'bit 4 = extrapolated clock correction'
+            'bit 5 = Not Defined'
+            'bit 6 = low rate data from 2nd SCA'
+            'bit 7 = low rate data from 1st SCA'};
 
     case 'GNV1B'
         spec = { {'gps_time'}, 'int32'
@@ -213,6 +258,19 @@ switch upper(product)
                   'xvel','yvel','zvel','xvel_err','yvel_err','zvel_err'}, 'double'
                  {'qualflg'}, 'uint8' };
         oracle = 'orbit radius 6827-6862 km and speed ~7.6 km/s';
+        unitSource = 'D-22027 v1.3 section 6.5';
+        units = [{'gps_time','seconds'}; ...
+                 [{'xpos';'ypos';'zpos';'xpos_err';'ypos_err';'zpos_err'}, repmat({'m'}, 6, 1)]; ...
+                 [{'xvel';'yvel';'zvel';'xvel_err';'yvel_err';'zvel_err'}, repmat({'m/s'}, 6, 1)]];
+        meanings.qualflg = { ...
+            'bit 0 = Not Defined'
+            'bit 1 = Not Defined'
+            'bit 2 = overlap data missing before start midnight'
+            'bit 3 = overlap data missing after start midnight'
+            'bit 4 = overlap data missing before end midnight'
+            'bit 5 = overlap data missing after end midnight'
+            'bit 6 = Not Defined'
+            'bit 7 = Not Defined'};
 
     case 'KBR1B'
         % No satellite id: KBR1B is the A+B link, file token X.
@@ -223,6 +281,21 @@ switch upper(product)
                  {'K_A_SNR','Ka_A_SNR','K_B_SNR','Ka_B_SNR'}, 'uint16'
                  {'qualflg'}, 'uint8' };
         oracle = 'd(biased_range)/dt matches range_rate to 5.8e-6 m/s; SNR 57-69 dB';
+        unitSource = 'D-22027 v1.3 section 6.7';
+        units = {'gps_time','seconds'; 'biased_range','m'; 'range_rate','m/s'; ...
+                 'range_accl','m/s2'; 'iono_corr','m'; 'lighttime_corr','m'; ...
+                 'lighttime_rate','m/s'; 'lighttime_accl','m/s2'; 'ant_centr_corr','m'; ...
+                 'ant_centr_rate','m/s'; 'ant_centr_accl','m/s2'; 'K_A_SNR','0.1 dB-Hz'; ...
+                 'Ka_A_SNR','0.1 dB-Hz'; 'K_B_SNR','0.1 dB-Hz'; 'Ka_B_SNR','0.1 dB-Hz'};
+        meanings.qualflg = { ...
+            'bit 0 = phase break'
+            'bit 1 = extrapolated states for lighttime_corr'
+            'bit 2 = model eci attitudes for ant_centr_corr'
+            'bit 3 = extrapolated clock correction > 5s from fit center'
+            'bit 4 = extrapolated clock correction < 5s from fit center'
+            'bit 5 = data corrected for timetag bias of either K or Ka phase'
+            'bit 6 = filled data > 5s from fit center'
+            'bit 7 = filled data < 5s from fit center'};
 
     case 'THR1B'
         spec = { {'time_intg'}, 'int32'
@@ -232,6 +305,22 @@ switch upper(product)
                  localThrusterNames(), 'uint32'
                  {'qualflg'}, 'uint8' };
         oracle = '42 counter columns; fractional time in microseconds';
+        % thrust_count carries no unit (a count); on_time and accum_dur
+        % are "millisec" in the handbook.
+        unitSource = 'D-22027 v1.3 section 6.11';
+        thr = localThrusterNames();
+        ms = thr(startsWith(thr, {'on_time_', 'accum_dur_'}));
+        units = [{'time_intg','seconds'; 'time_frac','microseconds'}; ...
+                 [ms(:), repmat({'milliseconds'}, numel(ms), 1)]];
+        meanings.qualflg = { ...
+            'bit 0 = On time not calculated'
+            'bit 1 = Multiple unaccounted thrusts prior to current record'
+            'bit 2 = Not Defined'
+            'bit 3 = Not Defined'
+            'bit 4 = Not Defined'
+            'bit 5 = Not Defined'
+            'bit 6 = No OBDH->Receiver time mapping'
+            'bit 7 = No Clock correction available'};
 
     case 'MAS1B'
         spec = { {'time_intg'}, 'int32'
@@ -244,6 +333,21 @@ switch upper(product)
                   'gas_mass_thr1','gas_mass_thr2', ...
                   'gas_mass_tnk1','gas_mass_tnk2'}, 'double' };
         oracle = 'thruster- and tank-based spacecraft mass agree to 4 g';
+        unitSource = 'D-22027 v1.3 section 6.9';
+        units = [{'time_intg','seconds'; 'time_frac','microseconds'}; ...
+                 [{'mass_thr';'mass_thr_err';'mass_tnk';'mass_tnk_err'; ...
+                   'gas_mass_thr1';'gas_mass_thr2';'gas_mass_tnk1';'gas_mass_tnk2'}, ...
+                  repmat({'kg'}, 8, 1)]];
+        meanings.qualflg = {'bits 0-7 = Not Defined'};
+        meanings.prod_flag = { ...
+            'bit 0 = SC Mass from thruster usage'
+            'bit 1 = SC Mass error bit 0'
+            'bit 2 = SC Mass from tank observations'
+            'bit 3 = SC Mass error bit 2'
+            'bit 4 = gas mass tank 1 (thr. usage)'
+            'bit 5 = gas mass tank 2 (thr. usage)'
+            'bit 6 = gas mass tank 1 (tank obs)'
+            'bit 7 = gas mass tank 2 (tank obs)'};
 
     case 'MAG1B'
         % Named from the handbook, section 6.8 (pp. 38-39), which
@@ -261,6 +365,18 @@ switch upper(product)
                  {'torque_cal'}, 'single'
                  {'qualflg'}, 'uint8' };
         oracle = '|B| 18.3-54.5 microtesla; 63 B/record reproduces the file size exactly';
+        % time_frac has no unit in 6.8; it is the microseconds part, as
+        % in every sibling table (6.9, 6.11) - the column's own long
+        % name says so. The calibration factors carry none.
+        unitSource = 'D-22027 v1.3 section 6.8';
+        units = {'time_intg','seconds'; 'time_frac','microseconds'; ...
+                 'MfvX_RAW','microT'; 'MfvY_RAW','microT'; 'MfvZ_RAW','microT'; ...
+                 'torque1A','mA'; 'torque2A','mA'; 'torque3A','mA'; ...
+                 'torque1B','mA'; 'torque2B','mA'; 'torque3B','mA'};
+        meanings.qualflg = { ...
+            'bit 0 = 0 > GPS Receiver Time; 1 > Space Craft Elapsed Time'
+            'bit 1 = 0 > Pulse Sync; 1 > no Pulse Sync'
+            'bits 2-7 = Not Defined'};
         % WrAsciiMAG1XFRecord.c prints GRACE_id BEFORE time_ref - the
         % opposite of the binary record, and of every other product.
         % Its own THR1B sibling holds the two in the same variables
@@ -297,6 +413,10 @@ switch upper(product)
                  {'Tenhz_count'}, 'uint8'
                  {'Mhz_count'}, 'int32' };
         oracle = 'ICU/SU rails +-15 V, +5 V and +-48 V at nominal; record walk exact';
+        % D-22027 has no AHK1B table and the read software states no
+        % units: only the split time tag's microseconds are known.
+        unitSource = 'none (not in D-22027 chapter 6)';
+        units = {'rcvtime_frac','microseconds'};
         % WrAsciiACC1AFRecord.c case 25 writes `status` as an
         % 8-character bit string, not a number. Parsed as a number it
         % would read 10111111 instead of 191 - silently, which is why
@@ -332,6 +452,23 @@ if layout.prodFlagIdx > 0
     layout.prodFlagBits = 8 * localWidth(types{layout.prodFlagIdx});
 end
 layout.oracle = oracle;
+
+% Units and flag meanings, which classic headers do not carry. One unit
+% per column in record order, '' where the handbook gives none; the
+% spelling follows the GRACE-FO headers where they declare the same
+% quantity (seconds, microseconds, milliseconds, m/s2, rad/s2, m, m/s,
+% kg), so one vocabulary reaches the caller.
+layout.units = repmat({''}, 1, numel(names));
+for k = 1:size(units, 1)
+    j = find(strcmp(names, units{k, 1}), 1);
+    if isempty(j)
+        error('gracefoReading:readL1b:badClassicType', ...
+            'classicLayout: unit for unknown column "%s".', units{k, 1});
+    end
+    layout.units{j} = units{k, 2};
+end
+layout.flagMeanings = meanings;
+layout.unitSource = unitSource;
 
 % ASCII column order and rendering. Callers of the ASCII path take
 % BOTH from here; nothing infers them from the binary order any more.

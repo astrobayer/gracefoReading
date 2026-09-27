@@ -27,6 +27,12 @@ function [timeMjd, timeNs, obs, aux] = parseClassicBinary(bytes, fileName, timeV
 %     offset produces plausible-looking numbers, which is the one
 %     failure mode a reader must never pass on silently.
 %
+%     Units and flag meanings, which classic headers do not carry,
+%     come from the same layout (the product's table in the GRACE
+%     Level-1B handbook, D-22027 chapter 6) and fill aux.variableUnits
+%     and aux.variableAttributes.<name>.flag_meanings exactly where a
+%     GRACE-FO header would put them.
+%
 %     Byte order is big-endian, measured. MATLAB's typecast is
 %     little-endian on every supported platform, so each field's bytes
 %     are reversed before casting; this is done by reshaping rather
@@ -106,7 +112,7 @@ function [timeMjd, timeNs, obs, aux] = parseClassicBinary(bytes, fileName, timeV
 %
 %   Toolbox:  gracefoReading v1.2.0
 %   Created:  2026-09-22
-%   Updated:  2026-09-22
+%   Updated:  2026-09-27
 %   Author:   Matthias Weigelt with support of Anthropic Claude
 
 arguments
@@ -396,20 +402,27 @@ aux.numRecordsFlagged = 0;
 aux.header = headerLines(:);
 aux.classicHeaderFields = hdrFields;
 
+% Units and flag meanings: classic headers carry neither, so they come
+% from the product's handbook table in classicLayout; '' is "not stated"
+% and is left out, as a YAML header without a units line would be.
 units = struct();
-for k = 1:nVar
-    if isChar(k), units.(fieldNames{k}) = 'char'; end
-end
-aux.variableUnits = units;
 attrs = struct();
 for k = 1:nVar
     a = struct();
-    if isChar(k), a.units = 'char'; end
-    if any(strcmpi(names{k}, {'time_frac', 'rcvtime_frac'}))
+    if isChar(k)
+        a.units = 'char';
+    elseif ~isempty(layout.units{k})
+        a.units = layout.units{k};
+    elseif any(strcmpi(names{k}, {'time_frac', 'rcvtime_frac'}))
         a.units = 'microseconds';
     end
+    if isfield(layout.flagMeanings, names{k})
+        a.flag_meanings = layout.flagMeanings.(names{k});
+    end
+    if isfield(a, 'units'), units.(fieldNames{k}) = a.units; end
     attrs.(fieldNames{k}) = a;
 end
+aux.variableUnits = units;
 aux.variableAttributes = attrs;
 
 for k = 1:nVar

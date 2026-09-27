@@ -9,9 +9,11 @@ function [bits, report] = decodeQualFlags(aux, flagName)
 %     Decodes a bit-string flag column of a previously read Level-1B
 %     product into a logical matrix and summarises how often each bit
 %     is set. The bit meanings are taken from the flag_meanings
-%     attribute parsed out of the product file's own header
-%     (aux.variableAttributes), so the decoding always matches the file
-%     actually read and no release-dependent bit tables are hard-coded.
+%     attribute in aux.variableAttributes: for GRACE-FO parsed out of
+%     the product file's own header, so the decoding always matches the
+%     file actually read; for classic GRACE, whose headers carry none,
+%     supplied by readL1b from the product's table in the GRACE Level-1B
+%     handbook (JPL D-22027 v1.3, chapter 6) since release 1.3.0.
 %     Bits without a documented meaning are still reported, marked as
 %     not documented.
 %
@@ -53,9 +55,9 @@ function [bits, report] = decodeQualFlags(aux, flagName)
 %       follows the file's declaration order, assumed to start at
 %       bit 0. Where a header lists fewer meanings than the flag has
 %       characters, the surplus bits stay undocumented.
-%     - Applies to bit-string columns only. Classic GRACE products may
-%       store qualflg as a decimal number, which this function does not
-%       decode (see readL1b limitations).
+%     - Applies to bit-string columns only. Classic GRACE qualflg is a
+%       byte in the binary files; readL1b renders it as the same
+%       8-character bit string, so it decodes here unchanged.
 %
 %   ERRORS
 %     gracefoReading:decodeQualFlags:flagNotFound
@@ -78,7 +80,7 @@ function [bits, report] = decodeQualFlags(aux, flagName)
 %
 %   Toolbox:  gracefoReading v1.2.0
 %   Created:  2026-08-01
-%   Updated:  2026-08-14
+%   Updated:  2026-09-27
 %   Author:   Matthias Weigelt with support of Anthropic Claude
 
 arguments

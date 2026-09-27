@@ -76,7 +76,7 @@ function [bits, report] = decodeQualFlags(aux, flagName)
 %
 %   See also gracefoReading.readL1b, gracefoReading.readL1bMulti
 %
-%   Toolbox:  gracefoReading v1.1.0
+%   Toolbox:  gracefoReading v1.2.0
 %   Created:  2026-08-01
 %   Updated:  2026-08-14
 %   Author:   Matthias Weigelt with support of Anthropic Claude

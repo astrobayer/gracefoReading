@@ -53,6 +53,12 @@ function [time, obs, aux] = readL1bMulti(fileNames, options)
 %                Forwarded to readL1b (classic-format files only).
 %                Default: [] (use the built-in layout table).
 %
+%     'DropZeroTime' - logical, 1x1
+%                Forwarded to readL1b: removes records whose time tag
+%                is exactly zero. Each file still reports its own
+%                through readL1b's zeroTime warning.
+%                Options: true | false. Default: false.
+%
 %   OUTPUT
 %     time - double, [N x 2] | datetime, [N x 1] | int64, [N x 1]
 %                Concatenated epochs in the requested format;
@@ -70,7 +76,8 @@ function [time, obs, aux] = readL1bMulti(fileNames, options)
 %                epochDescription, epochMJD taken from the first file;
 %                fileNames [K x 1], products [K x 1], headers [K x 1],
 %                recordsPerFile [K x 1] (cumsum gives the split
-%                points), numRecordsHeader/Actual/Flagged [K x 1], plus
+%                points), numRecordsHeader/Actual/Flagged/ZeroTime
+%                [K x 1], plus
 %                per-record auxiliary fields that are present with
 %                consistent type in every file, concatenated in file
 %                order; inconsistent fields are dropped with warning
@@ -131,9 +138,9 @@ function [time, obs, aux] = readL1bMulti(fileNames, options)
 %   See also gracefoReading.readL1b, gracefoReading.findL1bFiles,
 %            gracefoReading.findGaps
 %
-%   Toolbox:  gracefoReading v1.1.0
+%   Toolbox:  gracefoReading v1.2.0
 %   Created:  2026-08-01
-%   Updated:  2026-09-22
+%   Updated:  2026-09-27
 %   Author:   Matthias Weigelt with support of Anthropic Claude
 
 arguments
@@ -149,6 +156,7 @@ arguments
     options.QualityBitMask (1,:) double {mustBeInteger, mustBeNonnegative} = []
     options.CacheDir (1,1) string = ""
     options.ColumnNames (1,:) string = string.empty
+    options.DropZeroTime (1,1) logical = false
 end
 
 fileNames = fileNames(:)';
@@ -157,7 +165,7 @@ timeAll = cell(nFiles, 1); obsAll = cell(nFiles, 1); auxAll = cell(nFiles, 1);
 optArgs = {'TimeVariable', options.TimeVariable, 'TimeRange', options.TimeRange, ...
            'TimeFormat', options.TimeFormat, 'ApplyQualityFlags', options.ApplyQualityFlags, ...
            'QualityBitMask', options.QualityBitMask, 'CacheDir', options.CacheDir, ...
-           'ColumnNames', options.ColumnNames};
+           'ColumnNames', options.ColumnNames, 'DropZeroTime', options.DropZeroTime};
 
 for i = 1:nFiles
     [timeAll{i}, obsAll{i}, auxAll{i}] = gracefoReading.readL1b(fileNames(i), optArgs{:});
@@ -225,11 +233,13 @@ aux.recordsPerFile     = cellfun(@(t) size(t, 1), timeAll);
 aux.numRecordsHeader   = cellfun(@(a) a.numRecordsHeader, auxAll);
 aux.numRecordsActual   = cellfun(@(a) a.numRecordsActual, auxAll);
 aux.numRecordsFlagged  = cellfun(@(a) a.numRecordsFlagged, auxAll);
+aux.numRecordsZeroTime = cellfun(@(a) a.numRecordsZeroTime, auxAll);
 
 metaFields = {'obsNames','variableNames','variableFieldNames','variableUnits', ...
     'variableAttributes','header','fileName','product','timeVariable','timeSystem', ...
     'epochDescription','epochMJD','numRecordsHeader','numRecordsActual', ...
-    'numRecordsFlagged','headerFormat','cacheHit','classicHeaderFields'};
+    'numRecordsFlagged','numRecordsZeroTime','headerFormat','cacheHit', ...
+    'classicHeaderFields'};
 candidates = setdiff(fieldnames(auxAll{1}), metaFields, 'stable');
 
 for f = 1:numel(candidates)
@@ -276,6 +286,9 @@ if options.ApplyQualityFlags
 end
 if ~isempty(options.QualityBitMask)
     active(end+1) = "QualityBitMask";
+end
+if options.DropZeroTime
+    active(end+1) = "DropZeroTime";
 end
 if isempty(active)
     cause = 'no filtering option was set';

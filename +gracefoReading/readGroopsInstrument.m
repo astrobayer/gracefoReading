@@ -117,7 +117,7 @@ function [time, data, info] = readGroopsInstrument(fileName, options)
 %
 %   See also gracefoReading.writeGroopsInstrument, gracefoReading.readL1b
 %
-%   Toolbox:  gracefoReading v1.1.0
+%   Toolbox:  gracefoReading v1.2.0
 %   Created:  2026-08-01
 %   Updated:  2026-09-14
 %   Author:   Matthias Weigelt with support of Anthropic Claude

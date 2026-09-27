@@ -9,9 +9,10 @@ function [timeColIdx, timeVarUsed, fracScale] = resolveTime(varNames, varAttrs, 
 %
 %   DESCRIPTION
 %     Shared by the YAML and classic parsing paths. Automatic detection
-%     prefers a single gps_time column, then the known split pairs
-%     time_intg+time_frac, rcvtime_intg+rcvtime_frac and
-%     gps_intg+gps_frac; an explicit override takes precedence. The
+%     prefers a single gps_time column, then a single rcv_time column
+%     (CLK1B), then the known split pairs time_intg+time_frac,
+%     rcvtime_intg+rcvtime_frac and gps_intg+gps_frac; an explicit
+%     override takes precedence. The
 %     scale of the fractional column is derived from its declared unit,
 %     which matters because the real THR1B and MAS1B files give the
 %     fraction in microseconds while a naive reader would assume
@@ -54,8 +55,17 @@ function [timeColIdx, timeVarUsed, fracScale] = resolveTime(varNames, varAttrs, 
 %                single-column time tags.
 %
 %   ACCURACY AND LIMITATIONS
-%     - Only the three known split-pair conventions are detected
-%       automatically; any other pair must be given via the override.
+%     - Only the two single-column names and the three known split-pair
+%       conventions are detected automatically; any other tag must be
+%       given via the override.
+%     - rcv_time is RECEIVER time, not GPS time: CLK1B's own header says
+%       "GPS Time = rcv_time + eps_time". The tag is returned as it is
+%       written, like every other tag; aux.timeVariable names it, and
+%       applying eps_time is the caller's step. aux.timeSystem reads
+%       'GPS' for every YAML product, the receiver-time tags included
+%       (rcv_time here, rcvtime_intg+rcvtime_frac elsewhere); it names
+%       the counting convention, not the clock. Before rcv_time was
+%       recognised, CLK1B raised noTime (issue #29).
 %     - Unit strings are matched case-insensitively against the
 %       singular and plural forms of second, millisecond, microsecond
 %       and nanosecond; anything else raises unknownFracUnit rather
@@ -89,9 +99,9 @@ function [timeColIdx, timeVarUsed, fracScale] = resolveTime(varNames, varAttrs, 
 %
 %   See also gracefoReading.readL1b, gracefoReading.internal.parseDataSection
 %
-%   Toolbox:  gracefoReading v1.1.0
+%   Toolbox:  gracefoReading v1.2.0
 %   Created:  2026-08-01
-%   Updated:  2026-09-22
+%   Updated:  2026-09-27
 %   Author:   Matthias Weigelt with support of Anthropic Claude
 
 fracScale = 1;
@@ -114,10 +124,15 @@ if override ~= ""
     end
     return
 end
-i = find(strcmpi(varNames, 'gps_time'), 1);
-if ~isempty(i)
-    timeColIdx = i; timeVarUsed = varNames{i};
-    return
+% One-column tags, in order of preference: gps_time (GPS time), then
+% rcv_time, the integer receiver-time second CLK1B declares
+% ("Seconds past 12:00:00 noon of January 1, 2000 in Receiver Time").
+for single = {'gps_time', 'rcv_time'}
+    i = find(strcmpi(varNames, single{1}), 1);
+    if ~isempty(i)
+        timeColIdx = i; timeVarUsed = varNames{i};
+        return
+    end
 end
 pairs = {{'time_intg','time_frac'}, {'rcvtime_intg','rcvtime_frac'}, {'gps_intg','gps_frac'}};
 for p = 1:numel(pairs)

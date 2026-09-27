@@ -52,9 +52,9 @@ classdef testUtilities < matlab.unittest.TestCase
 %     results = runtests('testUtilities');
 %     disp(table(results));
 %
-%   Toolbox:  gracefoReading v1.1.0
+%   Toolbox:  gracefoReading v1.2.0
 %   Created:  2026-08-01
-%   Updated:  2026-09-22
+%   Updated:  2026-09-27
 %   Author:   Matthias Weigelt with support of Anthropic Claude
 
     properties
@@ -262,7 +262,8 @@ classdef testUtilities < matlab.unittest.TestCase
             % Only some files emptied: the monotonicity check still runs on
             % the survivors and must stay silent. Guards the mixed case the
             % empty-guard could have broken.
-            f1 = testCase.writeSimple('day1.txt', [0; 43200], 0);
+            % tag 1, not 0: a zero tag is a placeholder and warns (#29)
+            f1 = testCase.writeSimple('day1.txt', [1; 43200], 0);
             f2 = testCase.writeSimple('day2.txt', [86400; 129600], 100);
             [t, obs, aux] = testCase.verifyWarningFree(@() ...
                 gracefoReading.readL1bMulti([string(f1), string(f2)], ...
@@ -278,7 +279,8 @@ classdef testUtilities < matlab.unittest.TestCase
             % Boundary of the monotonicity check: diff of a one-element
             % series is empty, so no warning may be raised - and one record
             % is not the empty case either.
-            f1 = testCase.writeSimple('day1.txt', [0; 43200], 0);
+            % tag 1, not 0: a zero tag is a placeholder and warns (#29)
+            f1 = testCase.writeSimple('day1.txt', [1; 43200], 0);
             f2 = testCase.writeSimple('day2.txt', [86400; 129600], 100);
             [t, obs, aux] = testCase.verifyWarningFree(@() ...
                 gracefoReading.readL1bMulti([string(f1), string(f2)], ...

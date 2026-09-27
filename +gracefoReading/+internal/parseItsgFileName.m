@@ -62,7 +62,7 @@ function [product, satellite, epochDate, ok] = parseItsgFileName(fileName)
 %
 %   See also gracefoReading.readItsgProduct, gracefoReading.findItsgFiles
 %
-%   Toolbox:  gracefoReading v1.1.0
+%   Toolbox:  gracefoReading v1.2.0
 %   Created:  2026-09-14
 %   Updated:  2026-09-14
 %   Author:   Matthias Weigelt with support of Anthropic Claude

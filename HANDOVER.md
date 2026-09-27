@@ -1,6 +1,6 @@
 # HANDOVER — gracefoReading
 
-**Revision 4.3 · 2026-09-22 · toolbox v1.1.0**
+**Revision 4.4 · 2026-09-27 · toolbox v1.1.0 → 1.2.0 in progress (#29, branch `claude/grace-timeseries-issues-28g3a4`)**
 
 The single point of truth for this repository. Where this document and a
 general engineering habit disagree, this document is right. Read it
@@ -20,20 +20,20 @@ gains no preprocessing code from it. Facts live in one place, never in two.
 
 | | |
 |---|---|
-| Version | 1.1.0 (`gracefoReading.version()`; `Contents.m` and `docsrc/functionSpecs.json` must agree) |
-| Tests | **153 passed, 0 failed, 1 incomplete = 154 total** — CI run 35742860944, head `5e74b09`, self-hosted Windows runner, MATLAB R2026a, 2026-09-22, 216.2 s. GREEN, prediction matched on all three numbers. `testClassicProducts` is **22**: the classic ASCII variant is verified against its binary twin, including the MAG1B column swap and AHK1B's bit-string `status`. *Previously:* 149 + 0 + 1 = 150 — CI run 35719247713, head `df0b0ec`, self-hosted Windows runner, MATLAB R2026a, 2026-09-22, 204.8 s. GREEN, and the prediction matched on all three numbers on the first run with real code changes since `2d6f226`. `testClassicProducts` is **18** rows: both AHK1B acceptance points pass, so the 32-bit `prod_flag`, the five-type conditional walk and the two unsigned corrections are all verified on the runner. *Previously:* 147 + 0 + 1 = 148 — CI run 35707792415, head `2d6f226`, self-hosted Windows runner, MATLAB R2026a, 2026-09-22, 205.5 s. GREEN, and the prediction matched on all three numbers. `testClassicProducts` is 16 rows with both MAG1B acceptance points passing, so the handbook naming is verified on real bytes. `testRealData/testACH1B` passes in 7.96 s, which is the full-day file from the pool and not the 120-record extract. The run before it, 35707090459 (`885bdb0`), was RED on that one row — see the finding below. Earlier: 144 + 0 + 2 = 146 on run 35704249941 (`8ff0ee0`), and the v1.1.0 release 142 + 0 + 2 = 144 on run 35702315239 (`3c2bf28`, merged as `2c0d7d8`) |
+| Version | **1.2.0** on this branch (PR #31; tagged by the release workflow on merge), 1.1.0 on `main` (`gracefoReading.version()`; `Contents.m` and `docsrc/functionSpecs.json` must agree) |
+| Tests | **158 passed, 0 failed, 1 incomplete = 159 total** — CI run 36329140378, head `48b533a` (PR #31, #29 + release 1.2.0), self-hosted Windows runner, MATLAB R2026a, 2026-09-27, 208.7 s. GREEN, prediction matched on all three numbers and on every class. The round before, run 36328754219 on `28b8d9e`, was RED 157 + 1 + 1 on `testRealData/testTIM1BZeroTime` - a defect of the TEST: the expected tag was written as the literal `int64([631258091000000119; ...])`, which MATLAB parses as a double first, rounding to ...128 above 2^53; the reader's exact ...119 was right. Fixed by building the value in int64 arithmetic. *Previously:* 153 + 0 + 1 = 154 — CI run 35742860944, head `5e74b09`, self-hosted Windows runner, MATLAB R2026a, 2026-09-22, 216.2 s. GREEN, prediction matched on all three numbers. `testClassicProducts` is **22**: the classic ASCII variant is verified against its binary twin, including the MAG1B column swap and AHK1B's bit-string `status`. *Previously:* 149 + 0 + 1 = 150 — CI run 35719247713, head `df0b0ec`, self-hosted Windows runner, MATLAB R2026a, 2026-09-22, 204.8 s. GREEN, and the prediction matched on all three numbers on the first run with real code changes since `2d6f226`. `testClassicProducts` is **18** rows: both AHK1B acceptance points pass, so the 32-bit `prod_flag`, the five-type conditional walk and the two unsigned corrections are all verified on the runner. *Previously:* 147 + 0 + 1 = 148 — CI run 35707792415, head `2d6f226`, self-hosted Windows runner, MATLAB R2026a, 2026-09-22, 205.5 s. GREEN, and the prediction matched on all three numbers. `testClassicProducts` is 16 rows with both MAG1B acceptance points passing, so the handbook naming is verified on real bytes. `testRealData/testACH1B` passes in 7.96 s, which is the full-day file from the pool and not the 120-record extract. The run before it, 35707090459 (`885bdb0`), was RED on that one row — see the finding below. Earlier: 144 + 0 + 2 = 146 on run 35704249941 (`8ff0ee0`), and the v1.1.0 release 142 + 0 + 2 = 144 on run 35702315239 (`3c2bf28`, merged as `2c0d7d8`) |
 | Static gates | `docsrc/sourceIntegrity.py` 50 files / 0 findings · `docsrc/auditHelp.py` 50 help blocks clean · `python3 docsrc/generate_docs.py` then `git diff --exit-code -- html/` clean, and byte-identical on a second run — all four run 2026-09-22 in a sandbox without MATLAB |
 | Public units | 15 in `+gracefoReading/`, 19 internal in `+gracefoReading/+internal/` |
 | Tag / release | **`v1.1.0` is tagged ANNOTATED on the merge commit `2c0d7d8` and released, 2026-09-22 08:13Z** — the first release to meet VERSIONING.md in full. `v1.0.1` is annotated; `v1.0.0` and `v1.0.2` are lightweight and stay so, tags being immutable. O-4 is discharged forward |
 
 Per-class test counts, for the prediction a next session must make
-*before* running: `testReadL1b` **30**, `testUtilities` 16,
-`testBatchTools` 15, `testItsgProducts` 15, `testRealData` 11,
+*before* running: `testReadL1b` **32** (+2, #29), `testUtilities` 16,
+`testBatchTools` **16** (+1, #29), `testItsgProducts` 15, `testRealData` **13** (+2, #29),
 `testItsgBatch` 12, `testDataPool` **10** (new, G-06),
 `testClassicProducts` **22** (12 at v1.1.0, +2 RL03, +2 MAG1B,
 +2 AHK1B, +4 classic ASCII), `testEventLists` **11** (new, G-05),
-`testDocConsistency` 7, `testSourceIntegrity` 5. Sum **154**, of which
-153 pass and **1** is the documented incomplete below — `testRealData/testACH1B` stopped
+`testDocConsistency` 7, `testSourceIntegrity` 5. Sum **159**, of which
+158 pass and **1** is the documented incomplete below — `testRealData/testACH1B` stopped
 being incomplete when its fixture was bundled, so the count of
 incompletes went down while the total went up. Predicting the total
 alone would have hidden that.
@@ -254,6 +254,62 @@ false and was written without checking: `v1.0.0` was tagged and released
 on 2026-09-06. What is true, and is what O-4 now carries, is that the
 tag is *lightweight* where `astrobayer/ci-actions/VERSIONING.md` requires
 an annotated one, and that 1.0.1 has neither tag nor release.
+
+---
+
+## A3. Scope frozen — branch `claude/grace-timeseries-issues-28g3a4` (#29, release 1.2.0)
+
+**Frozen 2026-09-27, tier B** (no MATLAB in the sandbox; the DATAPOOL
+only on the runner). Issue #29 was filed from timeSeriesPreparation X-12
+(its scan PR #66 and verification PR #67), which read the GRACE-FO L1B
+RL04 files of 2020-01-02 with v1.1.0. Owner decisions of 2026-09-27:
+warn **and** offer `DropZeroTime`; this PR **releases 1.2.0**, which is
+what timeSeriesPreparation's X-13 waits for (its GUIDE: "G-02
+(gracefoReading `v1.2.0`) → X-13"). G-02 is merged since PR #28 and
+unreleased.
+
+| part of #29 | what this branch delivers |
+|---|---|
+| 1 — CLK1B refused (`readL1b:noTime`) | `resolveTime` detects a single `rcv_time` column after `gps_time` and before the split pairs. CLK1B's header declares it as "Seconds past 12:00:00 noon of January 1, 2000 in Receiver Time", units seconds; it is returned as written (receiver time; GPS = rcv_time + eps_time is the caller's step). `aux.timeSystem` keeps reading 'GPS' for every YAML product, the receiver-time tags included - it names the counting convention; `aux.timeVariable` distinguishes them. Recorded, not changed |
+| 2 — TIM1B_D records with time 0 | `readL1b` counts records whose tag is exactly 0 in `aux.numRecordsZeroTime` and raises `readL1b:zeroTime` (count, first record, what was done). `'DropZeroTime'` (default false) removes them; `readL1bMulti` forwards it and returns the per-file counts |
+| 3 — CLK1B_D eps_time ≈ 0 | information only, and **not a defect** (scan of PR #31): records 6321..6329 of 8 671 are the clock offset passing through zero, −1.9e-7 … −9.6e-7 s at a steady drift of −9.6e-9 s/s with qualflg 0; the day's eps_time runs from −0.01117 to +1.8e-6 s. No reader change. The TIM1B_D zero-time records, by contrast, ARE flagged by the product: qualflg `10001000`, bit 3 "Receiver Time mapping not defined" |
+
+**Fixtures from real bytes.** Two trimmed extracts are bundled, taken
+byte-exact from the runner's DATAPOOL
+(`GRACEFO\L1B\RL04\2020\2020-01-02\`) by a scan printed as base64 in
+the CI log, with only `num_records` changed to the extract's count (the
+ITSG fixtures' rule): `CLK1B_2020-01-02_C_04.txt` (header + first 60
+records) and `TIM1B_2020-01-02_D_04.txt` (header + 60 records around its
+first zero-time records). The first scan PR (#30) was meant to be closed
+unmerged and **was merged**; its `READING_DATA_POOL` in this repository is
+the legacy fixture folder, so it found nothing. This branch re-runs the
+corrected scan as its first code commit and **removes**
+`.github/workflows/scan.yml` and `tools/scan29.m` again, in their own
+commit.
+
+**Existing tests touched, and why.** A tag of 0 now warns by design. Four
+warning-free assertions used a synthetic first record at tag 0
+(`testBatchTools/testMultiMonotonicWarning`,
+`testReadL1b/testVariableNameAdjustedStaysSilentOnCleanHeaders`,
+`testUtilities/testMultiPartiallyEmptyRangeConcatenates`,
+`testUtilities/testMultiSingleSurvivingRecordIsMonotonic`); their first
+tag moves to 1 or 10 s. No asserted value depends on it.
+
+**Release 1.2.0** in its own commit (`chore: version 1.1.0 -> 1.2.0`):
+`Contents.m`, `version.m`, `docsrc/functionSpecs.json`, README and every
+`Toolbox:` stamp; `Updated:` moves only where content changed (D).
+
+**The legacy fixture path stays in 1.2.0.** G item 8 lets it go only
+after a green run reports `0 via the legacy path`. The scan of this
+branch measured the opposite: this repository's `READING_DATA_POOL` is
+still `<ROOT>\RawData\tests\realdata`. Dropping the fallback is left
+for the release after the variable changes.
+
+**Prediction** (before any run), per class: `testReadL1b` 30 → **32**
+(`testRcvTimeSingleColumnIsDetected`, `testZeroTimeWarnsCountsAndDrops`),
+`testBatchTools` 15 → **16** (`testMultiForwardsDropZeroTime`),
+`testRealData` 11 → **13** (`testCLK1B`, `testTIM1BZeroTime`), all others
+unchanged. **158 passed + 0 failed + 1 incomplete = 159.**
 
 ---
 

@@ -1,6 +1,6 @@
 # HANDOVER — gracefoReading
 
-**Revision 4.4 · 2026-09-27 · toolbox v1.1.0 → 1.2.0 in progress (#29, branch `claude/grace-timeseries-issues-28g3a4`)**
+**Revision 4.5 · 2026-09-27 · toolbox v1.2.0 → 1.3.0 in progress (classic units and qualflg meanings, for timeSeriesPreparation X-13)**
 
 The single point of truth for this repository. Where this document and a
 general engineering habit disagree, this document is right. Read it
@@ -20,8 +20,8 @@ gains no preprocessing code from it. Facts live in one place, never in two.
 
 | | |
 |---|---|
-| Version | **1.2.0** on this branch (PR #31; tagged by the release workflow on merge), 1.1.0 on `main` (`gracefoReading.version()`; `Contents.m` and `docsrc/functionSpecs.json` must agree) |
-| Tests | **158 passed, 0 failed, 1 incomplete = 159 total** — CI run 36329140378, head `48b533a` (PR #31, #29 + release 1.2.0), self-hosted Windows runner, MATLAB R2026a, 2026-09-27, 208.7 s. GREEN, prediction matched on all three numbers and on every class. The round before, run 36328754219 on `28b8d9e`, was RED 157 + 1 + 1 on `testRealData/testTIM1BZeroTime` - a defect of the TEST: the expected tag was written as the literal `int64([631258091000000119; ...])`, which MATLAB parses as a double first, rounding to ...128 above 2^53; the reader's exact ...119 was right. Fixed by building the value in int64 arithmetic. *Previously:* 153 + 0 + 1 = 154 — CI run 35742860944, head `5e74b09`, self-hosted Windows runner, MATLAB R2026a, 2026-09-22, 216.2 s. GREEN, prediction matched on all three numbers. `testClassicProducts` is **22**: the classic ASCII variant is verified against its binary twin, including the MAG1B column swap and AHK1B's bit-string `status`. *Previously:* 149 + 0 + 1 = 150 — CI run 35719247713, head `df0b0ec`, self-hosted Windows runner, MATLAB R2026a, 2026-09-22, 204.8 s. GREEN, and the prediction matched on all three numbers on the first run with real code changes since `2d6f226`. `testClassicProducts` is **18** rows: both AHK1B acceptance points pass, so the 32-bit `prod_flag`, the five-type conditional walk and the two unsigned corrections are all verified on the runner. *Previously:* 147 + 0 + 1 = 148 — CI run 35707792415, head `2d6f226`, self-hosted Windows runner, MATLAB R2026a, 2026-09-22, 205.5 s. GREEN, and the prediction matched on all three numbers. `testClassicProducts` is 16 rows with both MAG1B acceptance points passing, so the handbook naming is verified on real bytes. `testRealData/testACH1B` passes in 7.96 s, which is the full-day file from the pool and not the 120-record extract. The run before it, 35707090459 (`885bdb0`), was RED on that one row — see the finding below. Earlier: 144 + 0 + 2 = 146 on run 35704249941 (`8ff0ee0`), and the v1.1.0 release 142 + 0 + 2 = 144 on run 35702315239 (`3c2bf28`, merged as `2c0d7d8`) |
+| Version | **1.3.0** on this branch (PR #32; tagged by the release workflow on merge), 1.2.0 on `main` (`gracefoReading.version()`; `Contents.m` and `docsrc/functionSpecs.json` must agree) |
+| Tests | **162 passed, 0 failed, 1 incomplete = 163 total** — CI run 36341677003, head `d789cd7` (PR #32, release 1.3.0: classic units and qualflg meanings), self-hosted Windows runner, MATLAB R2026a, 2026-09-27, 205.4 s. GREEN on the first run, prediction matched on all three numbers and on every class (`testClassicProducts` 26). *Previously:* 158 + 0 + 1 = 159 — CI run 36329140378, head `48b533a` (PR #31, #29 + release 1.2.0), self-hosted Windows runner, MATLAB R2026a, 2026-09-27, 208.7 s. GREEN, prediction matched on all three numbers and on every class. The round before, run 36328754219 on `28b8d9e`, was RED 157 + 1 + 1 on `testRealData/testTIM1BZeroTime` - a defect of the TEST: the expected tag was written as the literal `int64([631258091000000119; ...])`, which MATLAB parses as a double first, rounding to ...128 above 2^53; the reader's exact ...119 was right. Fixed by building the value in int64 arithmetic. *Previously:* 153 + 0 + 1 = 154 — CI run 35742860944, head `5e74b09`, self-hosted Windows runner, MATLAB R2026a, 2026-09-22, 216.2 s. GREEN, prediction matched on all three numbers. `testClassicProducts` is **22**: the classic ASCII variant is verified against its binary twin, including the MAG1B column swap and AHK1B's bit-string `status`. *Previously:* 149 + 0 + 1 = 150 — CI run 35719247713, head `df0b0ec`, self-hosted Windows runner, MATLAB R2026a, 2026-09-22, 204.8 s. GREEN, and the prediction matched on all three numbers on the first run with real code changes since `2d6f226`. `testClassicProducts` is **18** rows: both AHK1B acceptance points pass, so the 32-bit `prod_flag`, the five-type conditional walk and the two unsigned corrections are all verified on the runner. *Previously:* 147 + 0 + 1 = 148 — CI run 35707792415, head `2d6f226`, self-hosted Windows runner, MATLAB R2026a, 2026-09-22, 205.5 s. GREEN, and the prediction matched on all three numbers. `testClassicProducts` is 16 rows with both MAG1B acceptance points passing, so the handbook naming is verified on real bytes. `testRealData/testACH1B` passes in 7.96 s, which is the full-day file from the pool and not the 120-record extract. The run before it, 35707090459 (`885bdb0`), was RED on that one row — see the finding below. Earlier: 144 + 0 + 2 = 146 on run 35704249941 (`8ff0ee0`), and the v1.1.0 release 142 + 0 + 2 = 144 on run 35702315239 (`3c2bf28`, merged as `2c0d7d8`) |
 | Static gates | `docsrc/sourceIntegrity.py` 50 files / 0 findings · `docsrc/auditHelp.py` 50 help blocks clean · `python3 docsrc/generate_docs.py` then `git diff --exit-code -- html/` clean, and byte-identical on a second run — all four run 2026-09-22 in a sandbox without MATLAB |
 | Public units | 15 in `+gracefoReading/`, 19 internal in `+gracefoReading/+internal/` |
 | Tag / release | **`v1.1.0` is tagged ANNOTATED on the merge commit `2c0d7d8` and released, 2026-09-22 08:13Z** — the first release to meet VERSIONING.md in full. `v1.0.1` is annotated; `v1.0.0` and `v1.0.2` are lightweight and stay so, tags being immutable. O-4 is discharged forward |
@@ -30,10 +30,10 @@ Per-class test counts, for the prediction a next session must make
 *before* running: `testReadL1b` **32** (+2, #29), `testUtilities` 16,
 `testBatchTools` **16** (+1, #29), `testItsgProducts` 15, `testRealData` **13** (+2, #29),
 `testItsgBatch` 12, `testDataPool` **10** (new, G-06),
-`testClassicProducts` **22** (12 at v1.1.0, +2 RL03, +2 MAG1B,
-+2 AHK1B, +4 classic ASCII), `testEventLists` **11** (new, G-05),
-`testDocConsistency` 7, `testSourceIntegrity` 5. Sum **159**, of which
-158 pass and **1** is the documented incomplete below — `testRealData/testACH1B` stopped
+`testClassicProducts` **26** (12 at v1.1.0, +2 RL03, +2 MAG1B,
++2 AHK1B, +4 classic ASCII, +4 units and meanings in 1.3.0), `testEventLists` **11** (new, G-05),
+`testDocConsistency` 7, `testSourceIntegrity` 5. Sum **163**, of which
+162 pass and **1** is the documented incomplete below — `testRealData/testACH1B` stopped
 being incomplete when its fixture was bundled, so the count of
 incompletes went down while the total went up. Predicting the total
 alone would have hidden that.
@@ -254,6 +254,50 @@ false and was written without checking: `v1.0.0` was tagged and released
 on 2026-09-06. What is true, and is what O-4 now carries, is that the
 tag is *lightweight* where `astrobayer/ci-actions/VERSIONING.md` requires
 an annotated one, and that 1.0.1 has neither tag nor release.
+
+---
+
+## A4. Scope frozen — branch `claude/grace-timeseries-issues-28g3a4` (release 1.3.0: classic units and qualflg meanings)
+
+**Frozen 2026-09-27, tier B.** Asked for by timeSeriesPreparation X-13
+(its issue #16, classic GRACE). Owner decision of 2026-09-27: the units and
+flag meanings classic headers lack come from the reader, beside the
+column names it already takes from the handbook, and not from a second
+table downstream.
+
+**The gap, measured.** Classic headers declare no columns, so v1.2.0
+returns `aux.variableUnits` with only `char` for character columns and
+`aux.variableAttributes.<name>.flag_meanings` nowhere. Downstream that
+means: `decodeQualFlags` reports every classic bit "(not documented)";
+timeSeriesPreparation's `align` refuses a classic arc (`unitUnknown`); its
+`mask` refuses classic THR1B (on_time not in milliseconds).
+
+**Source.** GRACE Level-1B Data Product User Handbook v1.3 (JPL D-22027,
+March 2010), chapter 6, one table per product with a Units column and
+the qualflg (and MAS1B prod_flag) bit definitions: 6.2 ACC1B, 6.5 GNV1B,
+6.7 KBR1B, 6.8 MAG1B, 6.9 MAS1B, 6.10 SCA1B, 6.11 THR1B. AHK1B has no
+chapter-6 table (its layout comes from the JPL read software, which
+states no units), so AHK1B gains none: stated, not guessed.
+
+**What this branch delivers**
+
+| item | what |
+|---|---|
+| `classicLayout` | per product `units` (one per column, `''` where the handbook gives none or N/A) and `flagMeanings` (`qualflg`, and MAS1B `prod_flag`, as "bit N = text" lines exactly as a GRACE-FO header lists them), and `unitSource` naming the handbook section. Units are SPELLED as the GRACE-FO headers spell the same quantity (`seconds`, `microseconds`, `milliseconds`, `m/s2`, `rad/s2`, `m`, `m/s`, `kg`), so one vocabulary reaches the consumer; quantities GRACE-FO does not share keep the handbook's spelling (`0.1 dB-Hz`, `microT`, `mA`) |
+| `parseClassicBinary`, `parseClassicProduct` | fill `aux.variableUnits` and `aux.variableAttributes.<name>.units` / `.flag_meanings` from the layout, for the built-in layouts; a caller's `ColumnNames` gets none (they are the caller's names) |
+| docs | `readL1b` and `decodeQualFlags` help: classic units and meanings come from D-22027 ch. 6; `decodeQualFlags`' stale "classic may store qualflg as a decimal" sentence goes |
+| release | `chore: version 1.2.0 -> 1.3.0` in its own commit; CHANGELOG 1.3.0 |
+
+**Tests (predicted)**, all in `testClassicProducts` 22 → **26**:
+- `testClassicUnitsFromHandbook` — ACC1B, THR1B, KBR1B `.dat` units;
+- `testClassicQualflgMeaningsFromHandbook` — ACC1B bit 0/5/7, KBR1B bit 0,
+  SCA1B bit 3 read back through `decodeQualFlags`; SCA1B bit 3 ("data from
+  1 star camera only") is the bit already cross-checked against `sca_id`;
+- `testClassicAsciiAndBinaryDescribeAlike` — units and meanings of `.asc`
+  and `.dat` identical for ACC1B, MAG1B, MAS1B (metamorphic);
+- `testAhk1bStatesNoUnits` — AHK1B non-character columns carry no unit.
+
+**Prediction: 162 passed + 0 failed + 1 incomplete = 163.**
 
 ---
 

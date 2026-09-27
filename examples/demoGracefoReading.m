@@ -37,7 +37,7 @@
 %   See also gracefoReading.readL1b, gracefoReading.findGaps,
 %            gracefoReading.findL1bFiles
 %
-%   Toolbox:  gracefoReading v1.2.0
+%   Toolbox:  gracefoReading v1.3.0
 %   Created:  2026-08-01
 %   Updated:  2026-08-14
 %   Author:   Matthias Weigelt with support of Anthropic Claude

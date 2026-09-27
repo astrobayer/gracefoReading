@@ -182,6 +182,14 @@ function [time, obs, aux] = readL1b(fileName, options)
 %       binary files store it as a single BYTE bitmask, which the
 %       reader renders as the same 8-character bit string the GRACE-FO
 %       products use, so decodeQualFlags works on both unchanged.
+%       Classic headers state neither units nor bit meanings. Since
+%       1.3.0 both come from the product's table in the GRACE Level-1B
+%       handbook (JPL D-22027 v1.3, chapter 6) and land in
+%       aux.variableUnits and aux.variableAttributes.<name>.flag_meanings
+%       where a GRACE-FO header puts them, spelled as the GRACE-FO
+%       headers spell the same quantity (seconds, milliseconds, m/s2,
+%       ...). AHK1B has no chapter-6 table and states none; a caller's
+%       'ColumnNames' gets none either.
 %     - Binary classic products are read; binary GRACE-FO products are
 %       not, there being none in the ASCII releases this toolbox reads.
 %     - Caching trusts the SHA-256 content digest; if no JVM is
@@ -264,7 +272,7 @@ function [time, obs, aux] = readL1b(fileName, options)
 %            gracefoReading.writeGroopsInstrument,
 %            gracefoReading.readGroopsInstrument, gracefoReading.version
 %
-%   Toolbox:  gracefoReading v1.2.0
+%   Toolbox:  gracefoReading v1.3.0
 %   Created:  2026-08-01
 %   Updated:  2026-09-27
 %   Author:   Matthias Weigelt with support of Anthropic Claude

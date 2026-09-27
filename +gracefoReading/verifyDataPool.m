@@ -141,7 +141,7 @@ function [report, summary] = verifyDataPool(poolFolder, options)
 %   See also gracefoReading.findL1bFiles, gracefoReading.findItsgFiles,
 %            gracefoReading.readL1b
 %
-%   Toolbox:  gracefoReading v1.2.0
+%   Toolbox:  gracefoReading v1.3.0
 %   Created:  2026-09-22
 %   Updated:  2026-09-22
 %   Author:   Matthias Weigelt with support of Anthropic Claude

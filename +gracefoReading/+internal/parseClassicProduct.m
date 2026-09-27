@@ -19,7 +19,10 @@ function [timeMjd, timeNs, obs, aux] = parseClassicProduct(lines, hdrEnd, ...
 %     Built-in layouts: ACC1B, SCA1B, GNV1B, KBR1B, THR1B, MAS1B,
 %     MAG1B and AHK1B, taken from gracefoReading.internal.classicLayout
 %     - the same table the binary path uses. Any other classic product
-%     requires explicit column names.
+%     requires explicit column names. The built-in layouts also carry
+%     the units and qualflg meanings of the product's handbook table
+%     (D-22027 chapter 6), which the header does not; caller-supplied
+%     names get neither, only 'char' for the known character columns.
 %
 %     The ASCII variant is NOT simply those columns as text, which is
 %     why the order comes from layout.asciiNames and not layout.names:
@@ -89,9 +92,9 @@ function [timeMjd, timeNs, obs, aux] = parseClassicProduct(lines, hdrEnd, ...
 %
 %   See also gracefoReading.readL1b, gracefoReading.internal.parseDataSection
 %
-%   Toolbox:  gracefoReading v1.2.0
+%   Toolbox:  gracefoReading v1.3.0
 %   Created:  2026-08-01
-%   Updated:  2026-09-22
+%   Updated:  2026-09-27
 %   Author:   Matthias Weigelt with support of Anthropic Claude
 
 headerLines = cellstr(lines(1:hdrEnd));
@@ -144,6 +147,12 @@ for k = 1:numel(varNames)
         j = find(strcmp(layout.names, varNames{k}), 1);
         if ~isempty(j) && strcmp(layout.types{j}, 'char')
             a.units = 'char';
+        elseif ~isempty(j) && ~isempty(layout.units{j})
+            % from the product's handbook table (classicLayout)
+            a.units = layout.units{j};
+        end
+        if isfield(layout.flagMeanings, varNames{k})
+            a.flag_meanings = layout.flagMeanings.(varNames{k});
         end
         if any(strcmp(layout.asciiBitString, varNames{k}))
             a.bitStringNumeric = true;

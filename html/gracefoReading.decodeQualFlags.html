@@ -30,7 +30,7 @@ a:hover { text-decoration: underline; }
 <pre class="syntax">[bits, report] = gracefoReading.decodeQualFlags(aux)
 [bits, report] = gracefoReading.decodeQualFlags(aux, flagName)</pre>
 <h2>Description</h2>
-<p>Decodes a bit-string flag column of a previously read Level-1B product into a logical matrix and summarises how often each bit is set. The bit meanings are taken from the flag_meanings attribute parsed out of the product file&#x27;s own header (aux.variableAttributes), so the decoding always matches the file actually read and no release-dependent bit tables are hard-coded. Bits without a documented meaning are still reported, marked as not documented.</p>
+<p>Decodes a bit-string flag column of a previously read Level-1B product into a logical matrix and summarises how often each bit is set. The bit meanings are taken from the flag_meanings attribute in aux.variableAttributes: for GRACE-FO parsed out of the product file&#x27;s own header, so the decoding always matches the file actually read; for classic GRACE, whose headers carry none, supplied by readL1b from the product&#x27;s table in the GRACE Level-1B handbook (JPL D-22027 v1.3, chapter 6) since release 1.3.0. Bits without a documented meaning are still reported, marked as not documented.</p>
 <h2>Input Arguments</h2>
 <table class="args"><tr><th>Name</th><th>Type</th><th>Size</th><th>Description</th><th>Options</th><th>Default</th></tr><tr><td class="mono">aux</td><td>struct</td><td>1x1</td><td>Third output of gracefoReading.readL1b or readL1bMulti. Must contain the raw flag field as char [N x B] and the variableAttributes struct.</td><td></td><td class="mono"></td></tr><tr><td class="mono">flagName</td><td>string | char</td><td>1x1</td><td>Name of the flag variable to decode.</td><td>&#x27;qualflg&#x27;, &#x27;prod_flag&#x27;, or any other bit-string column present in aux</td><td class="mono">&#x27;qualflg&#x27;. Optional, positional</td></tr></table>
 <h2>Output Arguments</h2>
@@ -39,7 +39,7 @@ a:hover { text-decoration: underline; }
 <li>Decoding is exact: it is a character comparison, not a numerical conversion.</li>
 <li>Meanings are only as complete as the header of the file at hand. Different releases document different bits, and some products document none, in which case every meaning reads &quot;(not documented)&quot; - this is a property of the data, not a failure of the function.</li>
 <li>The order in which flag_meanings entries map to bit numbers follows the file&#x27;s declaration order, assumed to start at bit 0. Where a header lists fewer meanings than the flag has characters, the surplus bits stay undocumented.</li>
-<li>Applies to bit-string columns only. Classic GRACE products may store qualflg as a decimal number, which this function does not decode (see readL1b limitations).</li>
+<li>Applies to bit-string columns only. Classic GRACE qualflg is a byte in the binary files; readL1b renders it as the same 8-character bit string, so it decodes here unchanged.</li>
 </ul>
 <h2>Errors</h2><table class="args"><tr><th>Error identifier</th><th>Condition</th></tr><tr><td class="mono">gracefoReading:decodeQualFlags:flagNotFound</td><td>the requested flag column is not present in aux</td></tr><tr><td class="mono">gracefoReading:decodeQualFlags:notBitString</td><td>the requested column is not a character bit string</td></tr></table>
 <h2>Examples</h2>
@@ -52,5 +52,5 @@ disp(report)</pre>
 [~, rep] = gracefoReading.decodeQualFlags(auxM, &#x27;prod_flag&#x27;);
 disp(rep(rep.fracSet &gt; 0, :))</pre>
 <h2>See Also</h2><p><a href="gracefoReading.readL1b.html"><code>gracefoReading.readL1b</code></a>, <a href="gracefoReading.readL1bMulti.html"><code>gracefoReading.readL1bMulti</code></a></p>
-<div class="footer">gracefoReading v1.2.0 &middot; 2026-09-27 &middot; Matthias Weigelt with support of Anthropic Claude &middot; License: MIT &middot; Generated from the MATLAB help blocks &mdash; do not edit by hand.</div>
+<div class="footer">gracefoReading v1.3.0 &middot; 2026-09-27 &middot; Matthias Weigelt with support of Anthropic Claude &middot; License: MIT &middot; Generated from the MATLAB help blocks &mdash; do not edit by hand.</div>
 </body></html>

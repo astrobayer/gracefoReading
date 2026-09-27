@@ -1,5 +1,34 @@
 # Changelog — gracefoReading
 
+## 1.3.0 — 2026-09-27
+
+Classic units and qualflg meanings, for timeSeriesPreparation X-13
+(classic GRACE).
+
+### Added — classic units and flag meanings from the handbook
+
+- Classic headers state no units and no bit meanings. Until now
+  `aux.variableUnits` held only `char` for classic files and
+  `decodeQualFlags` reported every classic bit "(not documented)";
+  downstream, a unit check refused a classic arc and a THR1B mask refused
+  on_time columns without milliseconds.
+- `classicLayout` now carries both, per product, from the GRACE Level-1B
+  Data Product User Handbook v1.3 (JPL D-22027), chapter 6: 6.2 ACC1B,
+  6.5 GNV1B, 6.7 KBR1B, 6.8 MAG1B, 6.9 MAS1B (qualflg and prod_flag),
+  6.10 SCA1B, 6.11 THR1B. The readers put them where a GRACE-FO header
+  would: `aux.variableUnits` and
+  `aux.variableAttributes.<name>.flag_meanings`.
+- Units are spelled as the GRACE-FO headers spell the same quantity
+  (`seconds`, `microseconds`, `milliseconds`, `m/s2`, `rad/s2`, `m`,
+  `m/s`, `kg`); the others keep the handbook's (`0.1 dB-Hz`, `microT`,
+  `mA`). AHK1B has no chapter-6 table and states no units beyond its
+  microsecond time fraction. A caller's `ColumnNames` gets none.
+- The meanings agree with the data where the data can say: SCA1B bit 3,
+  "data from 1 star camera only", selects exactly the records whose
+  `sca_id` is 1.
+- `decodeQualFlags`: the stale sentence that classic qualflg may be a
+  decimal number is gone; it is a byte rendered as a bit string.
+
 ## 1.2.0 — 2026-09-27
 
 Release of the classic GRACE work merged since 1.1.0 (G-02 and its

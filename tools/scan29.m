@@ -24,10 +24,8 @@ h = find(contains(lines, "End of YAML header"), 1);
 fprintf('SCAN %s: %d bytes, %d lines, %d CRLF, header ends at line %d, %d records, trailing byte %d\n', ...
     name, numel(b), numel(lines), crlf, h, numel(lines) - h, b(end));
 rec = lines(h + 1:end);
-tok = cellfun(@(s) sscanf(s, '%f', 1), rec, 'UniformOutput', false);
 if startsWith(name, "TIM1B")
-    c = cellfun(@(s) textscan(strtrim(s), '%s'), rec);
-    c = cellfun(@(x) x', c, 'UniformOutput', false);
+    c = cellfun(@(s) strsplit(strtrim(s)), rec, 'UniformOutput', false);
     zero = find(cellfun(@(x) numel(x) >= 5 && str2double(x{4}) == 0 && str2double(x{5}) == 0, c));
     fprintf('SCAN %s: %d records with rcvtime_intg = rcvtime_frac = 0, at record indices %s\n', ...
         name, numel(zero), mat2str(zero));
@@ -40,8 +38,7 @@ if startsWith(name, "TIM1B")
         lo = 1; hi = 60;
     end
 else
-    c = cellfun(@(s) textscan(strtrim(s), '%s'), rec);
-    c = cellfun(@(x) x', c, 'UniformOutput', false);
+    c = cellfun(@(s) strsplit(strtrim(s)), rec, 'UniformOutput', false);
     eps = cellfun(@(x) str2double(x{4}), c);
     small = find(abs(eps) < 1e-6);
     fprintf('SCAN %s: %d records with |eps_time| < 1e-6 s, at record indices %s\n', ...

@@ -1,6 +1,6 @@
 # HANDOVER — gracefoReading
 
-**Revision 4.3 · 2026-09-22 · toolbox v1.1.0**
+**Revision 4.4 · 2026-09-27 · toolbox v1.1.0 → 1.2.0 in progress (#29, branch `claude/grace-timeseries-issues-28g3a4`)**
 
 The single point of truth for this repository. Where this document and a
 general engineering habit disagree, this document is right. Read it
@@ -254,6 +254,56 @@ false and was written without checking: `v1.0.0` was tagged and released
 on 2026-09-06. What is true, and is what O-4 now carries, is that the
 tag is *lightweight* where `astrobayer/ci-actions/VERSIONING.md` requires
 an annotated one, and that 1.0.1 has neither tag nor release.
+
+---
+
+## A3. Scope frozen — branch `claude/grace-timeseries-issues-28g3a4` (#29, release 1.2.0)
+
+**Frozen 2026-09-27, tier B** (no MATLAB in the sandbox; the DATAPOOL
+only on the runner). Issue #29 was filed from timeSeriesPreparation X-12
+(its scan PR #66 and verification PR #67), which read the GRACE-FO L1B
+RL04 files of 2020-01-02 with v1.1.0. Owner decisions of 2026-09-27:
+warn **and** offer `DropZeroTime`; this PR **releases 1.2.0**, which is
+what timeSeriesPreparation's X-13 waits for (its GUIDE: "G-02
+(gracefoReading `v1.2.0`) → X-13"). G-02 is merged since PR #28 and
+unreleased.
+
+| part of #29 | what this branch delivers |
+|---|---|
+| 1 — CLK1B refused (`readL1b:noTime`) | `resolveTime` detects a single `rcv_time` column after `gps_time` and before the split pairs. CLK1B's header declares it as "Seconds past 12:00:00 noon of January 1, 2000 in Receiver Time", units seconds; it is returned as written (receiver time; GPS = rcv_time + eps_time is the caller's step). `aux.timeSystem` keeps reading 'GPS' for every YAML product, the receiver-time tags included - it names the counting convention; `aux.timeVariable` distinguishes them. Recorded, not changed |
+| 2 — TIM1B_D records with time 0 | `readL1b` counts records whose tag is exactly 0 in `aux.numRecordsZeroTime` and raises `readL1b:zeroTime` (count, first record, what was done). `'DropZeroTime'` (default false) removes them; `readL1bMulti` forwards it and returns the per-file counts |
+| 3 — CLK1B_D eps_time ≈ 0 | information only: the scan prints the records and their qualflg; no reader change |
+
+**Fixtures from real bytes.** Two trimmed extracts are bundled, taken
+byte-exact from the runner's DATAPOOL
+(`GRACEFO\L1B\RL04\2020\2020-01-02\`) by a scan printed as base64 in
+the CI log, with only `num_records` changed to the extract's count (the
+ITSG fixtures' rule): `CLK1B_2020-01-02_C_04.txt` (header + first 60
+records) and `TIM1B_2020-01-02_D_04.txt` (header + 60 records around its
+first zero-time records). The first scan PR (#30) was meant to be closed
+unmerged and **was merged**; its `READING_DATA_POOL` in this repository is
+the legacy fixture folder, so it found nothing. This branch re-runs the
+corrected scan as its first code commit and **removes**
+`.github/workflows/scan.yml` and `tools/scan29.m` again, in their own
+commit.
+
+**Existing tests touched, and why.** A tag of 0 now warns by design. Four
+warning-free assertions used a synthetic first record at tag 0
+(`testBatchTools/testMultiMonotonicWarning`,
+`testReadL1b/testVariableNameAdjustedStaysSilentOnCleanHeaders`,
+`testUtilities/testMultiPartiallyEmptyRangeConcatenates`,
+`testUtilities/testMultiSingleSurvivingRecordIsMonotonic`); their first
+tag moves to 1 or 10 s. No asserted value depends on it.
+
+**Release 1.2.0** in its own commit (`chore: version 1.1.0 -> 1.2.0`):
+`Contents.m`, `version.m`, `docsrc/functionSpecs.json`, README and every
+`Toolbox:` stamp; `Updated:` moves only where content changed (D).
+
+**Prediction** (before any run), per class: `testReadL1b` 30 → **32**
+(`testRcvTimeSingleColumnIsDetected`, `testZeroTimeWarnsCountsAndDrops`),
+`testBatchTools` 15 → **16** (`testMultiForwardsDropZeroTime`),
+`testRealData` 11 → **13** (`testCLK1B`, `testTIM1BZeroTime`), all others
+unchanged. **158 passed + 0 failed + 1 incomplete = 159.**
 
 ---
 

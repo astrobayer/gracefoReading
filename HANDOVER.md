@@ -299,6 +299,12 @@ tag moves to 1 or 10 s. No asserted value depends on it.
 `Contents.m`, `version.m`, `docsrc/functionSpecs.json`, README and every
 `Toolbox:` stamp; `Updated:` moves only where content changed (D).
 
+**The legacy fixture path stays in 1.2.0.** G item 8 lets it go only
+after a green run reports `0 via the legacy path`. The scan of this
+branch measured the opposite: this repository's `READING_DATA_POOL` is
+still `<ROOT>\RawData\tests\realdata`. Dropping the fallback is left
+for the release after the variable changes.
+
 **Prediction** (before any run), per class: `testReadL1b` 30 → **32**
 (`testRcvTimeSingleColumnIsDetected`, `testZeroTimeWarnsCountsAndDrops`),
 `testBatchTools` 15 → **16** (`testMultiForwardsDropZeroTime`),

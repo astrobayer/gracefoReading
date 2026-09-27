@@ -1,6 +1,42 @@
 # Changelog — gracefoReading
 
-## Unreleased
+## 1.2.0 — 2026-09-27
+
+Release of the classic GRACE work merged since 1.1.0 (G-02 and its
+follow-ups, below) together with issue #29. timeSeriesPreparation's X-13
+waits for this release.
+
+### Fixed — CLK1B is read (#29)
+
+- v1.1.0 refused every CLK1B file with `readL1b:noTime`: its time tag is
+  one integer column, `rcv_time`, "Seconds past 12:00:00 noon of January
+  1, 2000 in Receiver Time", which no detection rule knew. `resolveTime`
+  now takes a single `rcv_time` after `gps_time` and before the split
+  pairs. The tag is returned as written - receiver time; GPS time is
+  rcv_time + eps_time, the caller's step. `aux.timeSystem` still reads
+  'GPS', as it does for every receiver-time tag; `aux.timeVariable`
+  names the column.
+
+### Added — zero time tags are reported, and can be dropped (#29)
+
+- Real TIM1B_2020-01-02_D_04 carries 31 records whose receiver time is
+  0 (records 7872..7902 of 10 800), which v1.1.0 returned as epochs at
+  2000-01-01 12:00:00 without a word. `readL1b` now counts records whose
+  tag is exactly 0 in `aux.numRecordsZeroTime` and reports them with the
+  new warning `gracefoReading:readL1b:zeroTime` (count, first record,
+  what was done). The new option `'DropZeroTime'` (default false)
+  removes them; `readL1bMulti` forwards it and returns the counts per
+  file. The product flags the same records itself, with qualflg bit 3
+  ("Receiver Time mapping not defined"), so `'QualityBitMask', 3`
+  selects exactly them on that file.
+- Two trimmed real fixtures, 60 records each and taken byte for byte
+  from the DATAPOOL: `CLK1B_2020-01-02_C_04.txt` and
+  `TIM1B_2020-01-02_D_04.txt`.
+- Not a defect, recorded: CLK1B_2020-01-02_D_04's nine records with
+  |eps_time| < 1e-6 s are the clock offset crossing zero at a steady
+  drift of −9.6e-9 s/s, with qualflg 0.
+- Four synthetic warning-free tests wrote a first record at tag 0; their
+  first tag moved to 1 or 10 s, because a 0 now warns by design.
 
 ### Changed — the classic ASCII variant is measured, and stops warning
 

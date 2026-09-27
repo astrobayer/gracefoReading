@@ -23,7 +23,8 @@ classdef testBatchTools < matlab.unittest.TestCase
 %     - readL1bMulti: timeNotMonotonic warning on overlapping files
 %       and warning-free concatenation in correct order; the
 %       findL1bFiles -> readL1bMulti workflow run end to end on the
-%       [K x 1] column findL1bFiles returns (G-01)
+%       [K x 1] column findL1bFiles returns (G-01); 'DropZeroTime'
+%       forwarded to every file and numRecordsZeroTime per file (#29)
 %     - readGroopsInstrument: roundtrip against writeGroopsInstrument
 %       including header fields, badFormat and countMismatch errors,
 %       exact int64 nanoseconds from hand-written digit fixtures,
@@ -53,7 +54,7 @@ classdef testBatchTools < matlab.unittest.TestCase
 %
 %   Toolbox:  gracefoReading v1.1.0
 %   Created:  2026-08-01
-%   Updated:  2026-09-22
+%   Updated:  2026-09-27
 %   Author:   Matthias Weigelt with support of Anthropic Claude
 
     properties
@@ -230,7 +231,8 @@ classdef testBatchTools < matlab.unittest.TestCase
         end
 
         function testMultiMonotonicWarning(testCase)
-            f1 = testCase.writeSimple('day1.txt', [0; 100]);
+            % tag 10, not 0: a zero tag is a placeholder and warns (#29)
+            f1 = testCase.writeSimple('day1.txt', [10; 100]);
             f2 = testCase.writeSimple('day2.txt', [50; 150]);   % overlaps day1
             testCase.verifyWarning( ...
                 @() gracefoReading.readL1bMulti([string(f1), string(f2)]), ...
@@ -239,6 +241,25 @@ classdef testBatchTools < matlab.unittest.TestCase
             f3 = testCase.writeSimple('day3.txt', [200; 300]);
             testCase.verifyWarningFree( ...
                 @() gracefoReading.readL1bMulti([string(f1), string(f3)]));
+        end
+
+        function testMultiForwardsDropZeroTime(testCase)
+            % Issue #29: a zero tag in one file reaches readL1bMulti's
+            % monotonicity check unless it is dropped per file.
+            f1 = testCase.writeSimple('day1.txt', [10; 0; 20]);
+            f2 = testCase.writeSimple('day2.txt', [30; 40]);
+            files = [string(f1), string(f2)];
+            ws = warning('off', 'gracefoReading:readL1b:zeroTime');
+            testCase.addTeardown(@() warning(ws));
+            testCase.verifyWarning(@() gracefoReading.readL1bMulti(files), ...
+                'gracefoReading:readL1bMulti:timeNotMonotonic');
+            [t, obs, aux] = testCase.verifyWarningFree(@() ...
+                gracefoReading.readL1bMulti(files, 'DropZeroTime', true, ...
+                'TimeFormat', 'gpsns'));
+            testCase.verifyEqual(t, int64([10; 20; 30; 40]) * int64(1e9));
+            testCase.verifyEqual(obs, [1; 3; 1; 2], 'AbsTol', 1e-12);
+            testCase.verifyEqual(aux.numRecordsZeroTime, [1; 0]);
+            testCase.verifyEqual(aux.recordsPerFile, [2; 2]);
         end
 
         function testGroopsReaderRoundtrip(testCase)

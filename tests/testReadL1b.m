@@ -15,7 +15,11 @@ classdef testReadL1b < matlab.unittest.TestCase
 %   COVERAGE
 %     - YAML header parsing, both declaration styles
 %     - time tags: single gps_time and split intg+frac, unit-aware
-%       fractional scaling, MJD conversion, day rollover
+%       fractional scaling, MJD conversion, day rollover; CLK1B's single
+%       rcv_time column detected without an override (#29)
+%     - zero time tags (#29): counted in aux.numRecordsZeroTime and
+%       reported by the zeroTime warning; 'DropZeroTime' removes
+%       exactly those records and the warning says so
 %     - 'TimeFormat': mjd, datetime and exact int64 gpsns arithmetic
 %     - column classification: observations, char columns, identifiers,
 %       bit-string flags
@@ -56,7 +60,7 @@ classdef testReadL1b < matlab.unittest.TestCase
 %
 %   Toolbox:  gracefoReading v1.1.0
 %   Created:  2026-08-01
-%   Updated:  2026-09-22
+%   Updated:  2026-09-27
 %   Author:   Matthias Weigelt with support of Anthropic Claude
 
     properties
@@ -403,7 +407,7 @@ classdef testReadL1b < matlab.unittest.TestCase
             % The other half of the fault injection: the warning must
             % not fire on a header whose names are already valid and
             % unique, which is every product read so far.
-            f = testCase.writeActLike([0; 43200]);
+            f = testCase.writeActLike([1; 43200]);   % not 0: zeroTime (#29)
             testCase.verifyWarningFree(@() gracefoReading.readL1b(f));
             [~, ~, aux] = gracefoReading.readL1b(f);
             testCase.verifyEqual(aux.variableFieldNames, aux.variableNames, ...
@@ -765,6 +769,59 @@ classdef testReadL1b < matlab.unittest.TestCase
             testCase.verifyEqual(aux.obsNames, {'myval'});
             testCase.verifyEqual(obs, 7.5, 'AbsTol', 1e-12);
             testCase.verifyEqual(t(1,:), [51544, 43200], 'AbsTol', 1e-9);
+        end
+
+        function testRcvTimeSingleColumnIsDetected(testCase)
+            % CLK1B's header, as the real file declares it (issue #29):
+            % one integer receiver-time column called rcv_time and no
+            % gps_time. v1.1.0 raised noTime on it.
+            f = fullfile(testCase.workDir, 'CLK1B_synth.txt');
+            fid = fopen(f, 'wt');
+            fprintf(fid, ['header:\n  dimensions:\n    num_records: 2\n', ...
+                '  variables:\n', ...
+                '    - rcv_time:\n        comment: 1st column\n', ...
+                '        long_name: Seconds past 12:00:00 noon of January 1, 2000 ', ...
+                'in Receiver Time\n', ...
+                '        units: seconds\n', ...
+                '    - GRACEFO_id:\n        units: char\n', ...
+                '    - clock_id:\n        long_name: Clock ID\n', ...
+                '    - eps_time:\n        units: seconds\n', ...
+                '    - qualflg:\n        long_name: Quality Flags\n', ...
+                '# End of YAML header\n']);
+            fprintf(fid, '631194900 C 1 -1.1e-02 00000000\n631195200 C 1 -1.2e-02 00000000\n');
+            fclose(fid);
+            [t, obs, aux] = testCase.verifyWarningFree(@() ...
+                gracefoReading.readL1b(f, 'TimeFormat', 'gpsns'));
+            testCase.verifyEqual(aux.timeVariable, 'rcv_time');
+            testCase.verifyEqual(t, int64([631194900; 631195200]) * int64(1e9));
+            testCase.verifyEqual(aux.obsNames, {'eps_time'});
+            testCase.verifyEqual(obs, [-1.1e-2; -1.2e-2], 'AbsTol', 1e-15);
+        end
+
+        function testZeroTimeWarnsCountsAndDrops(testCase)
+            % Real TIM1B_2020-01-02_D_04 carries records whose tag is 0
+            % (issue #29). Counted and reported either way; removed only
+            % on request. Fault injection: the warning-free tests above
+            % use tags that are not zero and must stay silent.
+            f = testCase.writeActLike([100; 0; 200; 0; 300]);
+            [t, obs, aux] = testCase.verifyWarning(@() gracefoReading.readL1b(f), ...
+                'gracefoReading:readL1b:zeroTime');
+            testCase.verifySize(t, [5, 2]);
+            testCase.verifyEqual(aux.numRecordsZeroTime, 2);
+            testCase.verifyEqual(t([2 4], :), repmat([51544, 43200], 2, 1), 'AbsTol', 1e-9);
+
+            lastwarn('', '');
+            [t, obs2, aux] = gracefoReading.readL1b(f, 'DropZeroTime', true, ...
+                'TimeFormat', 'gpsns');
+            [msg, wid] = lastwarn();
+            testCase.verifyEqual(wid, 'gracefoReading:readL1b:zeroTime');
+            testCase.verifyTrue(contains(msg, '2 of 5') && contains(msg, 'record 2') ...
+                && contains(msg, 'removed'), msg);
+            testCase.verifyEqual(t, int64([100; 200; 300]) * int64(1e9));
+            testCase.verifyEqual(obs2, obs([1 3 5], :));
+            testCase.verifyEqual(aux.numRecordsZeroTime, 2);
+            testCase.verifyEqual(aux.numRecordsActual, 5);
+            testCase.verifySize(aux.qualflg, [3, 8]);   % per-record aux filtered too
         end
 
         function testLargeFileSmokeTest(testCase)

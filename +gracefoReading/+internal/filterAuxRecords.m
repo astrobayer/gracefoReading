@@ -35,7 +35,7 @@ function aux = filterAuxRecords(aux, keep, nRec)
 %       metadata field is added to aux, otherwise that field could be
 %       silently truncated. It currently covers header, obsNames,
 %       variableNames, fileName, product, timeVariable, timeSystem,
-%       epochDescription, epochMJD, the three record counts,
+%       epochDescription, epochMJD, the four record counts,
 %       variableUnits, variableAttributes, headerFormat and cacheHit.
 %     - numRecordsActual keeps reporting the parsed count, not the
 %       count after filtering; the number removed is in
@@ -52,13 +52,13 @@ function aux = filterAuxRecords(aux, keep, nRec)
 %
 %   Toolbox:  gracefoReading v1.1.0
 %   Created:  2026-08-01
-%   Updated:  2026-08-14
+%   Updated:  2026-09-27
 %   Author:   Matthias Weigelt with support of Anthropic Claude
 
 protected = {'header', 'obsNames', 'variableNames', 'fileName', 'product', ...
     'timeVariable', 'timeSystem', 'epochDescription', 'epochMJD', ...
     'numRecordsHeader', 'numRecordsActual', 'numRecordsFlagged', ...
-    'variableUnits', 'variableAttributes', 'headerFormat', 'cacheHit'};
+    'numRecordsZeroTime', 'variableUnits', 'variableAttributes', 'headerFormat', 'cacheHit'};
 fns = fieldnames(aux);
 for f = 1:numel(fns)
     if any(strcmp(fns{f}, protected)), continue; end

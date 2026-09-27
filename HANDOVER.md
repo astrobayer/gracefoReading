@@ -272,7 +272,7 @@ unreleased.
 |---|---|
 | 1 — CLK1B refused (`readL1b:noTime`) | `resolveTime` detects a single `rcv_time` column after `gps_time` and before the split pairs. CLK1B's header declares it as "Seconds past 12:00:00 noon of January 1, 2000 in Receiver Time", units seconds; it is returned as written (receiver time; GPS = rcv_time + eps_time is the caller's step). `aux.timeSystem` keeps reading 'GPS' for every YAML product, the receiver-time tags included - it names the counting convention; `aux.timeVariable` distinguishes them. Recorded, not changed |
 | 2 — TIM1B_D records with time 0 | `readL1b` counts records whose tag is exactly 0 in `aux.numRecordsZeroTime` and raises `readL1b:zeroTime` (count, first record, what was done). `'DropZeroTime'` (default false) removes them; `readL1bMulti` forwards it and returns the per-file counts |
-| 3 — CLK1B_D eps_time ≈ 0 | information only: the scan prints the records and their qualflg; no reader change |
+| 3 — CLK1B_D eps_time ≈ 0 | information only, and **not a defect** (scan of PR #31): records 6321..6329 of 8 671 are the clock offset passing through zero, −1.9e-7 … −9.6e-7 s at a steady drift of −9.6e-9 s/s with qualflg 0; the day's eps_time runs from −0.01117 to +1.8e-6 s. No reader change. The TIM1B_D zero-time records, by contrast, ARE flagged by the product: qualflg `10001000`, bit 3 "Receiver Time mapping not defined" |
 
 **Fixtures from real bytes.** Two trimmed extracts are bundled, taken
 byte-exact from the runner's DATAPOOL

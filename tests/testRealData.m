@@ -27,11 +27,21 @@ classdef testRealData < matlab.unittest.TestCase
 %     - record counts, first and last epochs, observation counts per
 %       product
 %     - char columns and identifier columns routed to aux
+%     - the clock products of GRACE-FO, bundled trimmed (#29): CLK1B C
+%       of 2020-01-02 read through its single rcv_time column, and
+%       TIM1B D of 2020-01-02 with its 31 records whose receiver time
+%       is 0 - reported by zeroTime, removed by 'DropZeroTime', and
+%       flagged by the product itself (qualflg bit 3)
 %
 %   ACCURACY AND LIMITATIONS
 %     - Expected values were produced by the Python reference reader
 %       and are hard-coded here; they describe the bundled files of
 %       2020-01-01 and are not claims about other days or releases.
+%     - The CLK1B and TIM1B extracts of 2020-01-02 (60 records each,
+%       num_records rewritten) were taken byte for byte from the
+%       runner's DATAPOOL by the scan of PR #31 and their expected
+%       values derived with Python from the extracts' text, not with
+%       this reader.
 %     - Only the small products (MAS1B, THR1B, and the trimmed ACH1B
 %       extract) are bundled by default to keep the toolbox small;
 %       tests for the large products skip themselves when the
@@ -68,7 +78,7 @@ classdef testRealData < matlab.unittest.TestCase
 %
 %   Toolbox:  gracefoReading v1.1.0
 %   Created:  2026-08-01
-%   Updated:  2026-09-22
+%   Updated:  2026-09-27
 %   Author:   Matthias Weigelt with support of Anthropic Claude
 
     properties
@@ -497,6 +507,59 @@ classdef testRealData < matlab.unittest.TestCase
             testCase.verifyTrue(any(string(aux.sensorname) == ...
                 "fpga_state: science_state"));
             testCase.verifyTrue(any(string(aux.sensorname) == "mode: science"));
+        end
+
+        function testCLK1B(testCase)
+            % Issue #29: v1.1.0 refused CLK1B with noTime, because its
+            % time tag is one integer receiver-time column, rcv_time.
+            f = testCase.requireFile('CLK1B_2020-01-02_C_04.txt');
+            [t, obs, aux] = testCase.verifyWarningFree(@() gracefoReading.readL1b(f));
+            testCase.verifyGenericInvariants(t, obs, aux, 'CLK1B');
+            testCase.verifyEqual(aux.numRecordsHeader, 60, ...
+                'The bundled extract has 60 records; a pool file would shadow it.');
+            testCase.verifyEqual(aux.timeVariable, 'rcv_time');
+            testCase.verifyEqual(aux.obsNames, ...
+                {'eps_time', 'eps_err', 'eps_drift', 'drift_err'});
+            tns = gracefoReading.readL1b(f, 'TimeFormat', 'gpsns');
+            testCase.verifyEqual(tns([1 2 end]), ...
+                int64([631194900; 631194900; 631195480]) * int64(1e9));
+            iEps = strcmp(aux.obsNames, 'eps_time');
+            testCase.verifyEqual(obs([1 end], iEps), ...
+                [-0.0104623276378565; -0.01046875679691837], 'AbsTol', 1e-17);
+            % the first epoch is written twice; only the first copy has
+            % bit 1 ("extrapolation of eps_time not valid BEFORE rcv_time")
+            testCase.verifyEqual(aux.qualflg(1:2, :), ['00000010'; '00000000']);
+        end
+
+        function testTIM1BZeroTime(testCase)
+            % Issue #29: real TIM1B D of 2020-01-02 carries 31 records
+            % whose receiver time is 0 - records 7872..7902 of the day,
+            % 11..41 of the extract. The product flags every one of them
+            % with qualflg bit 3, "Receiver Time mapping not defined".
+            f = testCase.requireFile('TIM1B_2020-01-02_D_04.txt');
+            [t, ~, aux] = testCase.verifyWarning(@() ...
+                gracefoReading.readL1b(f, 'TimeFormat', 'gpsns'), ...
+                'gracefoReading:readL1b:zeroTime');
+            testCase.verifyEqual(aux.numRecordsHeader, 60, ...
+                'The bundled extract has 60 records; a pool file would shadow it.');
+            testCase.verifyEqual(aux.timeVariable, 'rcvtime_intg+rcvtime_frac');
+            testCase.verifyEqual(aux.numRecordsZeroTime, 31);
+            testCase.verifyEqual(find(t == 0), (11:41)');
+
+            [t2, ~, aux2] = testCase.verifyWarning(@() ...
+                gracefoReading.readL1b(f, 'TimeFormat', 'gpsns', 'DropZeroTime', true), ...
+                'gracefoReading:readL1b:zeroTime');
+            testCase.verifySize(t2, [29, 1]);
+            testCase.verifyEqual(t2([1 end]), int64([631258091000000119; 631258563000000000]));
+            testCase.verifyTrue(all(diff(t2) > 0), 'Without them the tags increase.');
+            testCase.verifyEqual(aux2.numRecordsZeroTime, 31);
+            testCase.verifyEqual(aux2.numRecordsActual, 60);
+
+            % The product's own flag selects exactly the same records.
+            ws = warning('off', 'gracefoReading:readL1b:zeroTime');
+            testCase.addTeardown(@() warning(ws));
+            t3 = gracefoReading.readL1b(f, 'TimeFormat', 'gpsns', 'QualityBitMask', 3);
+            testCase.verifyEqual(t3, t2);
         end
 
         function testMultiFileMixedProductsRejected(testCase)

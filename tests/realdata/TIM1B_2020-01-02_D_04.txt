@@ -1,0 +1,208 @@
+header:
+  dimensions:
+    num_records: 60
+  global_attributes:
+    acknowledgement: GRACE-FO is a joint mission of the US National Aeronautics and Space Administration and the German Research Center for Geosciences.  Use the digital object identifier provided in the id attribute when citing this data.  See https://podaac.jpl.nasa.gov/CitingPODAAC
+    conventions: CF-1.6, ACDD-1.3, ISO 8601
+    creator_email: gracefo@podaac.jpl.nasa.gov
+    creator_institution: NASA/JPL
+    creator_name: GRACE Follow-On Science Data System
+    creator_type: group
+    creator_url: http://gracefo.jpl.nasa.gov
+    date_created: 2020-01-03T05:06:26Z
+    date_issued: 2020-01-17T19:44:56Z
+    history:
+      - "INPUT FILE NAME               : TIM1B<-TIM1A_2020-01-01_D_NYA_631173675.pass"
+      - "INPUT FILE CREATION TIME (UTC): TIM1B<-2020-01-01 21:35:09 by operator"
+      - "INPUT FILE SOFTWARE VERSION   : TIM1B<-6ffe"
+      - "INPUT FILE BUILDTIME TAG      : TIM1B<-11-06_15:41:25_PST"
+      - "INPUT FILE NAME               : TIM1B<-TIM1A_2020-01-01_D_NYA_631184891.pass"
+      - "INPUT FILE CREATION TIME (UTC): TIM1B<-2020-01-02 00:51:54 by operator"
+      - "INPUT FILE SOFTWARE VERSION   : TIM1B<-6ffe"
+      - "INPUT FILE BUILDTIME TAG      : TIM1B<-11-06_15:41:25_PST"
+      - "INPUT FILE NAME               : TIM1B<-TIM1A_2020-01-02_D_NYA_631196115.pass"
+      - "INPUT FILE CREATION TIME (UTC): TIM1B<-2020-01-02 03:59:34 by operator"
+      - "INPUT FILE SOFTWARE VERSION   : TIM1B<-6ffe"
+      - "INPUT FILE BUILDTIME TAG      : TIM1B<-11-06_15:41:25_PST"
+      - "INPUT FILE NAME               : TIM1B<-TIM1A_2020-01-02_D_NYA_631207451.pass"
+      - "INPUT FILE CREATION TIME (UTC): TIM1B<-2020-01-02 07:06:01 by operator"
+      - "INPUT FILE SOFTWARE VERSION   : TIM1B<-6ffe"
+      - "INPUT FILE BUILDTIME TAG      : TIM1B<-11-06_15:41:25_PST"
+      - "INPUT FILE NAME               : TIM1B<-TIM1A_2020-01-02_D_NYA_631218851.pass"
+      - "INPUT FILE CREATION TIME (UTC): TIM1B<-2020-01-02 10:17:14 by operator"
+      - "INPUT FILE SOFTWARE VERSION   : TIM1B<-6ffe"
+      - "INPUT FILE BUILDTIME TAG      : TIM1B<-11-06_15:41:25_PST"
+      - "INPUT FILE NAME               : TIM1B<-TIM1A_2020-01-02_D_NYA_631230315.pass"
+      - "INPUT FILE CREATION TIME (UTC): TIM1B<-2020-01-02 13:33:32 by operator"
+      - "INPUT FILE SOFTWARE VERSION   : TIM1B<-6ffe"
+      - "INPUT FILE BUILDTIME TAG      : TIM1B<-11-06_15:41:25_PST"
+      - "INPUT FILE NAME               : TIM1B<-TIM1A_2020-01-02_D_NYA_631241771.pass"
+      - "INPUT FILE CREATION TIME (UTC): TIM1B<-2020-01-02 16:40:01 by operator"
+      - "INPUT FILE SOFTWARE VERSION   : TIM1B<-6ffe"
+      - "INPUT FILE BUILDTIME TAG      : TIM1B<-11-06_15:41:25_PST"
+      - "INPUT FILE NAME               : TIM1B<-TIM1A_2020-01-02_D_NYA_631253171.pass"
+      - "INPUT FILE CREATION TIME (UTC): TIM1B<-2020-01-02 19:41:30 by operator"
+      - "INPUT FILE SOFTWARE VERSION   : TIM1B<-6ffe"
+      - "INPUT FILE BUILDTIME TAG      : TIM1B<-11-06_15:41:25_PST"
+      - "INPUT FILE NAME               : TIM1B<-TIM1A_2020-01-02_D_NYA_631264395.pass"
+      - "INPUT FILE CREATION TIME (UTC): TIM1B<-2020-01-02 22:53:01 by operator"
+      - "INPUT FILE SOFTWARE VERSION   : TIM1B<-6ffe"
+      - "INPUT FILE BUILDTIME TAG      : TIM1B<-11-06_15:41:25_PST"
+      - "INPUT FILE NAME               : TIM1B<-TIM1A_2020-01-02_D_NYA_631275611.pass"
+      - "INPUT FILE CREATION TIME (UTC): TIM1B<-2020-01-03 01:58:07 by operator"
+      - "INPUT FILE SOFTWARE VERSION   : TIM1B<-6ffe"
+      - "INPUT FILE BUILDTIME TAG      : TIM1B<-11-06_15:41:25_PST"
+      - "INPUT FILE NAME               : TIM1B<-TIM1A_2020-01-03_D_NYA_631286891.pass"
+      - "INPUT FILE CREATION TIME (UTC): TIM1B<-2020-01-03 05:06:13 by operator"
+      - "INPUT FILE SOFTWARE VERSION   : TIM1B<-6ffe"
+      - "INPUT FILE BUILDTIME TAG      : TIM1B<-11-06_15:41:25_PST"
+    id: 10.5067/GFJPL-L1B04
+    institution: NASA/JPL
+    instrument: USO, GPS
+    instrument_vocabulary: NASA Global Change Master Directory instrument keywords
+    keywords: GRACE-FO, USO, GPS
+    keywords_vocabulary: NASA Global Change Master Directory (GCMD) Science Keywords
+    license: https://science.nasa.gov/earth-science/earth-science-data/data-information-policy
+    naming_authority: org.doi.dx
+    platform: GRACE D
+    platform_vocabulary: NASA Global Change Master Directory platform keywords
+    processing_level: 1B
+    product_version: 04
+    program: NASA Earth Systematic Missions Program
+    project: NASA Gravity Recovery And Climate Experiment Follow-On (GRACE-FO)
+    publisher_email: podaac@jpl.nasa.gov
+    publisher_institution: NASA/JPL
+    publisher_name: Physical Oceanography Distributed Active Archive Center
+    publisher_type: group
+    publisher_url: http://podaac.jpl.nasa.gov
+    references: https://podaac.jpl.nasa.gov/gravity/gracefo-documentation
+    source: OBC to Receiver Time mappings for GRACE D
+    summary: 1-Hz clock mappings from OBC to Receiver Time
+    time_coverage_start: 2020-01-02T00:00:03.00Z
+    time_coverage_stop: 2020-01-02T23:59:55.00Z
+    title: GRACE-FO Level-1B Clock Data
+  non-standard_attributes:
+    epoch_time: 2000-01-01T12:00:00.00Z
+    software_build_time: 2019-07-31T09:42:00-07:00
+    software_version: 471a-dirty
+    start_time_epoch_secs: 631195203
+    stop_time_epoch_secs: 631281595
+  variables:
+    - obctime:
+        comment: 1st column
+        coverage_content_type: referenceInformation
+        long_name: Integer seconds past 12:00:00 noon of January 1, 2000 in OBC Time
+        units: seconds
+    - GRACEFO_id:
+        comment: 2nd column
+        coverage_content_type: referenceInformation
+        long_name: GRACE-FO satellite identifier
+        units: char
+        valid_range: C,D
+        value_meanings:
+          - C = GRACE-FO 1 (GRACE C)
+          - D = GRACE-FO 2 (GRACE D)
+    - TS_suppid:
+        comment: 3rd column
+        coverage_content_type: referenceInformation
+        long_name: OBC time tag supplementary ID
+        value_meanings:
+          - 0 = SCET (spacecraft elapsed time)
+          - 1 = Receiver Time
+          - 2 = SCET + pulse sync
+          - 3 = Receiver Time + pulse sync
+          - 7 = Receiver Time + pulse sync + IPU time packet received
+    - rcvtime_intg:
+        comment: 4th column
+        coverage_content_type: referenceInformation
+        long_name: Integer portion of time, in seconds past 12:00:00 noon of January 1, 2000 in Receiver Time
+        units: seconds
+    - rcvtime_frac:
+        comment: 5th column
+        coverage_content_type: referenceInformation
+        long_name: Fractional portion of time tag
+        units: nanoseconds
+        valid_range: 0,999999999
+    - first_icu_blknr:
+        comment: 6th column
+        coverage_content_type: referenceInformation
+        long_name: First ICU block number for time tag.  -1 indicates no ACC data available
+    - final_icu_blknr:
+        comment: 7th column
+        coverage_content_type: referenceInformation
+        long_name: Final ICU block number for time tag.  -1 indicates no ACC data available
+    - qualflg:
+        comment: 8th column
+        coverage_content_type: qualityInformation
+        flag_masks: 1b, 2b, 4b, 8b, 16b, 32b, 64b, 128b
+        flag_meanings:
+          - 0 = Delta between OBC time tags is not 1 second
+          - bit 1 = Multiple ICU blocks
+          - bit 2 = In sync with GPS
+          - bit 3 = Receiver Time mapping not defined
+          - bit 4 = Missed antenna state packet
+          - bit 5 = gdel flag set in one or more ICU data blocks
+          - bit 6 = Unable to compute Receiver Time mapping
+          - bit 7 = GPS sync activated
+        long_name: Quality flags, bit 0 is rightmost
+# End of YAML header
+631258091 D 0 631258091 119 -1 -1 00000100
+631258099 D 0 631258099 0 -1 -1 00000100
+631258107 D 0 631258107 0 -1 -1 00000100
+631258115 D 0 631258115 119 -1 -1 00000100
+631258123 D 0 631258123 0 -1 -1 00000100
+631258131 D 0 631258131 119 -1 -1 00000100
+631258139 D 0 631258139 119 -1 -1 00000100
+631258147 D 0 631258147 0 -1 -1 00000100
+631258155 D 0 631258155 0 -1 -1 00000100
+631258163 D 0 631258163 119 -1 -1 00000100
+631258171 D 0 0 0 -1 -1 10001000
+631258179 D 0 0 0 -1 -1 10001000
+631258187 D 0 0 0 -1 -1 10001000
+631258195 D 0 0 0 -1 -1 10001000
+631258203 D 0 0 0 -1 -1 10001000
+631258211 D 0 0 0 -1 -1 10001000
+631258219 D 0 0 0 -1 -1 10001000
+631258227 D 0 0 0 -1 -1 10001000
+631258235 D 0 0 0 -1 -1 10001000
+631258243 D 0 0 0 -1 -1 10001000
+631258251 D 0 0 0 -1 -1 10001000
+631258259 D 0 0 0 -1 -1 10001000
+631258267 D 0 0 0 -1 -1 10001000
+631258275 D 0 0 0 -1 -1 10001000
+631258283 D 0 0 0 -1 -1 10001000
+631258291 D 0 0 0 -1 -1 10001000
+631258299 D 0 0 0 -1 -1 10001000
+631258307 D 0 0 0 -1 -1 10001000
+631258315 D 0 0 0 -1 -1 10001000
+631258323 D 0 0 0 -1 -1 10001000
+631258331 D 0 0 0 -1 -1 10001000
+631258339 D 0 0 0 -1 -1 10001000
+631258347 D 0 0 0 -1 -1 10001000
+631258355 D 0 0 0 -1 -1 10001000
+631258363 D 0 0 0 -1 -1 10001000
+631258371 D 0 0 0 -1 -1 10001000
+631258379 D 0 0 0 -1 -1 10001000
+631258387 D 0 0 0 -1 -1 10001000
+631258395 D 0 0 0 -1 -1 10001000
+631258403 D 0 0 0 -1 -1 10001000
+631258411 D 0 0 0 -1 -1 10001000
+631258419 D 0 631258418 999999285 -1 -1 00000100
+631258427 D 0 631258427 477 -1 -1 00000100
+631258435 D 0 631258434 999999762 -1 -1 00000100
+631258443 D 0 631258443 0 -1 -1 00000100
+631258451 D 0 631258451 0 -1 -1 00000100
+631258459 D 0 631258459 119 -1 -1 00000100
+631258467 D 0 631258467 0 -1 -1 00000100
+631258475 D 0 631258475 0 -1 -1 00000100
+631258483 D 0 631258483 119 -1 -1 00000100
+631258491 D 0 631258491 0 -1 -1 00000100
+631258499 D 0 631258499 119 -1 -1 00000100
+631258507 D 0 631258507 119 -1 -1 00000100
+631258515 D 0 631258515 0 -1 -1 00000100
+631258523 D 0 631258523 0 -1 -1 00000100
+631258531 D 0 631258531 119 -1 -1 00000100
+631258539 D 0 631258539 0 -1 -1 00000100
+631258547 D 0 631258547 0 -1 -1 00000100
+631258555 D 0 631258555 119 -1 -1 00000100
+631258563 D 0 631258563 0 -1 -1 00000100

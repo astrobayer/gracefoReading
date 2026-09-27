@@ -15,7 +15,8 @@ function [time, obs, aux] = readL1b(fileName, options)
 %     release-dependent column tables are hard-coded.
 %
 %     Handled automatically:
-%       - single (gps_time) and split (time_intg + time_frac) time tags
+%       - single (gps_time, or CLK1B's receiver-time rcv_time) and
+%         split (time_intg + time_frac) time tags
 %         with unit-aware fractional scaling, read from each file's own
 %         header rather than assumed per product family: microseconds
 %         in the real IHK1B/MAS1B/THR1B/TNK1B files, nanoseconds in
@@ -104,6 +105,16 @@ function [time, obs, aux] = readL1b(fileName, options)
 %                for YAML-header files, which declare their own.
 %                Default: [] (use the built-in layout table).
 %
+%     'DropZeroTime' - logical, 1x1
+%                If true, records whose time tag is exactly zero
+%                (2000-01-01 12:00:00, the tag epoch itself) are
+%                removed. Such records are placeholders, not data:
+%                real TIM1B_2020-01-02_D_04 carries 31 of them among
+%                10 800. They are counted in aux.numRecordsZeroTime and
+%                reported by the zeroTime warning either way.
+%                Options: true | false. Default: false (returned
+%                unchanged).
+%
 %   OUTPUT
 %     time - double, [N x 2] | datetime, [N x 1] | int64, [N x 1]
 %                Epochs according to 'TimeFormat': [N x 2] integer MJD
@@ -124,7 +135,8 @@ function [time, obs, aux] = readL1b(fileName, options)
 %                variableUnits, variableAttributes, timeVariable,
 %                timeSystem, epochDescription, epochMJD,
 %                numRecordsHeader, numRecordsActual,
-%                numRecordsFlagged, header, product, fileName,
+%                numRecordsFlagged, numRecordsZeroTime, header,
+%                product, fileName,
 %                headerFormat ('yaml' | 'classic'), cacheHit
 %                (logical), classicHeaderFields (classic only),
 %                qualflg / qualflgBits, prod_flag / prodFlagBits, and
@@ -226,6 +238,10 @@ function [time, obs, aux] = readL1b(fileName, options)
 %     gracefoReading:readL1b:variableNameAdjusted declared variable name
 %                                                 not usable as a struct
 %                                                 field; aux field renamed
+%     gracefoReading:readL1b:zeroTime             records whose time tag
+%                                                 is exactly zero; says
+%                                                 whether 'DropZeroTime'
+%                                                 removed them
 %
 %   EXAMPLES
 %     % 1. plain read of one daily accelerometer file
@@ -250,7 +266,7 @@ function [time, obs, aux] = readL1b(fileName, options)
 %
 %   Toolbox:  gracefoReading v1.1.0
 %   Created:  2026-08-01
-%   Updated:  2026-09-22
+%   Updated:  2026-09-27
 %   Author:   Matthias Weigelt with support of Anthropic Claude
 
 arguments
@@ -262,6 +278,7 @@ arguments
     options.QualityBitMask (1,:) double {mustBeInteger, mustBeNonnegative} = []
     options.CacheDir (1,1) string = ""
     options.ColumnNames (1,:) string = string.empty
+    options.DropZeroTime (1,1) logical = false
 end
 
 if options.ApplyQualityFlags && ~isempty(options.QualityBitMask)
@@ -311,6 +328,26 @@ else
 end
 nRec = size(timeMjd, 1);
 
+% ---- zero time tags (issue #29) ---------------------------------------
+% A tag of exactly zero is the tag epoch itself, 2000-01-01 12:00:00:
+% a placeholder the producer wrote where it had no time, never a real
+% epoch of a 2002-or-later mission. Reported whether or not it is
+% removed, because a caller who never asked should still learn that
+% the file carries such records.
+isZeroTime = timeNs == 0;
+aux.numRecordsZeroTime = nnz(isZeroTime);
+if aux.numRecordsZeroTime > 0
+    if options.DropZeroTime
+        action = 'removed (''DropZeroTime'')';
+    else
+        action = 'returned unchanged; ''DropZeroTime'', true removes them';
+    end
+    warning('gracefoReading:readL1b:zeroTime', ...
+        ['%s: %d of %d record(s) carry the time tag 0 (2000-01-01 12:00:00), ', ...
+         'the first at record %d; %s.'], ...
+        fileName, aux.numRecordsZeroTime, nRec, find(isZeroTime, 1), action);
+end
+
 % ---- quality filtering -------------------------------------------------
 keep = true(nRec, 1);
 if isfield(aux, 'qualflgBits')
@@ -322,6 +359,9 @@ if isfield(aux, 'qualflgBits')
         keep = ~any(aux.qualflgBits(:, cols), 2);
     end
     aux.numRecordsFlagged = nnz(~keep);
+end
+if options.DropZeroTime
+    keep = keep & ~isZeroTime;
 end
 
 % ---- time-range filtering ---------------------------------------------

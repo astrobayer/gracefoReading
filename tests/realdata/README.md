@@ -6,6 +6,8 @@ original names. Included with the toolbox (small):
     MAS1B_2020-01-01_C_04.txt      (~8 KB)
     THR1B_2020-01-01_C_04.txt      (~95 KB)
     ACH1B_2020-01-01_D_04.txt      (~25 KB, trimmed - see below)
+    CLK1B_2020-01-02_C_04.txt      (~12 KB, trimmed - see below)
+    TIM1B_2020-01-02_D_04.txt      (~10 KB, trimmed - see below)
 
 To enable the full acceptance suite, copy in addition (too large to
 bundle; obtain from PO.DAAC, https://podaac.jpl.nasa.gov/, or the ISDC
@@ -33,6 +35,22 @@ lines while agreeing on every value. A fixture that passes only when
 the pool is absent is not an acceptance point, so `testACH1B` now
 **derives** what depends on the record count and refuses any length
 that is neither 120 nor 86 400.
+
+**The two clock fixtures (issue #29)** are 60 records each of the
+published 2020-01-02 files, header and record text byte for byte, with
+only `num_records` rewritten. They were copied from the runner's
+DATAPOOL (`GRACEFO\L1B\RL04\2020\2020-01-02\`) by a scan that printed
+them as base64 in the CI log of PR #31:
+
+- `CLK1B_2020-01-02_C_04.txt` - records 1..60. The only CLK1B product
+  whose time tag is the single column `rcv_time`; its first epoch is
+  written twice.
+- `TIM1B_2020-01-02_D_04.txt` - records 7862..7921 of 10 800. Records
+  11..41 of the extract (7872..7902 of the day) carry receiver time 0
+  and qualflg bit 3, "Receiver Time mapping not defined".
+
+The full days are in the pool under `GRACEFO\L1B\...`, not under
+`RawData\tests\realdata`, so they do not shadow these extracts.
 
 `testMAS1B` and `testTHR1B` still hard-code theirs. They would fail the
 same way, loudly rather than silently, if a full day were put in the

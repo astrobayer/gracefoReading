@@ -36,6 +36,12 @@ tests/realdata/*.txt.gz
 # every working tree.
 !tests/realdata/ACH1B_2020-01-01_D_04.txt
 
+# The GRACE-FO clock fixtures of issue #29: CLK1B C and TIM1B D of
+# 2020-01-02, 60 records each, num_records rewritten, taken byte for byte
+# from the runner's DATAPOOL (~22 KB together). Same trap as above.
+!tests/realdata/CLK1B_2020-01-02_C_04.txt
+!tests/realdata/TIM1B_2020-01-02_D_04.txt
+
 # The classic GRACE fixtures are binary (".dat"), so no rule above
 # touches them; they are named here so the set is visible in one place.
 # Four of them also have a generated ASCII twin (".asc"), produced from

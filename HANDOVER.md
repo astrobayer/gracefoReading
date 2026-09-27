@@ -1,6 +1,6 @@
 # HANDOVER — gracefoReading
 
-**Revision 4.4 · 2026-09-27 · toolbox v1.1.0 → 1.2.0 in progress (#29, branch `claude/grace-timeseries-issues-28g3a4`)**
+**Revision 4.5 · 2026-09-27 · toolbox v1.2.0 → 1.3.0 in progress (classic units and qualflg meanings, for timeSeriesPreparation X-13)**
 
 The single point of truth for this repository. Where this document and a
 general engineering habit disagree, this document is right. Read it
@@ -254,6 +254,50 @@ false and was written without checking: `v1.0.0` was tagged and released
 on 2026-09-06. What is true, and is what O-4 now carries, is that the
 tag is *lightweight* where `astrobayer/ci-actions/VERSIONING.md` requires
 an annotated one, and that 1.0.1 has neither tag nor release.
+
+---
+
+## A4. Scope frozen — branch `claude/grace-timeseries-issues-28g3a4` (release 1.3.0: classic units and qualflg meanings)
+
+**Frozen 2026-09-27, tier B.** Asked for by timeSeriesPreparation X-13
+(its issue #16, classic GRACE). Owner decision of 2026-09-27: the units and
+flag meanings classic headers lack come from the reader, beside the
+column names it already takes from the handbook, and not from a second
+table downstream.
+
+**The gap, measured.** Classic headers declare no columns, so v1.2.0
+returns `aux.variableUnits` with only `char` for character columns and
+`aux.variableAttributes.<name>.flag_meanings` nowhere. Downstream that
+means: `decodeQualFlags` reports every classic bit "(not documented)";
+timeSeriesPreparation's `align` refuses a classic arc (`unitUnknown`); its
+`mask` refuses classic THR1B (on_time not in milliseconds).
+
+**Source.** GRACE Level-1B Data Product User Handbook v1.3 (JPL D-22027,
+March 2010), chapter 6, one table per product with a Units column and
+the qualflg (and MAS1B prod_flag) bit definitions: 6.2 ACC1B, 6.5 GNV1B,
+6.7 KBR1B, 6.8 MAG1B, 6.9 MAS1B, 6.10 SCA1B, 6.11 THR1B. AHK1B has no
+chapter-6 table (its layout comes from the JPL read software, which
+states no units), so AHK1B gains none: stated, not guessed.
+
+**What this branch delivers**
+
+| item | what |
+|---|---|
+| `classicLayout` | per product `units` (one per column, `''` where the handbook gives none or N/A) and `flagMeanings` (`qualflg`, and MAS1B `prod_flag`, as "bit N = text" lines exactly as a GRACE-FO header lists them), and `unitSource` naming the handbook section. Units are SPELLED as the GRACE-FO headers spell the same quantity (`seconds`, `microseconds`, `milliseconds`, `m/s2`, `rad/s2`, `m`, `m/s`, `kg`), so one vocabulary reaches the consumer; quantities GRACE-FO does not share keep the handbook's spelling (`0.1 dB-Hz`, `microT`, `mA`) |
+| `parseClassicBinary`, `parseClassicProduct` | fill `aux.variableUnits` and `aux.variableAttributes.<name>.units` / `.flag_meanings` from the layout, for the built-in layouts; a caller's `ColumnNames` gets none (they are the caller's names) |
+| docs | `readL1b` and `decodeQualFlags` help: classic units and meanings come from D-22027 ch. 6; `decodeQualFlags`' stale "classic may store qualflg as a decimal" sentence goes |
+| release | `chore: version 1.2.0 -> 1.3.0` in its own commit; CHANGELOG 1.3.0 |
+
+**Tests (predicted)**, all in `testClassicProducts` 22 → **26**:
+- `testClassicUnitsFromHandbook` — ACC1B, THR1B, KBR1B `.dat` units;
+- `testClassicQualflgMeaningsFromHandbook` — ACC1B bit 0/5/7, KBR1B bit 0,
+  SCA1B bit 3 read back through `decodeQualFlags`; SCA1B bit 3 ("data from
+  1 star camera only") is the bit already cross-checked against `sca_id`;
+- `testClassicAsciiAndBinaryDescribeAlike` — units and meanings of `.asc`
+  and `.dat` identical for ACC1B, MAG1B, MAS1B (metamorphic);
+- `testAhk1bStatesNoUnits` — AHK1B non-character columns carry no unit.
+
+**Prediction: 162 passed + 0 failed + 1 incomplete = 163.**
 
 ---
 

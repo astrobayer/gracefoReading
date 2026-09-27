@@ -1,0 +1,14 @@
+# THROWAWAY (gracefoReading#29): real CLK1B / TIM1B bytes for fixtures. Never merge.
+name: scan-29
+on:
+  pull_request:
+jobs:
+  scan:
+    runs-on: [self-hosted, Windows]
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+      - uses: matlab-actions/run-command@bfa857648f4895aa98a446fe41c85e0788421ed5 # v3
+        env:
+          READING_DATA_POOL: ${{ vars.READING_DATA_POOL }}
+        with:
+          command: addpath('tools'); scan29;

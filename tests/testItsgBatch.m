@@ -42,7 +42,7 @@ classdef testItsgBatch < matlab.unittest.TestCase
 %     results = runtests('testItsgBatch');
 %     disp(table(results));
 %
-%   Toolbox:  gracefoReading v1.1.0
+%   Toolbox:  gracefoReading v1.2.0
 %   Created:  2026-09-14
 %   Updated:  2026-09-14
 %   Author:   Matthias Weigelt with support of Anthropic Claude

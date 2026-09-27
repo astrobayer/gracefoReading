@@ -138,7 +138,7 @@ function [time, obs, aux] = readL1bMulti(fileNames, options)
 %   See also gracefoReading.readL1b, gracefoReading.findL1bFiles,
 %            gracefoReading.findGaps
 %
-%   Toolbox:  gracefoReading v1.1.0
+%   Toolbox:  gracefoReading v1.2.0
 %   Created:  2026-08-01
 %   Updated:  2026-09-27
 %   Author:   Matthias Weigelt with support of Anthropic Claude

@@ -550,7 +550,10 @@ classdef testRealData < matlab.unittest.TestCase
                 gracefoReading.readL1b(f, 'TimeFormat', 'gpsns', 'DropZeroTime', true), ...
                 'gracefoReading:readL1b:zeroTime');
             testCase.verifySize(t2, [29, 1]);
-            testCase.verifyEqual(t2([1 end]), int64([631258091000000119; 631258563000000000]));
+            % int64 arithmetic: a literal 631258091000000119 is parsed as
+            % a double first and would round to ...128 (above 2^53)
+            testCase.verifyEqual(t2([1 end]), ...
+                int64([631258091; 631258563]) * int64(1e9) + int64([119; 0]));
             testCase.verifyTrue(all(diff(t2) > 0), 'Without them the tags increase.');
             testCase.verifyEqual(aux2.numRecordsZeroTime, 31);
             testCase.verifyEqual(aux2.numRecordsActual, 60);

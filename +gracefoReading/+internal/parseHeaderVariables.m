@@ -68,7 +68,7 @@ function [varNames, varAttrs] = parseHeaderVariables(headerLines)
 %            gracefoReading.internal.parseYamlProduct,
 %            gracefoReading.internal.variableFieldNames
 %
-%   Toolbox:  gracefoReading v1.3.0
+%   Toolbox:  gracefoReading v1.3.1
 %   Created:  2026-08-01
 %   Updated:  2026-09-22
 %   Author:   Matthias Weigelt with support of Anthropic Claude

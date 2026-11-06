@@ -42,7 +42,7 @@ classdef testDataPool < matlab.unittest.TestCase
 %     results = runtests('testDataPool');
 %     disp(table(results));
 %
-%   Toolbox:  gracefoReading v1.3.0
+%   Toolbox:  gracefoReading v1.3.1
 %   Created:  2026-09-22
 %   Updated:  2026-09-22
 %   Author:   Matthias Weigelt with support of Anthropic Claude

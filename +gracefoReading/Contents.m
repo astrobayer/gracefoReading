@@ -1,5 +1,5 @@
 % GRACEFOREADING  GRACE-FO Level-1B ASCII data reading toolbox (+gracefoReading).
-% Version 1.3.0  2026-09-27
+% Version 1.3.1  2026-11-07
 %
 % Reading
 %   gracefoReading.readL1b               - Read one Level-1B ASCII product file.
@@ -36,7 +36,7 @@
 % THR1B, MAS1B, MAG1B, AHK1B) are validated against real 2008 files in
 % BOTH the binary and the ASCII variant; see tests/testClassicProducts.m.
 %
-%   Toolbox:  gracefoReading v1.3.0
+%   Toolbox:  gracefoReading v1.3.1
 %   Created:  2026-08-01
 %   Updated:  2026-09-22
 %   Author:   Matthias Weigelt with support of Anthropic Claude

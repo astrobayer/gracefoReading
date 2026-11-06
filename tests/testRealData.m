@@ -76,7 +76,7 @@ classdef testRealData < matlab.unittest.TestCase
 %     results = runtests('testRealData');
 %     disp(table(results));
 %
-%   Toolbox:  gracefoReading v1.3.0
+%   Toolbox:  gracefoReading v1.3.1
 %   Created:  2026-08-01
 %   Updated:  2026-11-07
 %   Author:   Matthias Weigelt with support of Anthropic Claude

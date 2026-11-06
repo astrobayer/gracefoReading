@@ -1,5 +1,18 @@
 # Changelog — gracefoReading
 
+## 1.3.1 — 2026-11-07
+
+### Fixed — which archive holds which real-data fixture
+
+- `tests/realdata/README.md` said AHK1B and LHK1B arrive with the `.LRI`
+  daily archive. Measured by listing the three ISDC archives of 2020-01-01:
+  `.noLRI` holds ACT1B, AHK1B, GNV1B, KBR1B, SCA1B; `.LRI` holds LHK1B and
+  LRI1B; `.ACX` holds ACH1B. The README now carries that table.
+- The README said the ITSG orbits "need not be expanded", but
+  `testRealData.resolveFixture` looked only for the `.txt`. It now tries
+  `<name>` and then `<name>.gz` in each pool location; the readers read
+  `.gz` directly. No test was added or removed: 163.
+
 ## 1.3.0 — 2026-09-27
 
 Classic units and qualflg meanings, for timeSeriesPreparation X-13

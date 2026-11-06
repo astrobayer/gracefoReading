@@ -21,9 +21,16 @@ mirror):
     AHK1B_2020-01-01_C_04.txt      accelerometer housekeeping
     LHK1B_2020-01-01_C_04.txt      LRI housekeeping
 
-These two arrive with the `.LRI` daily archive rather than with
-`.noLRI`, and they are what the `testAHK1B` and `testLHK1B` rows wait
-for. ACH1B, which arrives with `.ACX`, no longer waits: it is bundled.
+Which ISDC daily archive (`gracefo_1B_2020-01-01_RL04.ascii.<set>.tgz`)
+holds which file, MEASURED by listing the three on 2026-11-07:
+
+    .noLRI  (147 MB)  ACT1B, AHK1B, GNV1B, KBR1B, SCA1B
+    .LRI    (28 MB)   LHK1B, LRI1B
+    .ACX    (17 MB)   ACH1B
+
+AHK1B is in `.noLRI`; this file said `.LRI` until then. ACH1B no longer
+waits: it is bundled. toolboxInstaller's *Get test data* (1.3.3 and
+later) fetches exactly these files, pinned by SHA-256, into the pool.
 
 **A bundled fixture can be shadowed, and one of them was.** The lookup
 is pool first, this folder second, so a full-day file of the same name
@@ -105,8 +112,10 @@ layout as above) to enable it:
 
 Obtain them from
 https://ftp.tugraz.at/pub/ITSG/satelliteOrbitProducts/operational/GRACEFO-1/,
-which serves them gzip-compressed; `readItsgProduct` reads `.gz`
-directly, so they need not be expanded.
+which serves them gzip-compressed only (`kinematicOrbit/2020/...txt.gz`;
+the `.txt` URL is 404). They need not be expanded: the fixture lookup
+(`testRealData.resolveFixture`) accepts `<name>.gz` beside `<name>`, and
+the readers read `.gz` directly.
 
 The frame and the time system are **not** in these files. They come from
 the server's `README.txt` and `README_referenceFrames.txt`, which is why

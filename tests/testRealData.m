@@ -78,7 +78,7 @@ classdef testRealData < matlab.unittest.TestCase
 %
 %   Toolbox:  gracefoReading v1.3.0
 %   Created:  2026-08-01
-%   Updated:  2026-09-27
+%   Updated:  2026-11-07
 %   Author:   Matthias Weigelt with support of Anthropic Claude
 
     properties
@@ -195,6 +195,9 @@ classdef testRealData < matlab.unittest.TestCase
             %   2. <ROOT>\<name>                            - the
             %      repository-level value, which pointed straight at
             %      the fixture folder.
+            % In each, <name> is tried before <name>.gz: ITSG serves its
+            % products only gzip-compressed, the readers read .gz
+            % directly, and a fixture need not be expanded to count.
             %
             % The second is a DELIBERATE FALLBACK for exactly one
             % release, so that deleting the repository-level variable
@@ -209,16 +212,19 @@ classdef testRealData < matlab.unittest.TestCase
             %
             % OUTPUT
             %   f - string, 1x1. Full path of the first candidate that
-            %       exists, or "" when the pool is unset or holds
-            %       neither. Callers then fall back to the bundled
-            %       tests/realdata folder and skip as before.
+            %       exists (possibly the .gz), or "" when the pool is
+            %       unset or holds none of them. Callers then fall back
+            %       to the bundled tests/realdata folder and skip as before.
             f = "";
             pool = testRealData.resolvePool();
             if strlength(pool) == 0
                 return
             end
+            name = string(name);
             candidates = [fullfile(pool, 'RawData', 'tests', 'realdata', name)
-                          fullfile(pool, name)];
+                          fullfile(pool, 'RawData', 'tests', 'realdata', name + ".gz")
+                          fullfile(pool, name)
+                          fullfile(pool, name + ".gz")];
             for k = 1:numel(candidates)
                 if isfile(candidates(k))
                     f = candidates(k);

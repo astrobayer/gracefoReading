@@ -50,7 +50,7 @@ function key = contentHash(varargin)
 %
 %   See also gracefoReading.readL1b
 %
-%   Toolbox:  gracefoReading v1.3.1
+%   Toolbox:  gracefoReading v1.3.2
 %   Created:  2026-08-01
 %   Updated:  2026-08-14
 %   Author:   Matthias Weigelt with support of Anthropic Claude

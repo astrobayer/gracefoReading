@@ -89,7 +89,7 @@ function [files, report] = findItsgFiles(archiveRoot, product, options)
 %   See also gracefoReading.readItsgProductMulti,
 %            gracefoReading.readItsgProduct, gracefoReading.findL1bFiles
 %
-%   Toolbox:  gracefoReading v1.3.1
+%   Toolbox:  gracefoReading v1.3.2
 %   Created:  2026-09-14
 %   Updated:  2026-09-14
 %   Author:   Matthias Weigelt with support of Anthropic Claude

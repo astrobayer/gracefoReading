@@ -92,7 +92,7 @@ function result = benchmarkParse(options)
 %
 %   Toolbox:  gracefoReading v1.3.1
 %   Created:  2026-09-22
-%   Updated:  2026-09-22
+%   Updated:  2026-11-08
 %   Author:   Matthias Weigelt with support of Anthropic Claude
 
 arguments
@@ -109,7 +109,7 @@ if strlength(f) == 0
     f = localResolveFromPool(options.Product);
 end
 if strlength(f) == 0 || ~isfile(f)
-    fprintf(['benchmarkParse: %s not found via READING_DATA_POOL; ', ...
+    fprintf(['benchmarkParse: %s not found via DATAPOOL / READING_DATA_POOL; ', ...
              'no measurement taken (G-03 stays open).\n'], options.Product);
     return
 end

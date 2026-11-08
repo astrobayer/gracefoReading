@@ -58,9 +58,10 @@ classdef testRealData < matlab.unittest.TestCase
 %       and would fail loudly if a full day were put in the pool
 %       under those names.
 %     - The five large products are looked up in the data pool named
-%       by the environment variable READING_DATA_POOL before the
-%       bundled tests/realdata folder. That variable is the DATAPOOL
-%       ROOT (G-07, issue #23), and fixtures sit below it in
+%       by the environment variable DATAPOOL - or, when it is unset,
+%       READING_DATA_POOL, the older name (1.3.2, the astrobayer data
+%       pool rule) - before the bundled tests/realdata folder. That
+%       variable is the DATAPOOL ROOT (G-07, issue #23), and fixtures sit below it in
 %       RawData\tests\realdata; <ROOT>\<name> is still accepted for
 %       one release, so the repository-level and the organisation
 %       value both work while the switch is made. The path is
@@ -78,7 +79,7 @@ classdef testRealData < matlab.unittest.TestCase
 %
 %   Toolbox:  gracefoReading v1.3.1
 %   Created:  2026-08-01
-%   Updated:  2026-11-07
+%   Updated:  2026-11-08
 %   Author:   Matthias Weigelt with support of Anthropic Claude
 
     properties
@@ -112,7 +113,7 @@ classdef testRealData < matlab.unittest.TestCase
             end
             testCase.assumeTrue(isfile(f), sprintf( ...
                 ['Real data file %s not present in %s nor in the pool ' ...
-                 '(READING_DATA_POOL = "%s"); test skipped.'], ...
+                 '(DATAPOOL, else READING_DATA_POOL = "%s"); test skipped.'], ...
                 name, testCase.dataDir, testCase.dataPool));
         end
 
@@ -161,11 +162,16 @@ classdef testRealData < matlab.unittest.TestCase
             %
             % SINGLE POINT OF ACCESS for the pool location. The path
             % itself is NOT in the repository: it comes from the
-            % environment variable READING_DATA_POOL, which the CI
-            % workflow fills from the repository variable of the same
-            % name. That keeps the mechanism version controlled and the
-            % machine-specific location out of the tree, and a second
-            % runner needs no code change.
+            % environment variable DATAPOOL (which the installer's
+            % startup.m sets) or, when that is unset or empty, from
+            % READING_DATA_POOL, the older name, which the CI workflow
+            % fills from the repository variable of the same name - the
+            % order of the astrobayer data pool rule
+            % (toolboxInstaller docs/DATA_POOL.md, 1.3.2). That keeps the
+            % mechanism version controlled and the machine-specific
+            % location out of the tree, and a second runner needs no
+            % code change. The first variable that is set decides; a
+            % set DATAPOOL is not passed over for READING_DATA_POOL.
             %
             % Read with getenv rather than interpolated from anywhere,
             % so a path containing spaces or backslashes cannot break.
@@ -175,7 +181,10 @@ classdef testRealData < matlab.unittest.TestCase
             %          does not name a folder; every caller then falls
             %          back to the bundled tests/realdata folder and the
             %          affected points skip themselves as before.
-            pool = string(getenv('READING_DATA_POOL'));
+            pool = string(getenv('DATAPOOL'));
+            if strlength(pool) == 0
+                pool = string(getenv('READING_DATA_POOL'));
+            end
             if strlength(pool) == 0 || ~isfolder(pool)
                 pool = "";
             end
@@ -186,7 +195,7 @@ classdef testRealData < matlab.unittest.TestCase
             %
             % SINGLE POINT OF ACCESS for the fixture LAYOUT, as
             % resolvePool is for the pool location. G-07 (issue #23):
-            % READING_DATA_POOL names the DATAPOOL ROOT, and the day
+            % the pool variable names the DATAPOOL ROOT, and the day
             % fixtures live below it in RawData\tests\realdata.
             %
             % Two candidates are tried, in this order:

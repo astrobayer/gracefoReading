@@ -29,7 +29,8 @@ function [report, summary] = verifyDataPool(poolFolder, options)
 %   INPUT
 %     poolFolder - string | char, 1x1
 %                Root of the pool to verify, for example the DATAPOOL
-%                root named by READING_DATA_POOL, or one product
+%                root named by the environment variable DATAPOOL (or
+%                READING_DATA_POOL, the older name), or one product
 %                folder below it.
 %                Validation: must be an existing folder.
 %                Required, positional.
@@ -121,8 +122,9 @@ function [report, summary] = verifyDataPool(poolFolder, options)
 %                                                       such digest
 %
 %   EXAMPLES
-%     % 1. verify the whole pool CI reads from
-%     pool = getenv('READING_DATA_POOL');
+%     % 1. verify the whole pool (DATAPOOL, else the older name)
+%     pool = getenv('DATAPOOL');
+%     if isempty(pool), pool = getenv('READING_DATA_POOL'); end
 %     [rep, sum1] = gracefoReading.verifyDataPool(pool, 'Progress', true);
 %     disp(rep(rep.status ~= "OK", :));
 %     fprintf('%d of %d file(s) verified\n', sum1.numOk, sum1.numChecked);
@@ -143,7 +145,7 @@ function [report, summary] = verifyDataPool(poolFolder, options)
 %
 %   Toolbox:  gracefoReading v1.3.1
 %   Created:  2026-09-22
-%   Updated:  2026-09-22
+%   Updated:  2026-11-08
 %   Author:   Matthias Weigelt with support of Anthropic Claude
 
 arguments

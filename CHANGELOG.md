@@ -1,5 +1,28 @@
 # Changelog — gracefoReading
 
+## 1.3.2 — 2026-11-08
+
+### Changed — the tests read `DATAPOOL` first, then `READING_DATA_POOL`
+
+- The owner's data pool rule of 2026-11-08 (toolboxInstaller
+  `docs/DATA_POOL.md`): every astrobayer repository resolves the pool
+  root as `DATAPOOL`, then `READING_DATA_POOL` (the older name, still
+  read, never required). The installer's `startup.m` sets `DATAPOOL`.
+- `testRealData.resolvePool`, the single point of access for the pool
+  location, now reads `DATAPOOL` and falls back to `READING_DATA_POOL`
+  only when `DATAPOOL` is unset or empty. A set `DATAPOOL` decides even
+  when it names no folder (the points then skip, as with an unset
+  variable). The layout below the root is unchanged:
+  `<ROOT>\RawData\tests\realdata\<name>`, then `<ROOT>\<name>`, each
+  also as `.gz`. `testItsgProducts` and `ci/benchmarkParse` resolve
+  through it as before; their messages name both variables.
+- This toolbox downloads nothing, so nothing else changes. CI keeps
+  passing the repository variable as `READING_DATA_POOL`, which remains
+  a valid fallback.
+- Documentation: README, `tests/realdata/README.md`, `docs/CI_SETUP.md`
+  and the `verifyDataPool` help (input description and example 1).
+  No test was added or removed: 163.
+
 ## 1.3.1 — 2026-11-07
 
 ### Fixed — which archive holds which real-data fixture

@@ -1,6 +1,6 @@
 # HANDOVER — gracefoReading
 
-**Revision 4.6 · 2026-11-07 · toolbox v1.3.0 → 1.3.1 in progress (the real-data README states the measured archive of each fixture; a pool fixture may be `.gz`)**
+**Revision 4.7 · 2026-11-08 · toolbox v1.3.1 → 1.3.2 in progress (the tests read the pool root as `DATAPOOL`, then `READING_DATA_POOL`: the owner's data pool rule)**
 
 The single point of truth for this repository. Where this document and a
 general engineering habit disagree, this document is right. Read it
@@ -20,7 +20,8 @@ gains no preprocessing code from it. Facts live in one place, never in two.
 
 | | |
 |---|---|
-| Version | **1.3.1** on branch `claude/realdata-readme` (tagged by the release workflow on merge), 1.3.0 on `main` (`gracefoReading.version()`; `Contents.m` and `docsrc/functionSpecs.json` must agree) |
+| Version | **1.3.2** on branch `claude/data-pool` (tagged by the release workflow on merge), 1.3.1 on `main` (`gracefoReading.version()`; `Contents.m` and `docsrc/functionSpecs.json` must agree) |
+| Tests (1.3.2, local tier) | **163 total, as predicted** (no test added or removed; `testRealData.resolvePool` reads `DATAPOOL` first, `READING_DATA_POOL` when it is unset or empty). `runtests('tests')` on the worktree `_wt/gracefoReading-datapool` (version 1.3.2, the worktree's reader first on the path), R2026a, matthiaspc, 2026-11-08, four environments: neither variable **154 / 0 / 9**; `DATAPOOL=E:\DATAPOOL` **163 / 0 / 0**; only `READING_DATA_POOL=E:\DATAPOOL` **163 / 0 / 0** (the fallback); `DATAPOOL` = an empty folder and `READING_DATA_POOL=E:\DATAPOOL` **154 / 0 / 9** (a set `DATAPOOL` decides). Static gates clean (sourceIntegrity 50 / 0, auditHelp 50 clean, html regenerated). |
 | Tests (1.3.1, local tier) | **163 total, as predicted** (no test added or removed; `resolveFixture` gained the `.gz` candidates). `runCI` on `gracefoReading-readme` (version 1.3.1), R2026a, matthiaspc, 2026-11-07, three pools: all eight fixtures (as toolboxInstaller 1.3.3 *Get test data* writes them) **163 / 0 / 0**; only `GRACEFO-1_kinematicOrbit_2020-01-01.txt.gz` **155 / 0 / 8**, `testFullDayKinematicJitter` passing through the new `.gz` candidate; no pool **154 / 0 / 9** |
 | Tests | **162 passed, 0 failed, 1 incomplete = 163 total** — CI run 36341677003, head `d789cd7` (PR #32, release 1.3.0: classic units and qualflg meanings), self-hosted Windows runner, MATLAB R2026a, 2026-09-27, 205.4 s. GREEN on the first run, prediction matched on all three numbers and on every class (`testClassicProducts` 26). *Previously:* 158 + 0 + 1 = 159 — CI run 36329140378, head `48b533a` (PR #31, #29 + release 1.2.0), self-hosted Windows runner, MATLAB R2026a, 2026-09-27, 208.7 s. GREEN, prediction matched on all three numbers and on every class. The round before, run 36328754219 on `28b8d9e`, was RED 157 + 1 + 1 on `testRealData/testTIM1BZeroTime` - a defect of the TEST: the expected tag was written as the literal `int64([631258091000000119; ...])`, which MATLAB parses as a double first, rounding to ...128 above 2^53; the reader's exact ...119 was right. Fixed by building the value in int64 arithmetic. *Previously:* 153 + 0 + 1 = 154 — CI run 35742860944, head `5e74b09`, self-hosted Windows runner, MATLAB R2026a, 2026-09-22, 216.2 s. GREEN, prediction matched on all three numbers. `testClassicProducts` is **22**: the classic ASCII variant is verified against its binary twin, including the MAG1B column swap and AHK1B's bit-string `status`. *Previously:* 149 + 0 + 1 = 150 — CI run 35719247713, head `df0b0ec`, self-hosted Windows runner, MATLAB R2026a, 2026-09-22, 204.8 s. GREEN, and the prediction matched on all three numbers on the first run with real code changes since `2d6f226`. `testClassicProducts` is **18** rows: both AHK1B acceptance points pass, so the 32-bit `prod_flag`, the five-type conditional walk and the two unsigned corrections are all verified on the runner. *Previously:* 147 + 0 + 1 = 148 — CI run 35707792415, head `2d6f226`, self-hosted Windows runner, MATLAB R2026a, 2026-09-22, 205.5 s. GREEN, and the prediction matched on all three numbers. `testClassicProducts` is 16 rows with both MAG1B acceptance points passing, so the handbook naming is verified on real bytes. `testRealData/testACH1B` passes in 7.96 s, which is the full-day file from the pool and not the 120-record extract. The run before it, 35707090459 (`885bdb0`), was RED on that one row — see the finding below. Earlier: 144 + 0 + 2 = 146 on run 35704249941 (`8ff0ee0`), and the v1.1.0 release 142 + 0 + 2 = 144 on run 35702315239 (`3c2bf28`, merged as `2c0d7d8`) |
 | Static gates | `docsrc/sourceIntegrity.py` 50 files / 0 findings · `docsrc/auditHelp.py` 50 help blocks clean · `python3 docsrc/generate_docs.py` then `git diff --exit-code -- html/` clean, and byte-identical on a second run — all four run 2026-09-22 in a sandbox without MATLAB |
@@ -734,7 +735,13 @@ The half of it that remains is O-2's writer side, not this.
    `testRealData` needs `READING_DATA_POOL`; the full suite needs MATLAB.
    A session with neither can still run all three static gates, and
    should say so rather than reporting "green".
-8. **`READING_DATA_POOL` is the DATAPOOL ROOT, and the fallback dies
+8. **The pool root is `DATAPOOL`, then `READING_DATA_POOL` (1.3.2,
+   the owner's data pool rule of 2026-11-08, toolboxInstaller
+   `docs/DATA_POOL.md`).** A set `DATAPOOL` decides even when it holds no
+   fixture; CI still passes `READING_DATA_POOL`, so on a runner whose
+   MATLAB sets `DATAPOOL` (the installer's `startup.m`) that value wins,
+   while the workflow's report step still lists `READING_DATA_POOL`.
+   **`READING_DATA_POOL` is the DATAPOOL ROOT, and the fallback dies
    next release.** Fixtures resolve below it in `RawData\tests\realdata`.
    `<ROOT>\<name>` is still accepted, deliberately, for 1.1.0 only
    (G-07, #23). Dropping it is a one-line change in

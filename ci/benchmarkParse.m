@@ -90,7 +90,7 @@ function result = benchmarkParse(options)
 %
 %   See also gracefoReading.readL1b, runCI
 %
-%   Toolbox:  gracefoReading v1.3.2
+%   Toolbox:  gracefoReading v1.3.3
 %   Created:  2026-09-22
 %   Updated:  2026-11-08
 %   Author:   Matthias Weigelt with support of Anthropic Claude

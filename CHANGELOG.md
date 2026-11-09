@@ -1,5 +1,23 @@
 # Changelog — gracefoReading
 
+## 1.3.3 — 2026-11-09
+
+### Fixed — installing no longer leaves the working tree modified
+
+- `setupGraceFOReading` registers the documentation with
+  `builddocsearchdb(html)`, which writes `html/custom_toolbox.json` and
+  `html/helpsearch-v4_en/`. 1.3.2 committed those four generated files
+  by mistake, so every install rewrote tracked files and `git status`
+  showed them modified (the owner's report, 2026-11-09).
+- They are untracked again and listed in `.gitignore`
+  (`html/helpsearch-v4_en/`, `html/custom_toolbox.json`), as the other
+  astrobayer repositories do. Setup still builds the search database;
+  it is simply never committed.
+- `docsrc/generate_html.py` never wrote these files, so regenerating
+  the documentation cannot re-add them, and the CI sync check
+  (`git diff --exit-code -- html/`) is unchanged. No code changed and no
+  test was added or removed: 163.
+
 ## 1.3.2 — 2026-11-08
 
 ### Changed — the tests read `DATAPOOL` first, then `READING_DATA_POOL`

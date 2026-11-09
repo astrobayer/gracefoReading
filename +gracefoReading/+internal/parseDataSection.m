@@ -85,7 +85,7 @@ function [timeMjd, timeNs, obs, aux] = parseDataSection(dataLines, dataLineNos, 
 %   See also gracefoReading.readL1b, gracefoReading.internal.parseYamlProduct,
 %            gracefoReading.internal.parseClassicProduct
 %
-%   Toolbox:  gracefoReading v1.3.2
+%   Toolbox:  gracefoReading v1.3.3
 %   Created:  2026-08-01
 %   Updated:  2026-09-22
 %   Author:   Matthias Weigelt with support of Anthropic Claude

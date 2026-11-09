@@ -1,0 +1,46 @@
+{
+  "schema": 1,
+  "sources": [
+    {
+      "id": "l1b-2020-01-01",
+      "url": "https://isdc-data.gfz.de/grace-fo/Level-1B/JPL/INSTRUMENT/RL04/2020/gracefo_1B_2020-01-01_RL04.ascii.noLRI.tgz",
+      "files": [
+        "ACT1B_2020-01-01_C_04.txt",
+        "AHK1B_2020-01-01_C_04.txt",
+        "GNV1B_2020-01-01_C_04.txt",
+        "KBR1B_2020-01-01_Y_04.txt",
+        "SCA1B_2020-01-01_C_04.txt"
+      ],
+      "MB": 147,
+      "sha256": "f14fec9ab9e30ce3cba95b14c04a5e03fc5ab66815076a17b5e72eba0ef6557e",
+      "licence": "unreviewed",
+      "licenceText": "NASA/JPL GRACE-FO Level-1B served by GFZ's ISDC, under the provider's terms; not reviewed.",
+      "description": "GRACE-FO Level-1B day archive of 2020-01-01 without the LRI products (147 MB download), for testRealData's ACT1B, AHK1B, GNV1B, KBR1B and SCA1B rows. MAS1B and THR1B are NOT copied: their tests hard-code the bundled excerpts' lengths. ACH1B is in the .ACX archive and bundled, so it is not fetched."
+    },
+    {
+      "id": "l1b-lri-2020-01-01",
+      "url": "https://isdc-data.gfz.de/grace-fo/Level-1B/JPL/INSTRUMENT/RL04/2020/gracefo_1B_2020-01-01_RL04.ascii.LRI.tgz",
+      "files": [
+        "LHK1B_2020-01-01_C_04.txt",
+        "LRI1B_2020-01-01_Y_04.txt"
+      ],
+      "MB": 28,
+      "sha256": "3c6cd31b10c2a1bea0b7e0865716fdf55d83b2602820e674aad1c0009609db95",
+      "licence": "unreviewed",
+      "licenceText": "NASA/JPL GRACE-FO Level-1B served by GFZ's ISDC, under the provider's terms; not reviewed.",
+      "description": "GRACE-FO Level-1B LRI day archive of 2020-01-01 (28 MB download), for testRealData's LHK1B and LRI1B rows."
+    },
+    {
+      "id": "itsg-kinematic-2020-01-01",
+      "url": "https://ftp.tugraz.at/pub/ITSG/satelliteOrbitProducts/operational/GRACEFO-1/kinematicOrbit/2020/GRACEFO-1_kinematicOrbit_2020-01-01.txt.gz",
+      "files": [
+        "GRACEFO-1_kinematicOrbit_2020-01-01.txt"
+      ],
+      "MB": 0.4,
+      "sha256": "d11835582e019707fed29730d0b9ba8f608244abca3a29dce75f4d1fdec9fb50",
+      "licence": "unstated",
+      "licenceText": "ITSG (TU Graz) operational GRACE-FO kinematic orbit, served at ftp.tugraz.at. The server's README describes the products and states no licence.",
+      "description": "The full published day of the ITSG kinematic orbit (0.4 MB download, unpacked from .gz), for testItsgProducts/testFullDayKinematicJitter: the clock-driven departures from 10 s sampling occur only past the bundled 60-record excerpt."
+    }
+  ]
+}

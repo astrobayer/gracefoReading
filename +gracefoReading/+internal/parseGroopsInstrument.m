@@ -60,7 +60,7 @@ function [timeMjd, timeNs, data, info] = parseGroopsInstrument(fileName)
 %
 %   See also gracefoReading.readGroopsInstrument, gracefoReading.readItsgProduct
 %
-%   Toolbox:  gracefoReading v1.3.1
+%   Toolbox:  gracefoReading v1.3.2
 %   Created:  2026-09-14
 %   Updated:  2026-09-14
 %   Author:   Matthias Weigelt with support of Anthropic Claude

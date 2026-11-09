@@ -70,12 +70,13 @@ so the suite passes either way — it simply becomes stricter with data.
 
 The files above need not sit in this folder. `testRealData` looks
 them up first in the data pool named by the environment variable
-`READING_DATA_POOL` and only then here. That variable is the
+`DATAPOOL` — or, when it is unset, `READING_DATA_POOL`, the older name
+(1.3.2) — and only then here. That variable is the
 **DATAPOOL root**, and the day fixtures live below it:
 
-    <READING_DATA_POOL>\RawData\tests\realdata\<name>
+    <DATAPOOL>\RawData\tests\realdata\<name>
 
-`<READING_DATA_POOL>\<name>` — the variable pointing straight at the
+`<DATAPOOL>\<name>` — the variable pointing straight at the
 fixture folder — is still accepted, **for one release only**, so that a
 repository-level and an organisation-level value both work while the
 switch is made. The CI step that lists the pool reports which of the two

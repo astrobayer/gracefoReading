@@ -74,7 +74,8 @@ results = runtests('tests');  table(results)
 
 `tests/testRealData.m` runs against real PO.DAAC files placed in
 `tests/realdata/`, or in the data pool named by the environment
-variable `READING_DATA_POOL` — the **DATAPOOL root**, with the day
+variable `DATAPOOL` (set by the installer's `startup.m`; when it is
+unset, `READING_DATA_POOL`, the older name, is read) — the **DATAPOOL root**, with the day
 fixtures below it in `RawData\tests\realdata\` (see the README in
 `tests/realdata/`). Tests for absent files are skipped automatically.
 

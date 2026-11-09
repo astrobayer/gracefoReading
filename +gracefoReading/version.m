@@ -49,15 +49,15 @@ function [versionString, info] = version()
 %
 %   See also gracefoReading.readL1b
 %
-%   Toolbox:  gracefoReading v1.3.1
+%   Toolbox:  gracefoReading v1.3.2
 %   Created:  2026-08-01
 %   Updated:  2026-09-08
 %   Author:   Matthias Weigelt with support of Anthropic Claude
 
-versionString = '1.3.1';
+versionString = '1.3.2';
 info = struct( ...
     'version', versionString, ...
-    'date', '2026-09-27', ...
+    'date', '2026-11-08', ...
     'developedWith', 'Matthias Weigelt with support of Anthropic Claude', ...
     'license', 'MIT');
 end

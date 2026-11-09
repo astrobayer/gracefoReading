@@ -15,7 +15,7 @@ classdef testItsgProducts < matlab.unittest.TestCase
 %     record text are byte-for-byte as published, so every format claim
 %     is tested on real bytes. Assertions that need a whole day - the
 %     receiver-clock jitter of the kinematic products - use the full
-%     file from READING_DATA_POOL and skip when it is absent.
+%     file from the data pool (DATAPOOL, else READING_DATA_POOL) and skip when it is absent.
 %
 %     Run with:
 %       results = runtests('testItsgProducts'); table(results)
@@ -52,9 +52,9 @@ classdef testItsgProducts < matlab.unittest.TestCase
 %     results = runtests('testItsgProducts');
 %     disp(table(results));
 %
-%   Toolbox:  gracefoReading v1.3.1
+%   Toolbox:  gracefoReading v1.3.2
 %   Created:  2026-09-14
-%   Updated:  2026-09-22
+%   Updated:  2026-11-08
 %   Author:   Matthias Weigelt with support of Anthropic Claude
 
     properties
@@ -71,7 +71,7 @@ classdef testItsgProducts < matlab.unittest.TestCase
                 testCase.addTeardown(@() rmpath(codeDir));
             end
             % Bound to the BUNDLED fixture folder on purpose. Resolving through
-            % READING_DATA_POOL first, as testRealData does, would silently swap
+            % the data pool first, as testRealData does, would silently swap
             % in the full 8640-record day when a pool is configured and break
             % every count asserted here.
             testCase.dataDir = fullfile(here, 'realdata');
@@ -310,7 +310,7 @@ classdef testItsgProducts < matlab.unittest.TestCase
             f = testRealData.resolveFixture('GRACEFO-1_kinematicOrbit_2020-01-01.txt');
             testCase.assumeTrue(strlength(f) > 0, ...
                 ['GRACEFO-1_kinematicOrbit_2020-01-01.txt not found via ', ...
-                 'READING_DATA_POOL; skipped']);
+                 'DATAPOOL / READING_DATA_POOL; skipped']);
             tns = gracefoReading.readItsgProduct(f, 'TimeFormat', 'gpsns');
             steps = unique(diff(tns));
             testCase.verifyGreaterThan(numel(steps), 1, ...

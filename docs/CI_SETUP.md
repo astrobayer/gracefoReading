@@ -18,7 +18,10 @@ the command is identical in all three places.
 | `documentation` | `docsrc/sourceIntegrity.py`, `docsrc/auditHelp.py` (help-text standard) and regeneration of `html/` with a `git diff --exit-code` check | `ubuntu-latest`, Python 3.11 |
 
 Two further steps run inside `matlab-tests`, both only when the
-repository or organisation variable `READING_DATA_POOL` is set:
+repository or organisation variable `READING_DATA_POOL` is set (the
+workflow passes it under that name; the suite reads `DATAPOOL` first and
+`READING_DATA_POOL` when `DATAPOOL` is unset, so on a runner that sets
+neither globally the CI value is what decides):
 
 | Step | What it does | Can it fail the run? |
 |---|---|---|

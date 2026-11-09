@@ -24,7 +24,7 @@ div.footer { margin-top: 3em; padding-top: 0.6em; border-top: 1px solid #ccc;
 a { color: #06c; text-decoration: none; }
 a:hover { text-decoration: underline; }
 </style></head><body>
-<h1>gracefoReading Toolbox v1.3.3</h1>
+<h1>gracefoReading Toolbox v1.4.0</h1>
 <p class="purpose">GRACE-FO Level-1B ASCII data reading toolbox</p>
 <p>Reads any GRACE-FO Level-1B RL04 ASCII product (ACT1B/ACC1B, SCA1B, KBR1B, LRI1B, GNV1B, THR1B, MAS1B, ...) into a common time/obs/aux layout, driven entirely by each file&#x27;s own YAML header. Supports split microsecond time tags, bit-string quality flags, prod_flag-controlled variable-length records, gzip input, and strict row-integrity checking. Validated against real PO.DAAC RL04 files of 2020-01-01. Includes batch tools (file discovery, gap analysis, content-hashed parse caching), exact int64 GPS-nanosecond time output, selective quality-bit filtering, GROOPS instrument export/import, and experimental classic GRACE (2002-2017) support.</p>
 <h2>Functions</h2>
@@ -36,5 +36,5 @@ for installation, a first read and the batch workflow, and the PDF guide
 <pre class="example">setupGraceFOReading              % add toolbox to the path
 [t, obs, aux] = gracefoReading.readL1b('ACT1B_2020-01-01_C_04.txt');
 addpath('ci'); results = runCI();        % verify the installation</pre>
-<div class="footer">gracefoReading v1.3.3 &middot; 2026-11-09 &middot; Matthias Weigelt with support of Anthropic Claude &middot; License: MIT &middot; Generated from the MATLAB help blocks &mdash; do not edit by hand.</div>
+<div class="footer">gracefoReading v1.4.0 &middot; 2026-11-09 &middot; Matthias Weigelt with support of Anthropic Claude &middot; License: MIT &middot; Generated from the MATLAB help blocks &mdash; do not edit by hand.</div>
 </body></html>

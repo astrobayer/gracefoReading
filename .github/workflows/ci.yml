@@ -80,6 +80,16 @@ jobs:
       # Unset variable: the step skips and the suite filters exactly as
       # before.
       #
+      # TWO NAMES (1.3.2, the astrobayer data pool rule): the suite
+      # reads the environment variable DATAPOOL first and falls back to
+      # READING_DATA_POOL only when DATAPOOL is unset or empty. This
+      # workflow sets only READING_DATA_POOL, from the variable of that
+      # name, so on a runner whose own environment sets DATAPOOL (the
+      # installer's startup.m does) the suite and benchmarkParse read
+      # DATAPOOL and this value is not used. This listing step reads
+      # READING_DATA_POOL alone, so it can name a different pool than
+      # the suite then reads.
+      #
       # G-07 (issue #23): the variable is the DATAPOOL ROOT, and the day
       # fixtures live below it in RawData\tests\realdata. The repository
       # value pointed straight at the fixture folder, so BOTH are tried,
@@ -141,7 +151,8 @@ jobs:
                 nFound, numel(want), nLegacy);
 
       # The value reaches the suite through the environment and is read
-      # by getenv in testRealData.resolvePool, never interpolated into
+      # by getenv in testRealData.resolvePool (DATAPOOL first, then this
+      # READING_DATA_POOL), never interpolated into
       # command text: a path containing spaces or backslashes - and this
       # one contains both - cannot break the script.
       - name: Run test suites via the CI entry point

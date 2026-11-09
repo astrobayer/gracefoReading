@@ -158,7 +158,7 @@ function [time, obs, aux] = readItsgProduct(fileName, options)
 %
 %   See also gracefoReading.readGroopsInstrument, gracefoReading.readL1b
 %
-%   Toolbox:  gracefoReading v1.3.3
+%   Toolbox:  gracefoReading v1.4.0
 %   Created:  2026-09-14
 %   Updated:  2026-09-14
 %   Author:   Matthias Weigelt with support of Anthropic Claude

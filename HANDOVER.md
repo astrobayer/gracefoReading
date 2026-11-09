@@ -1,6 +1,6 @@
 # HANDOVER — gracefoReading
 
-**Revision 4.8 · 2026-11-09 · toolbox v1.3.2 → 1.3.3 in progress (the documentation search database that setup generates is ignored, not committed: installing leaves the working tree clean)**
+**Revision 4.9 · 2026-11-09 · toolbox v1.3.3 → 1.4.0 in progress (the repository owns its test-data list, `tests/data/SOURCES.json`, checked against the tests by `testDataSources`; the CI comments name `DATAPOOL` first)**
 
 The single point of truth for this repository. Where this document and a
 general engineering habit disagree, this document is right. Read it
@@ -20,7 +20,8 @@ gains no preprocessing code from it. Facts live in one place, never in two.
 
 | | |
 |---|---|
-| Version | **1.3.3** on branch `claude/ignore-search-index` (tagged by the release workflow on merge), 1.3.2 on `main` (`gracefoReading.version()`; `Contents.m` and `docsrc/functionSpecs.json` must agree) |
+| Version | **1.4.0** on branch `claude/test-data-sources` (tagged by the release workflow on merge), 1.3.3 on `main` (`gracefoReading.version()`; `Contents.m` and `docsrc/functionSpecs.json` must agree) |
+| Tests (1.4.0, local tier) | **167 total, as predicted** (163 + 4 in the new `testDataSources`). `matlab -batch` `addpath('ci'); runCI()` on the worktree `_wt/gracefoReading-sources` (version 1.4.0, the worktree's reader first on the path), R2026a, matthiaspc, 2026-11-09, two environments: `DATAPOOL=E:\DATAPOOL` **167 / 0 / 0** (146.5 s); neither variable **158 / 0 / 9** (11.4 s). `testDataSources` fault-injected on copies of `tests/`: a dropped listed file, an added unread file, and a duplicate id with a missing `url` each failed exactly the matching point (1 of 4); the healthy copy 4 / 0 / 0. Static gates clean (sourceIntegrity 51 / 0, auditHelp 51 clean, html regenerated and idempotent). CI tier: not yet run at the time of writing |
 | Tests (1.3.3, local tier) | **163 total, as predicted 163 / 0 / 0** (no code changed, no test added or removed). `matlab -batch` `runCI()` on the worktree `_wt/gracefoReading-ignore-index` (version 1.3.3, the worktree's reader first on the path), `DATAPOOL=E:\DATAPOOL`, R2026a, matthiaspc, 2026-11-09, 134.5 s: **163 / 0 / 0**. Then `setupGraceFOReading` in the same worktree ("Successfully created search database.") and `git status --short` **empty**; `--ignored` lists only `artifacts/`, `html/custom_toolbox.json`, `html/helpsearch-v4_en/`. Static gates clean (sourceIntegrity 50 / 0, auditHelp 50 clean, html regenerated and idempotent). |
 | Tests (1.3.2, local tier) | **163 total, as predicted** (no test added or removed; `testRealData.resolvePool` reads `DATAPOOL` first, `READING_DATA_POOL` when it is unset or empty). `runtests('tests')` on the worktree `_wt/gracefoReading-datapool` (version 1.3.2, the worktree's reader first on the path), R2026a, matthiaspc, 2026-11-08, four environments: neither variable **154 / 0 / 9**; `DATAPOOL=E:\DATAPOOL` **163 / 0 / 0**; only `READING_DATA_POOL=E:\DATAPOOL` **163 / 0 / 0** (the fallback); `DATAPOOL` = an empty folder and `READING_DATA_POOL=E:\DATAPOOL` **154 / 0 / 9** (a set `DATAPOOL` decides). Static gates clean (sourceIntegrity 50 / 0, auditHelp 50 clean, html regenerated). |
 | Tests (1.3.1, local tier) | **163 total, as predicted** (no test added or removed; `resolveFixture` gained the `.gz` candidates). `runCI` on `gracefoReading-readme` (version 1.3.1), R2026a, matthiaspc, 2026-11-07, three pools: all eight fixtures (as toolboxInstaller 1.3.3 *Get test data* writes them) **163 / 0 / 0**; only `GRACEFO-1_kinematicOrbit_2020-01-01.txt.gz` **155 / 0 / 8**, `testFullDayKinematicJitter` passing through the new `.gz` candidate; no pool **154 / 0 / 9** |
@@ -35,8 +36,9 @@ Per-class test counts, for the prediction a next session must make
 `testItsgBatch` 12, `testDataPool` **10** (new, G-06),
 `testClassicProducts` **26** (12 at v1.1.0, +2 RL03, +2 MAG1B,
 +2 AHK1B, +4 classic ASCII, +4 units and meanings in 1.3.0), `testEventLists` **11** (new, G-05),
-`testDocConsistency` 7, `testSourceIntegrity` 5. Sum **163**, of which
-162 pass and **1** is the documented incomplete below — `testRealData/testACH1B` stopped
+`testDocConsistency` 7, `testSourceIntegrity` 5, `testDataSources` **4** (new, 1.4.0). Sum **167**
+(163 at 1.3.3), all of which pass with the pool; *historical note:* at 163,
+162 passed and **1** was the documented incomplete below — `testRealData/testACH1B` stopped
 being incomplete when its fixture was bundled, so the count of
 incompletes went down while the total went up. Predicting the total
 alone would have hidden that.
@@ -698,6 +700,7 @@ The half of it that remains is O-2's writer side, not this.
 | 2026-09-22 | `ci/benchmarkParse` reports `fileread` alone beside the total, and is `continue-on-error` in CI | The total alone cannot answer O-7: a fast path can only win back the difference between parsing and reading the bytes. And a measurement that can turn a green suite red would be an acceptance point, which it is not — it asserts nothing |
 | 2026-09-22 | `<ROOT>\<name>` stays a fixture candidate for exactly one release beside `<ROOT>\RawData\tests\realdata\<name>` | Deleting the repository-level variable and switching to the organisation one is one step; without the fallback that step would also turn a green run into a row of skipped acceptance points, and the two causes would be indistinguishable. The CI step prints which candidate answered, so the switch is measured rather than assumed |
 | 2026-09-22 | The `.github/` changes ride in this PR, in their own commit, instead of a separate PR | GUIDE section 1 asks for both "workflow changes stand alone" and "one open PR per repository", and G-07 and G-03 each need a CI step. The commit is isolated and named in the PR body for line-by-line reading, which is what the rule protects. Recorded rather than done quietly |
+| 2026-11-09 | The test-data list lives in this repository as `tests/data/SOURCES.json` (the registry's `tests.data.sources`, verbatim, under `schema` 1), and `testDataSources` derives the pool names from the tests and requires them to EQUAL the listed files | The owner's request: the installer reads the list from the repository. A list kept beside the tests but not compared with them is the second authority R1 forbids; equality in both directions catches a new pool fixture without an entry and an entry no test reads. Bundled `requireFile` names (MAS1B, THR1B, ACH1B) are excluded because the bundled file satisfies them; `resolveFixture` names are pool-only and always included |
 | 2026-09-14 | The `'TimeFormat'` mapping moved to `internal/formatEpoch`, called by both readers | the datetime epoch formula was about to exist in two files. That is the 2026-09-06 failure mode exactly, and a divergence would shift every epoch of one reader with nothing visible to say so |
 
 ---
@@ -770,3 +773,8 @@ The half of it that remains is O-2's writer side, not this.
    `docs/GUIDE.md`). The concept's history before the move is in this
    repository's `main` history (merged with #15), ending at `4c08cb7`; the
    files are no longer in the tree.
+13. **`tests/data/SOURCES.json` is the test-data list, and the installer
+   reads it.** Adding a real-data point that reads a new pool file means
+   adding its source there in the same change; `testDataSources` fails
+   otherwise. It reads literal `resolveFixture('...')` / `requireFile('...')`
+   arguments only - a computed file name would escape it.

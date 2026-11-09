@@ -32,6 +32,17 @@ AHK1B is in `.noLRI`; this file said `.LRI` until then. ACH1B no longer
 waits: it is bundled. toolboxInstaller's *Get test data* (1.3.3 and
 later) fetches exactly these files, pinned by SHA-256, into the pool.
 
+**The list is `tests/data/SOURCES.json`** (1.4.0), owned by this
+repository and read from it by the installer: each source's `url`,
+`files` (relative to `<DATAPOOL>\RawData\tests\realdata\`), `MB`,
+`sha256`, `licence`, `licenceText` and `description`. It holds the seven
+L1B files above plus `GRACEFO-1_kinematicOrbit_2020-01-01.txt`, the full
+ITSG day that `testItsgProducts/testFullDayKinematicJitter` reads from
+the pool only. `tests/testDataSources.m` derives the pool names from the
+tests (`resolveFixture` arguments, and `requireFile` arguments not
+bundled here) and requires them to equal the listed files, so a new pool
+fixture without an entry, or an entry no test reads, fails the suite.
+
 **A bundled fixture can be shadowed, and one of them was.** The lookup
 is pool first, this folder second, so a full-day file of the same name
 in the pool replaces the trimmed extract. That is exactly what happened

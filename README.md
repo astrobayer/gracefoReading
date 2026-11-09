@@ -79,6 +79,14 @@ unset, `READING_DATA_POOL`, the older name, is read) — the **DATAPOOL root**, 
 fixtures below it in `RawData\tests\realdata\` (see the README in
 `tests/realdata/`). Tests for absent files are skipped automatically.
 
+Which third-party files those tests look for in the pool, and where each
+comes from, is listed in `tests/data/SOURCES.json` (`schema` 1; per source
+`id`, `url`, `files`, `MB`, `sha256`, `licence`, `licenceText`,
+`description`; `files` relative to `<DATAPOOL>\RawData\tests\realdata\`).
+toolboxInstaller's *Get test data* reads that list from this repository,
+and `tests/testDataSources.m` fails when a test looks for a pool file the
+list does not name, or the list names a file no test reads.
+
 ## Documentation
 
 - `doc gracefoReading.readL1b` — MATLAB-style HTML reference pages

@@ -1,5 +1,43 @@
 # Changelog — gracefoReading
 
+## 1.4.0 — 2026-11-09
+
+### Added — the repository owns its test-data list, `tests/data/SOURCES.json`
+
+- The third-party files the real-data tests look for in the data pool
+  were listed only in toolboxInstaller's registry
+  (`registry/gracefoReading.json`, `tests.data.sources`), and nothing
+  tied that list to the tests (the owner's request, 2026-11-09). The
+  installer now reads it from this repository.
+- `tests/data/SOURCES.json` is `{"schema": 1, "sources": [...]}`, the
+  registry array copied verbatim (Python `json.load` / `json.dump`,
+  indent 2, UTF-8, LF). Three sources: the ISDC `.noLRI` and `.LRI`
+  archives of 2020-01-01 (ACT1B, AHK1B, GNV1B, KBR1B, SCA1B; LHK1B,
+  LRI1B) and the ITSG kinematic orbit day; each with `url`, `files`
+  (relative to `<DATAPOOL>\RawData\tests\realdata\`), `MB`, `sha256`,
+  `licence`, `licenceText`, `description`.
+- `tests/testDataSources.m` (4 points) makes it authoritative: the pool
+  names are derived from the tests' own code (`resolveFixture`
+  arguments, and `requireFile` arguments whose file is not bundled in
+  `tests/realdata`) and must equal the listed files in both directions;
+  schema 1, unique ids and the required fields are checked. It needs no
+  pool and downloads nothing. Fault-injected: a dropped file, an unread
+  file, and a duplicate id with a missing `url` each fail exactly the
+  matching point.
+- Documentation: README (*Verify the installation*) and
+  `tests/realdata/README.md`.
+
+### Fixed — the CI comments name both pool variables
+
+- `.github/workflows/ci.yml` said the pool comes from
+  `READING_DATA_POOL` only. Since 1.3.2 the suite reads `DATAPOOL` first
+  and falls back to `READING_DATA_POOL`; the comments now say so, and
+  that a `DATAPOOL` in the runner's own environment wins over the value
+  the workflow passes. Comments only: the workflow still sets
+  `READING_DATA_POOL` alone.
+
+Tests: 163 + 4 = 167.
+
 ## 1.3.3 — 2026-11-09
 
 ### Fixed — installing no longer leaves the working tree modified

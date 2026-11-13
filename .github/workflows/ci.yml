@@ -20,6 +20,11 @@ on:
     branches: [main]
   pull_request:
   workflow_dispatch:
+    inputs:
+      runner:
+        description: "auto | a8 | hosted - narrows the routing, never widens it"
+        required: false
+        default: auto
   schedule:
     # weekly run catches breakage introduced by new MATLAB releases
     - cron: '17 5 * * 1'
@@ -31,9 +36,32 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  # Where may MATLAB run for this event: A8, a GitHub-hosted runner, or
+  # nowhere? One decision for the whole organisation, in
+  # astrobayer/ci-actions (ci-route; docs/CI_GUIDE.md section 2): members
+  # only, no forks, A8 from a public repository only for the allow-listed
+  # user. This job never fails - a refusal arrives in the MATLAB job as
+  # runner=none and matlab-setup turns that required context red.
+  route:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+    outputs:
+      runner: ${{ steps.route.outputs.runner }}
+      runs-on: ${{ steps.route.outputs.runs-on }}
+      reason: ${{ steps.route.outputs.reason }}
+    steps:
+      - id: route
+        uses: astrobayer/ci-actions/ci-route@v1.4.0
+        with:
+          policy: ${{ vars.CI_MATLAB_RUNNER }}
+          request: ${{ github.event.inputs.runner }}
+
   matlab-tests:
+    needs: [route]
     name: MATLAB suite
-    runs-on: [self-hosted, Windows]
+    runs-on: ${{ fromJSON(needs.route.outputs.runs-on) }}
     steps:
       # PINS MOVED 2026-09-20, because the runner asked. Run 35450953746
       # ended green with:
@@ -66,8 +94,15 @@ jobs:
       #
       # timeout-minutes sits here and not in the action: GitHub's
       # composite-action schema rejects the key on a step.
-      - uses: astrobayer/ci-actions/matlab-probe@v1.2.0
-        timeout-minutes: 2
+      # MATLAB on the routed runner: probed on A8, installed by setup-matlab on a
+      # GitHub-hosted runner (public repositories only), or a red step quoting
+      # the routing refusal. Replaces matlab-probe; same immutable-tag rule.
+      - uses: astrobayer/ci-actions/matlab-setup@v1.4.0
+        timeout-minutes: 15
+        with:
+          runner: ${{ needs.route.outputs.runner }}
+          reason: ${{ needs.route.outputs.reason }}
+          products: ${{ vars.CI_MATLAB_PRODUCTS }}
 
       # The five large PO.DAAC products (ACT1B, GNV1B, SCA1B, KBR1B,
       # LRI1B, ~60 MB) are too large to bundle, so six acceptance points
@@ -102,11 +137,11 @@ jobs:
       # the wrong layout produce the same skipped points further down and
       # are otherwise indistinguishable.
       - name: Report which real-data files the pool provides
-        if: ${{ vars.READING_DATA_POOL != '' }}
+        if: ${{ (needs.route.outputs.runner == 'a8' && vars.READING_DATA_POOL || '') != '' }}
         timeout-minutes: 2
         uses: matlab-actions/run-command@bfa857648f4895aa98a446fe41c85e0788421ed5 # v3
         env:
-          READING_DATA_POOL: ${{ vars.READING_DATA_POOL }}
+          READING_DATA_POOL: ${{ needs.route.outputs.runner == 'a8' && vars.READING_DATA_POOL || '' }}
         with:
           command: |
             pool = string(getenv("READING_DATA_POOL"));
@@ -158,7 +193,7 @@ jobs:
       - name: Run test suites via the CI entry point
         uses: matlab-actions/run-command@bfa857648f4895aa98a446fe41c85e0788421ed5 # v3
         env:
-          READING_DATA_POOL: ${{ vars.READING_DATA_POOL }}
+          READING_DATA_POOL: ${{ needs.route.outputs.runner == 'a8' && vars.READING_DATA_POOL || '' }}
         with:
           command: addpath('ci'); runCI('Exit', true);
 
@@ -175,12 +210,12 @@ jobs:
       # run 35696829972, where the measurement O-7 has waited for was
       # lost to an unrelated test failure.
       - name: Measure readL1b parse time on one real day (G-03)
-        if: ${{ always() && vars.READING_DATA_POOL != '' }}
+        if: ${{ always() && (needs.route.outputs.runner == 'a8' && vars.READING_DATA_POOL || '') != '' }}
         continue-on-error: true
         timeout-minutes: 10
         uses: matlab-actions/run-command@bfa857648f4895aa98a446fe41c85e0788421ed5 # v3
         env:
-          READING_DATA_POOL: ${{ vars.READING_DATA_POOL }}
+          READING_DATA_POOL: ${{ needs.route.outputs.runner == 'a8' && vars.READING_DATA_POOL || '' }}
         with:
           command: setupGraceFOReading; addpath('ci'); benchmarkParse;
 
